@@ -1,0 +1,189 @@
+# 18 决策点声明式定义（DuoMind 清单：PRE9/MID4/POST5）
+# design.md §4.1 关键设计决策 4：框架只认注册表；运行态可被 SDK 编程覆盖
+# 每点：stage(PRE/MID/POST) / question(小脑问题文本=instructions) / tau(置信阈值) /
+#       mode(三态) / fallback_action(安全侧默认，须在 options 内) /
+#       question_type(choice/noul/score) / options(choice 标签或 score 等级，≥2)
+# 与 src/jev/kernel/decisions/builtin.py 同步（test_decisions_builtin.py 保证）
+
+# ===== PRE（请求前，9）=====
+[[point]]
+id = "needs_generation"
+stage = "PRE"
+question = "该请求是否需要生成新文本（而非检索/改写/判断）？"
+tau = 0.60
+mode = "active"
+fallback_action = "generation"
+question_type = "choice"
+options = ["generation", "no_generation"]
+
+[[point]]
+id = "needs_reasoning"
+stage = "PRE"
+question = "该请求是否需要多步推理？"
+tau = 0.60
+mode = "active"
+fallback_action = "reasoning"
+question_type = "choice"
+options = ["reasoning", "no_reasoning"]
+
+[[point]]
+id = "intent"
+stage = "PRE"
+question = "该请求的意图属于哪类：决策类/简单生成/复杂推理？"
+tau = 0.70
+mode = "active"
+fallback_action = "complex"
+question_type = "choice"
+options = ["decision", "simple", "complex"]
+
+[[point]]
+id = "complexity"
+stage = "PRE"
+question = "该请求的复杂程度（低/中/高）？"
+tau = 0.60
+mode = "active"
+fallback_action = "high"
+question_type = "score"
+options = ["low", "medium", "high"]
+
+[[point]]
+id = "ambiguity"
+stage = "PRE"
+question = "该请求是否存在歧义需要澄清？"
+tau = 0.60
+mode = "shadow"
+fallback_action = "no_ambiguity"
+question_type = "choice"
+options = ["ambiguous", "no_ambiguity"]
+
+[[point]]
+id = "safety"
+stage = "PRE"
+question = "该请求是否包含不安全内容？"
+tau = 0.80
+mode = "active"
+fallback_action = "safe"
+question_type = "choice"
+options = ["unsafe", "safe"]
+
+[[point]]
+id = "verbosity"
+stage = "PRE"
+question = "期望回答的详尽程度（简洁/标准/详尽）？"
+tau = 0.50
+mode = "shadow"
+fallback_action = "standard"
+question_type = "choice"
+options = ["concise", "standard", "verbose"]
+
+[[point]]
+id = "format"
+stage = "PRE"
+question = "期望回答的格式（文本/列表/表格/代码）？"
+tau = 0.50
+mode = "shadow"
+fallback_action = "text"
+question_type = "choice"
+options = ["text", "list", "table", "code"]
+
+[[point]]
+id = "needs_tool"
+stage = "PRE"
+question = "该请求是否需要调用外部工具？"
+tau = 0.70
+mode = "shadow"
+fallback_action = "no_tool"
+question_type = "choice"
+options = ["tool", "no_tool"]
+
+# ===== MID（分段生成中，4）=====
+[[point]]
+id = "on_track"
+stage = "MID"
+question = "当前生成内容是否仍然切合原始请求？"
+tau = 0.60
+mode = "active"
+fallback_action = "on_track"
+question_type = "choice"
+options = ["on_track", "off_track"]
+
+[[point]]
+id = "step_complete"
+stage = "MID"
+question = "当前段落是否已完成可进入下一段？"
+tau = 0.60
+mode = "active"
+fallback_action = "complete"
+question_type = "choice"
+options = ["complete", "incomplete"]
+
+[[point]]
+id = "should_stop"
+stage = "MID"
+question = "是否应该现在停止生成？"
+tau = 0.70
+mode = "active"
+fallback_action = "continue"
+question_type = "choice"
+options = ["stop", "continue"]
+
+[[point]]
+id = "confidence_mid"
+stage = "MID"
+question = "当前生成内容的质量置信度（0-1）？"
+tau = 0.50
+mode = "shadow"
+fallback_action = "low"
+question_type = "score"
+options = ["low", "medium", "high"]
+
+# ===== POST（生成后，5）=====
+[[point]]
+id = "answer_complete"
+stage = "POST"
+question = "回答是否完整回答了请求？"
+tau = 0.70
+mode = "active"
+fallback_action = "complete"
+question_type = "choice"
+options = ["complete", "incomplete"]
+
+[[point]]
+id = "matches_request"
+stage = "POST"
+question = "回答是否切合请求（未跑题）？"
+tau = 0.70
+mode = "active"
+fallback_action = "matches"
+question_type = "choice"
+options = ["matches", "off_topic"]
+
+[[point]]
+id = "needs_retry"
+stage = "POST"
+question = "是否需要重新生成？"
+tau = 0.60
+mode = "active"
+fallback_action = "no_retry"
+question_type = "choice"
+options = ["retry", "no_retry"]
+
+[[point]]
+id = "too_verbose"
+stage = "POST"
+question = "回答是否过于冗长？"
+tau = 0.60
+mode = "shadow"
+fallback_action = "not_verbose"
+question_type = "choice"
+options = ["verbose", "not_verbose"]
+
+[[point]]
+id = "correct_format"
+stage = "POST"
+question = "回答格式是否正确符合期望？"
+tau = 0.60
+mode = "active"
+fallback_action = "correct"
+question_type = "choice"
+options = ["correct", "incorrect"]

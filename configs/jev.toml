@@ -1,0 +1,44 @@
+# Jev 运行时配置（单源，DuoMind 同构）
+# design.md §4.1 关键设计决策 5：后端选择/模型路径/端口/级联阈值/熔断参数
+
+[server]
+host = "127.0.0.1"
+port = 8300
+
+[cerebellum]
+default_backend = "laya_onnx"          # laya_onnx（进程内，默认） | kev（子进程 HTTP）
+
+[cerebellum.laya_onnx]
+model_path = "models/laya/laya.onnx"    # jev fetch 落位路径
+calibration_path = "models/laya/calibration.json"
+
+[cerebellum.kev]
+serve_url = "http://127.0.0.1:8311"     # kev.serve 子进程端点
+model_path = "models/kev/kev-0.8B"
+
+[cerebrum]
+llama_server_bin = "models/llama-server/bin/llama-server.exe"
+gguf_path = "models/qwen/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+ctx_size = 4096
+startup_probe = "/health"
+restart_max = 3                          # 崩溃自动重启上限（指数退避 2s/4s/8s）
+
+[cascade]
+generation_timeout_s = 120               # 路径②/③ 生成总时长上限（EX-04：超时截断降级）
+# 口径修订（design §4.5）：τ 单源于 configs/decision-points.toml（逐点声明）；
+# 路径② 分段预算 LIGHT_SEGMENT_TOKENS=128 与 MID 早停为代码单源常量。
+
+[breaker]
+window_s = 60                            # 滑动窗口
+failure_threshold = 3                    # 窗口内失败数阈值
+cooldown_s = 30                          # 初始冷却（指数翻倍，上限 cooldown_max_s）
+cooldown_max_s = 120
+
+[fetch]
+proxy_ntlm = true                       # 企业 NTLM 代理（Windows SSPI 单点登录）；无代理环境置 false
+proxy_url = "http://proxyhk.huawei.com:8080"  # 显式下载代理（覆盖 env；置空串则走标准 env 代理）
+
+[ledger]
+dir = "data/ledger"                      # JSONL 台账目录（gitignored）
+queue_maxsize = 10000
+warn_after_failures = 100

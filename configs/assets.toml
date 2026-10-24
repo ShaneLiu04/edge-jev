@@ -1,0 +1,78 @@
+# 模型资产 manifest（jev fetch 管理；约束 C4：不入仓）
+# sha256 已按 2026-10-23 真实下载回填固化（laya/qwen 本地计算；llama zip 为 GitHub 官方 digest）
+
+# ===== 小脑：Laya ONNX（receptron/laya-onnx bundle，5 文件）=====
+[[asset]]
+name = "laya-onnx"
+kind = "model"
+dest = "models/laya/laya.onnx"
+url = "https://hf-mirror.com/receptron/laya-onnx/resolve/main/laya.onnx"
+mirrors = ["https://huggingface.co/receptron/laya-onnx/resolve/main/laya.onnx"]
+sha256 = "a874eb254b58b0fcb1e7ad56fbb188c29d64e08c9a46b689433e1f52c66dba1e"
+
+[[asset]]
+name = "laya-onnx-data"
+kind = "model"
+dest = "models/laya/laya.onnx.data"
+url = "https://hf-mirror.com/receptron/laya-onnx/resolve/main/laya.onnx.data"
+mirrors = ["https://huggingface.co/receptron/laya-onnx/resolve/main/laya.onnx.data"]
+sha256 = "487746363a8da57bcadb4345352997d22a0fb90d70aa22c6856668d023242aba"
+
+[[asset]]
+name = "laya-config"
+kind = "model"
+dest = "models/laya/laya_config.json"
+url = "https://hf-mirror.com/receptron/laya-onnx/resolve/main/laya_config.json"
+mirrors = ["https://huggingface.co/receptron/laya-onnx/resolve/main/laya_config.json"]
+sha256 = "c4fab3dd16b6ffdb432ae99334c77fca31e1b4beb0b81be76ca45f707709706a"
+
+[[asset]]
+name = "laya-tokenizer"
+kind = "model"
+dest = "models/laya/tokenizer/tokenizer.json"
+url = "https://hf-mirror.com/receptron/laya-onnx/resolve/main/tokenizer/tokenizer.json"
+mirrors = ["https://huggingface.co/receptron/laya-onnx/resolve/main/tokenizer/tokenizer.json"]
+sha256 = "6c8aaa9a542084f2457eab775d4eeb51f92a70c0fd9de28d5edb0ddec3c08d30"
+
+[[asset]]
+name = "laya-tokenizer-config"
+kind = "model"
+dest = "models/laya/tokenizer/tokenizer_config.json"
+url = "https://hf-mirror.com/receptron/laya-onnx/resolve/main/tokenizer/tokenizer_config.json"
+mirrors = ["https://huggingface.co/receptron/laya-onnx/resolve/main/tokenizer/tokenizer_config.json"]
+sha256 = "50044de60daaa73df97d262e15a40d4faf0160e7d742df64b377877a1320dd12"
+
+# ===== 小脑：kev-0.8B（仓库浅克隆；权重由 kev serve 首次运行自行下载）=====
+[[asset]]
+name = "kev-repo"
+kind = "git"
+dest = "models/kev/repo"
+url = "https://github.com/jaredpalmer/kev.git"
+mirrors = []
+sha256 = ""
+
+# ===== 大脑：Qwen2.5-1.5B-Instruct GGUF（Q4_K_M）=====
+[[asset]]
+name = "qwen2.5-1.5b-gguf"
+kind = "model"
+dest = "models/qwen/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+url = "https://hf-mirror.com/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+mirrors = ["https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"]
+sha256 = "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e"
+
+# ===== 大脑引擎：llama.cpp b11829 Windows CUDA 12.4（主程序 + CUDA 运行时）=====
+[[asset]]
+name = "llama-server"
+kind = "archive"
+dest = "models/llama-server/bin"
+url = "https://github.com/ggml-org/llama.cpp/releases/download/b11829/llama-b11829-bin-win-cuda-12.4-x64.zip"
+mirrors = []
+sha256 = "fe65d813d828eb3af2016e0c28ccb14ea12ae7be153e28d1b5044b29b8481def"
+
+[[asset]]
+name = "llama-cudart"
+kind = "archive"
+dest = "models/llama-server/cudart"
+url = "https://github.com/ggml-org/llama.cpp/releases/download/b11829/cudart-llama-bin-win-cuda-12.4-x64.zip"
+mirrors = []
+sha256 = "8c79a9b226de4b3cacfd1f83d24f962d0773be79f1e7b75c6af4ded7e32ae1d6"

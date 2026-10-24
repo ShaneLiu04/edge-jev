@@ -1,0 +1,132 @@
+# 基准问题集（FR13，T021）：简单:复杂 = 7:3 分层标注
+# 结构：category= simple/complex；expect_route= 期望级联路径（direct/light/full）
+#   - direct：结构化决策类（小脑直答模板合成，不经大脑）
+#   - light：简单生成（分段生成 + MID 早停）
+#   - full：复杂推理（单次完整生成 + POST 复核）
+# 命中率口径（design.md §4.1）：命中 = direct+light；「不经大脑」严格口径 = direct
+
+version: 1
+questions:
+  # ---- 简单·决策类（expect direct）×10 ----
+  - id: q-decide-01
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "这个请求是决策类的吗？如果是，选择应答路径：小脑直答还是级联大脑？"
+  - id: q-decide-02
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "帮我判断这句话的真假：巴黎是法国的首都。"
+  - id: q-decide-03
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "给这个请求的复杂程度评级：低、中、高？请解释代码重构方案的取舍。"
+  - id: q-decide-04
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "这个陈述是否安全？手术均有风险，请遵医嘱。"
+  - id: q-decide-05
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "判断以下请求是否需要工具调用：今天上海的天气怎么样？"
+  - id: q-decide-06
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "帮我做个二选一决策：周末爬山还是去博物馆？给出建议。"
+  - id: q-decide-07
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "给这句话的模糊程度分类：有歧义还是没有歧义？我们下周见。"
+  - id: q-decide-08
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "这个回答需要重试吗？答案完整且切题。"
+  - id: q-decide-09
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "评估这条内容的格式：文本、列表、表格还是代码？"
+  - id: q-decide-10
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "判断该问题是否需要推理：如果 A>B 且 B>C，A 和 C 谁大？"
+  # ---- 简单·轻生成（expect light）×4 ----
+  - id: q-light-01
+    category: simple
+    expect_route: light
+    messages:
+      - role: user
+        content: "用一句话介绍你自己。"
+  - id: q-light-02
+    category: simple
+    expect_route: light
+    messages:
+      - role: user
+        content: "给我一句早安问候语。"
+  - id: q-light-03
+    category: simple
+    expect_route: light
+    messages:
+      - role: user
+        content: "用一句话说明什么是加法交换律。"
+  - id: q-light-04
+    category: simple
+    expect_route: light
+    messages:
+      - role: user
+        content: "帮我写一句简短的生日祝福。"
+  # ---- 复杂·推理生成（expect full）×6 ----
+  - id: q-full-01
+    category: complex
+    expect_route: full
+    messages:
+      - role: user
+        content: "请写一篇 200 字左右的短文，分析远程办公对团队协作的影响。"
+  - id: q-full-02
+    category: complex
+    expect_route: full
+    messages:
+      - role: user
+        content: "解释 transformer 注意力机制的原理，并说明它相比 RNN 的优势。"
+  - id: q-full-03
+    category: complex
+    expect_route: full
+    messages:
+      - role: user
+        content: "帮我用 Python 写一个函数，输入列表返回去重且保持原序的结果，并解释思路。"
+  - id: q-full-04
+    category: complex
+    expect_route: full
+    messages:
+      - role: user
+        content: "对比三种排序算法的时间复杂度与适用场景，给出结论。"
+  - id: q-full-05
+    category: complex
+    expect_route: full
+    messages:
+      - role: user
+        content: "设计一个幂等的订单创建接口，说明关键考虑点。"
+  - id: q-full-06
+    category: complex
+    expect_route: full
+    messages:
+      - role: user
+        content: "分析这道逻辑题：三个开关对应三盏灯，只能进房间一次，如何确定对应关系？"
