@@ -1,0 +1,68 @@
+[project]
+name = "jev"
+version = "0.1.0"
+description = "Jev（捷思）— 端侧快慢双系统 AI 运行时：本地类型化决策小脑 + 本地 LLM 大脑"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Jev Team" }]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+    "httpx>=0.27",
+    "onnxruntime>=1.19",
+    "typer>=0.12",
+    "tomli-w>=1.0",
+    "mcp>=1.2",
+    "pydantic>=2.9",
+    "requests>=2.32",
+    "requests-ntlm>=1.2",
+    "tokenizers>=0.23.3",
+    "pyyaml>=6.0",
+    "openai>=1.40,<2",
+]
+
+[project.scripts]
+jev = "jev.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=5.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+    "onnx>=1.23.2",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[[tool.uv.index]]
+url = "http://mirrors.tools.huawei.com/pypi/simple/"
+default = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/jev"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "assets: 需要真实模型资产（jev fetch 后才可运行）",
+    "slow: 长耗时用例（端到端/蒸馏/基准）",
+]
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["src/jev"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.pytest-asyncio]
+mode = "auto"
