@@ -27,6 +27,8 @@ restart_max = 3                          # 崩溃自动重启上限（指数退�
 generation_timeout_s = 120               # 路径②/③ 生成总时长上限（EX-04：超时截断降级）
 capability_gate = true                   # AR002 能力门控路由（false 恢复 AR001 行为）
 light_requires_low_complexity = false    # AR002 实测：真实 laya 复杂度门不稳，默认放宽
+# max_brain_tokens = 6000                # AR002 请求级预算（默认关闭；开启后可降级 light）
+# max_latency_ms = 8000                  # AR002 延迟预算（默认关闭；仅记录不强制中断）
 # 口径修订（design §4.5）：τ 单源于 configs/decision-points.toml（逐点声明）；
 # 路径② 分段预算 LIGHT_SEGMENT_TOKENS=128 与 MID 早停为代码单源常量。
 

@@ -20,6 +20,7 @@ from jev.kernel.cascade.engine import CascadeEngine
 from jev.kernel.cerebellum.laya_onnx import LayaOnnxBackend
 from jev.kernel.cerebrum.llama_server import LlamaServerClient
 from jev.kernel.decisions.builtin import load_builtin_registry
+from jev.kernel.decisions.calibration import Calibration
 from jev.kernel.decisions.framework import DecisionPoint, DecisionRegistry, Stage
 from jev.kernel.ledger.query import LedgerQuery
 from jev.kernel.ledger.writer import LedgerWriter
@@ -625,3 +626,63 @@ class TestGenerationTimeout:
         assert body["choices"][0]["message"]["content"] == "第一段。第二段。"
         assert "jev_degraded" not in body
         brain_server.delay_s = 0.0
+
+# ---------------------------------------------------------------------------
+# 路由遥测与请求级预算（AR002 FR2-1/FR2-2：T004）
+# ---------------------------------------------------------------------------
+
+
+class TestRoutingTelemetry:
+    def test_budget_header_absent_when_disabled(self, cerebellum, brain, brain_server):
+        brain_server.canned = [_completion("轻量回答。", completion_tokens=8)]
+        registry = _light_registry(mid_stop=True)
+        client = TestClient(_app(cerebellum, brain, registry))
+        resp = client.post("/v1/chat/completions", json=_body(max_tokens=64))
+        assert resp.status_code == 200
+        assert resp.headers["x-jev-route"] == "light"
+        assert "x-jev-budget" not in resp.headers
+        assert "x-jev-margin" not in resp.headers
+
+    def test_budget_blocks_full_and_marks_capped(
+        self, cerebellum, brain, brain_server
+    ):
+        """预算不足以覆盖 full 估算 → 降级 light，并回 X-Jev-Budget: capped。"""
+        brain_server.canned = [_completion("预算内回答。", completion_tokens=8)]
+        registry = _full_registry(post_retry=False)
+        client = TestClient(_app(cerebellum, brain, registry, max_brain_tokens=1))
+        resp = client.post("/v1/chat/completions", json=_body(max_tokens=64))
+        assert resp.status_code == 200
+        assert resp.headers["x-jev-route"] == "light"
+        assert resp.headers["x-jev-budget"] == "capped"
+        # 预算内完成 token 上限被约束（至少 1，保证有进展）
+        assert brain_server.requests[0]["body"]["max_tokens"] == 1
+
+    def test_budget_ample_keeps_full_and_marks_ok(
+        self, cerebellum, brain, brain_server
+    ):
+        brain_server.canned = [_completion("完整回答。", completion_tokens=8)]
+        registry = _full_registry(post_retry=False)
+        client = TestClient(
+            _app(cerebellum, brain, registry, max_brain_tokens=100000)
+        )
+        resp = client.post("/v1/chat/completions", json=_body(max_tokens=64))
+        assert resp.status_code == 200
+        assert resp.headers["x-jev-route"] == "full"
+        assert resp.headers["x-jev-budget"] == "ok"
+
+    def test_margin_header_present_when_calibrated(
+        self, cerebellum, brain, brain_server
+    ):
+        brain_server.canned = [_completion("校准回答。", completion_tokens=8)]
+        registry = _light_registry(mid_stop=True)
+        client = TestClient(
+            _app(
+                cerebellum,
+                brain,
+                registry,
+                calibration=Calibration(margin_tau=0.18, accepted=True),
+            )
+        )
+        resp = client.post("/v1/chat/completions", json=_body(max_tokens=64))
+        assert resp.status_code == 200
+        assert resp.headers["x-jev-margin"] == "0.180"

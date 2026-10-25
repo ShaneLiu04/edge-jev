@@ -33,6 +33,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.responses import Response
 
 from jev.errors import JevProtocolError, JevUnavailableError
+from jev.kernel.cascade.budget import BudgetContext
 from jev.kernel.cascade.engine import CascadeEngine, MidAction, PostVerdict, Route
 from jev.kernel.cerebellum.base import (
     Answer,
@@ -271,6 +272,8 @@ class _CascadeContext:
         stop: list[str] | None,
         generation_timeout_s: float | None = None,
         calibration: Calibration | None = None,
+        max_brain_tokens: int | None = None,
+        max_latency_ms: float | None = None,
     ) -> None:
         self.cerebellum = cerebellum
         self.brain = brain
@@ -285,6 +288,9 @@ class _CascadeContext:
         self.max_tokens = max_tokens
         self.stop = stop
         self.calibration = calibration
+        self.max_brain_tokens = max_brain_tokens
+        self.max_latency_ms = max_latency_ms
+        self.budget_capped = False
         self.decision_count = 0
         # EX-04：路径②/③ 生成总时长上限（None 表示不限时）
         self.deadline = (
@@ -331,11 +337,42 @@ class _CascadeContext:
         )
         return json.dumps(messages, ensure_ascii=False, separators=(",", ":"))
 
+    @property
+    def margin_tau(self) -> float:
+        return self.calibration.margin_tau if self.calibration is not None else 0.0
+
+    def budget(self) -> BudgetContext | None:
+        """请求级预算：state token 以 4 字符≈1 token 粗估（保守且确定性）。"""
+        if self.max_brain_tokens is None and self.max_latency_ms is None:
+            return None
+        return BudgetContext(
+            max_brain_tokens=self.max_brain_tokens,
+            max_latency_ms=self.max_latency_ms,
+            state_tokens=max(1, len(self.state_json()) // 4),
+            completion_tokens=self.max_tokens,
+        )
+
+    def effective_max_tokens(self) -> int:
+        """预算约束下的完成 token 上限（至少 1，保证有进展）。"""
+        budget = self.budget()
+        if budget is None or budget.max_brain_tokens is None:
+            return self.max_tokens
+        return max(1, min(self.max_tokens, budget.effective_max_tokens(self.max_tokens) or 1))
+
     def route_of(self, pre: list[Decision]) -> str:
         if self.route_policy is not None:
             return self.route_policy(pre)
-        margin_tau = self.calibration.margin_tau if self.calibration is not None else 0.0
-        return self.engine.route_chat(pre, margin_tau=margin_tau).wire
+        budget = self.budget()
+        route = self.engine.route_chat(
+            pre, margin_tau=self.margin_tau, budget=budget
+        ).wire
+        self.budget_capped = (
+            budget is not None
+            and budget.max_brain_tokens is not None
+            and not budget.allows_full()
+            and route != Route.FULL.wire
+        )
+        return route
 
     def log_route(self, route: str, pre: list[Decision]) -> None:
         if self.ledger is None:
@@ -413,6 +450,8 @@ def create_chat_router(
     ledger: LedgerWriter | None = None,
     generation_timeout_s: float | None = None,
     calibration: Calibration | None = None,
+    max_brain_tokens: int | None = None,
+    max_latency_ms: float | None = None,
 ) -> APIRouter:
     """构建 /v1/chat/completions 路由。
 
@@ -466,6 +505,8 @@ def create_chat_router(
                 uuid.uuid4().hex, messages, temperature, max_tokens, stop,
                 generation_timeout_s=generation_timeout_s,
                 calibration=calibration,
+                max_brain_tokens=max_brain_tokens,
+                max_latency_ms=max_latency_ms,
             )
             if stream:
                 return _stream_response(context)
@@ -590,7 +631,7 @@ def _handle_chat_cascade(context: _CascadeContext) -> JSONResponse:
 def _generate_full(context: _CascadeContext) -> tuple[str, dict[str, int]]:
     response = context.brain.chat(
         context.messages,
-        max_tokens=context.max_tokens,
+        max_tokens=context.effective_max_tokens(),
         temperature=context.temperature,
         stop=context.stop,
     )
@@ -606,7 +647,7 @@ def _generate_light(
     """
     segments: list[str] = []
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-    remaining = context.max_tokens
+    remaining = context.effective_max_tokens()
     timed_out = False
     while remaining > 0:
         if context.timed_out():
@@ -681,7 +722,7 @@ def _post_review(
     retry_messages = context.messages + [{"role": "user", "content": RETRY_FEEDBACK}]
     response = context.brain.chat(
         retry_messages,
-        max_tokens=context.max_tokens,
+        max_tokens=context.effective_max_tokens(),
         temperature=context.temperature,
         stop=context.stop,
     )
@@ -696,6 +737,19 @@ def _post_review(
             "POST 重试后仍未通过复核，降级交付（request_id=%s）", context.request_id
         )
     return second_verdict, degraded, retried_content, usage
+
+
+def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
+    """路由响应头；margin/预算仅在启用时出现（AR002 接口契约）。"""
+    headers = {
+        "X-Jev-Route": route,
+        "X-Jev-Decisions": str(context.decision_count),
+    }
+    if context.route_policy is None and context.margin_tau > 0:
+        headers["X-Jev-Margin"] = f"{context.margin_tau:.3f}"
+    if context.max_brain_tokens is not None or context.max_latency_ms is not None:
+        headers["X-Jev-Budget"] = "capped" if context.budget_capped else "ok"
+    return headers
 
 
 def _json_response(
@@ -725,10 +779,7 @@ def _json_response(
     return JSONResponse(
         status_code=200,
         content=body,
-        headers={
-            "X-Jev-Route": route,
-            "X-Jev-Decisions": str(context.decision_count),
-        },
+        headers=_route_headers(context, route),
     )
 
 
@@ -746,11 +797,8 @@ def _stream_response(context: _CascadeContext) -> StreamingResponse | JSONRespon
             503, "大脑后端未配置", type_="server_error", code="brain_unavailable",
             include_param=False, retry_after=_RETRY_AFTER_S,
         )
-    headers = {
-        "X-Jev-Route": route,
-        # 头部在流开始前固化，故流式决策数=PRE 批（MID/POST 见台账）
-        "X-Jev-Decisions": str(context.decision_count),
-    }
+    # 头部在流开始前固化，故流式决策数=PRE 批（MID/POST 见台账）
+    headers = _route_headers(context, route)
     return StreamingResponse(
         _stream_generate(context, route, pre),
         media_type="text/event-stream",
@@ -777,7 +825,7 @@ def _stream_generate(
     try:
         for chunk in context.brain.chat_stream(
             context.messages,
-            max_tokens=context.max_tokens,
+            max_tokens=context.effective_max_tokens(),
             temperature=context.temperature,
             stop=context.stop,
         ):

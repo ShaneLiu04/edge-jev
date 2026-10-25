@@ -46,6 +46,8 @@ class Kernel(CerebellumBackend):
         generation_timeout_s: float = 120.0,
         calibration: Calibration | None = None,
         policy: RoutePolicy | None = None,
+        max_brain_tokens: int | None = None,
+        max_latency_ms: float | None = None,
     ) -> None:
         self._cerebellum = cerebellum
         self._registry = registry
@@ -56,6 +58,8 @@ class Kernel(CerebellumBackend):
         self._fallback = fallback_cerebellum
         self._generation_timeout_s = float(generation_timeout_s)
         self._calibration = calibration if calibration is not None else Calibration()
+        self._max_brain_tokens = max_brain_tokens
+        self._max_latency_ms = max_latency_ms
 
     # ------------------------------------------------------------------
     # 组合根：configs/jev.toml 单源装配
@@ -122,6 +126,8 @@ class Kernel(CerebellumBackend):
                 cascade_cfg.get("light_requires_low_complexity", False)
             ),
         )
+        max_brain_tokens = cascade_cfg.get("max_brain_tokens")
+        max_latency_ms = cascade_cfg.get("max_latency_ms")
         return cls(
             cerebellum=backend,
             registry=registry,
@@ -132,6 +138,12 @@ class Kernel(CerebellumBackend):
             generation_timeout_s=float(cascade_cfg.get("generation_timeout_s", 120.0)),
             calibration=calibration,
             policy=policy,
+            max_brain_tokens=(
+                int(max_brain_tokens) if max_brain_tokens is not None else None
+            ),
+            max_latency_ms=(
+                float(max_latency_ms) if max_latency_ms is not None else None
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -165,6 +177,16 @@ class Kernel(CerebellumBackend):
     @property
     def fallback_cerebellum(self) -> CerebellumBackend | None:
         return self._fallback
+
+    @property
+    def max_brain_tokens(self) -> int | None:
+        """请求级 brain token 预算（[cascade] max_brain_tokens；None 不限）。"""
+        return self._max_brain_tokens
+
+    @property
+    def max_latency_ms(self) -> float | None:
+        """请求级延迟预算（[cascade] max_latency_ms；None 不限）。"""
+        return self._max_latency_ms
 
     @property
     def generation_timeout_s(self) -> float:
