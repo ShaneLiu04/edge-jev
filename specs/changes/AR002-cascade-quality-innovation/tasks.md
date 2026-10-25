@@ -17,18 +17,20 @@
 | T004 | 级联路由增强：Top-2 margin 升级 + 请求级代价预算 | T002 | passing | FR2-1/FR2-2；默认关闭预算、margin 可配 |
 | T005 | PRE 草稿注入：结构化结论压缩为 system 前缀 + token 计量 | T004 | passing | FR2-3；路径②③ |
 | T006 | 慢响应可靠性：HTTP 超时与级联 deadline 统一预算 + 真实慢对端测试 | - | passing | FR2-4；修复 ST 观察项 |
-| T007 | 学习式 shadow 路由：台账特征抽取 + numpy 逻辑回归 + shadow 报告 | T002 | pending | FR2-5；仅记录不切换 |
-| T008 | 蒸馏数据深化：难例优先采样 + 对比样本配对与报告 | - | pending | FR3-1/FR3-2 |
-| T009 | 飞轮闭环 CLI：`jev distill --flywheel`（采集→数据集→校准→复测→门→发布/拒绝） | T002,T008 | pending | FR3-3；退出码反映门 |
-| T010 | bench 多基线：brain_direct / cerebellum_only / cascade + 统一指标 | T003 | pending | FR4-1 |
+| T007 | 学习式 shadow 路由：台账特征抽取 + numpy 逻辑回归 + shadow 报告 | T002 | migrated | FR2-5；仅记录不切换 |
+| T008 | 蒸馏数据深化：难例优先采样 + 对比样本配对与报告 | - | migrated | FR3-1/FR3-2 |
+| T009 | 飞轮闭环 CLI：`jev distill --flywheel`（采集→数据集→校准→复测→门→发布/拒绝） | T002,T008 | migrated | FR3-3；退出码反映门 |
+| T010 | bench 多基线：brain_direct / cerebellum_only / cascade + 统一指标 | T003 | migrated | FR4-1 |
 | T011 | 统计显著性与环境指纹：成对 bootstrap CI + 版本/哈希指纹 | T010 | passing | FR4-2 |
-| T012 | 报告升级：JSON+Markdown 对比汇总表 + 失败样本清单 | T010,T011 | pending | FR4-3 |
-| T013 | README 重写：定位/架构/创新点/快速开始/实验矩阵/指标口径 | - | pending | FR5-1 |
-| T014 | REPRODUCTION.md + 实验矩阵配置（0.8B/4B/9B、ablation、种子） | T012 | pending | FR5-1/FR5-2 |
-| T015 | 一键脚本：run_experiment.(sh/ps1) + CI 质量门脚本升级 | T014 | pending | FR5-2/FR5-4 |
-| T016 | 推送方法论与最小包工具入库（脱敏）+ AGENTS.md 推送约束条目 | - | pending | FR5-3；C5 |
-| T017 | 大模型实验：kev 0.8B CPU 小规模蒸馏/LoRA 验证 + 4B/9B 服务器配置与脚本 | T009,T014 | pending | 本机仅小规模；4B/9B 交付配置 |
-| T018 | 回归与门验收：全量单测/覆盖率/真实资产 bench（含命中率门） | T001-T017 | pending | NFR 门；ST 阶段复测 |
+| T012 | 报告升级：JSON+Markdown 对比汇总表 + 失败样本清单 | T010,T011 | migrated | FR4-3 |
+| T013 | README 重写：定位/架构/创新点/快速开始/实验矩阵/指标口径 | - | migrated | FR5-1 |
+| T014 | REPRODUCTION.md + 实验矩阵配置（0.8B/4B/9B、ablation、种子） | T012 | migrated | FR5-1/FR5-2 |
+| T015 | 一键脚本：run_experiment.(sh/ps1) + CI 质量门脚本升级 | T014 | migrated | FR5-2/FR5-4 |
+| T016 | 推送方法论与最小包工具入库（脱敏）+ AGENTS.md 推送约束条目 | - | migrated | FR5-3；C5 |
+| T017 | 大模型实验：kev 0.8B CPU 小规模蒸馏/LoRA 验证 + 4B/9B 服务器配置与脚本 | T009,T014 | migrated | 本机仅小规模；4B/9B 交付配置 |
+| T018 | 回归与门验收：全量单测/覆盖率/真实资产 bench（含命中率门） | T001-T017 | migrated | NFR 门；ST 阶段复测 |
+
+> **2026-10-25 迁移说明**：T007 → AR004 T010（学习式 shadow 路由：台账特征 + 真实训练产物 + shadow 报告）；T008/T009/T014/T015/T016/T017 → AR004（飞轮与大模型实验矩阵）；T010/T012/T018 → AR004（多基线/报告/门验收）。本 AR 保留 T001–T006、T011 为已交付能力。
 
 ## 状态说明
 
