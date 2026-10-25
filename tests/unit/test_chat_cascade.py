@@ -567,7 +567,7 @@ class TestGenerationTimeout:
         brain_server.delay_s = 0.3  # 真实服务端延迟：第一段后即超时
         registry = _light_registry(mid_stop=False)
         client = TestClient(
-            _app(cerebellum, brain, registry, generation_timeout_s=0.15)
+            _app(cerebellum, brain, registry, generation_timeout_s=0.4)
         )
         resp = client.post("/v1/chat/completions", json=_body(max_tokens=512))
         assert resp.status_code == 200
@@ -576,7 +576,9 @@ class TestGenerationTimeout:
         assert body["choices"][0]["message"]["content"] == "第一段。"
         assert body["jev_degraded"] is True
         assert resp.headers["x-jev-route"] == "light"
-        assert len(brain_server.requests) == 1  # 超时后不再请求后续段
+        # 第二段已发起（真实网络调用），在剩余 deadline 内被截断 → 只保留首段
+        assert len(brain_server.requests) == 2
+        assert "第二段。" not in body["choices"][0]["message"]["content"]
         brain_server.delay_s = 0.0
 
     def test_full_timeout_delivers_empty_degraded(self, cerebellum, brain_server):
@@ -598,6 +600,30 @@ class TestGenerationTimeout:
         assert body["choices"][0]["message"]["content"] == ""
         assert body["jev_degraded"] is True
         assert resp.headers["x-jev-route"] == "full"
+        brain_server.delay_s = 0.0
+
+    def test_brain_timeout_derived_from_deadline_without_client_tuning(
+        self, cerebellum, brain, brain_server
+    ):
+        """FR2-4：客户端默认 120s 超时不再与 0.15s 级联截止竞态。
+
+        旧行为下大脑 0.5s 后返回内容（超截止仍当成功）；现由剩余 deadline
+        推导单次 HTTP 超时 → 0.15s 内截断并降级交付。
+        """
+        brain_server.canned = [_completion("迟到的回答", completion_tokens=8)]
+        brain_server.delay_s = 0.5
+        registry = _full_registry(post_retry=False)
+        client = TestClient(
+            _app(cerebellum, brain, registry, generation_timeout_s=0.15)
+        )
+        started = time.monotonic()
+        resp = client.post("/v1/chat/completions", json=_body(max_tokens=64))
+        elapsed = time.monotonic() - started
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["choices"][0]["message"]["content"] == ""
+        assert body["jev_degraded"] is True
+        assert elapsed < 0.45  # 远早于大脑 0.5s 延迟
         brain_server.delay_s = 0.0
 
     def test_fast_failure_within_budget_is_503_not_degraded(self, cerebellum):

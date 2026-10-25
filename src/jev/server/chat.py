@@ -303,6 +303,12 @@ class _CascadeContext:
         """生成时限是否已到（无时限恒 False）。"""
         return self.deadline is not None and time.monotonic() >= self.deadline
 
+    def remaining_s(self) -> float | None:
+        """距级联 deadline 的剩余秒数（AR002 FR2-4：作为 HTTP 超时覆盖值）。"""
+        if self.deadline is None:
+            return None
+        return max(0.001, self.deadline - time.monotonic())
+
     # ------------------------------------------------------------------
     # 决策评估与台账
     # ------------------------------------------------------------------
@@ -634,6 +640,7 @@ def _generate_full(context: _CascadeContext) -> tuple[str, dict[str, int]]:
         max_tokens=context.effective_max_tokens(),
         temperature=context.temperature,
         stop=context.stop,
+        timeout_s=context.remaining_s(),
     )
     return _content_of(response), _usage_of(response)
 
@@ -665,6 +672,7 @@ def _generate_light(
                 max_tokens=min(LIGHT_SEGMENT_TOKENS, remaining),
                 temperature=context.temperature,
                 stop=context.stop,
+                timeout_s=context.remaining_s(),
             )
         except (JevUnavailableError, JevProtocolError) as exc:
             if context.timed_out():
@@ -725,6 +733,7 @@ def _post_review(
         max_tokens=context.effective_max_tokens(),
         temperature=context.temperature,
         stop=context.stop,
+        timeout_s=context.remaining_s(),
     )
     _accumulate(usage, _usage_of(response))
     retried_content = _content_of(response)
@@ -828,6 +837,7 @@ def _stream_generate(
             max_tokens=context.effective_max_tokens(),
             temperature=context.temperature,
             stop=context.stop,
+            timeout_s=context.remaining_s(),
         ):
             choices = chunk.get("choices") if isinstance(chunk, dict) else None
             delta = (

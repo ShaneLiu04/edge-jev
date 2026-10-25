@@ -357,6 +357,7 @@ tools/push_min_pack.py        # 【新】最小包直推
 | 预算估算 | `tokens ≈ ceil(state_tokens * 1.1) + max_tokens` | 保守估计；实际以 usage 回填校准 |
 | 逻辑回归 | `σ(w·x + b)`，L2=1e-2，全批量 GD 400 轮，标准化特征 | 纯 numpy，可复现（固定初始化 0） |
 | 历史压缩 | 保留最近 `keep_turns=2` 轮原文；更早轮次→决策摘要（≤120 字/轮） | 多轮场景 token 降幅门 |
+| 单次 HTTP 超时 | `timeout_s = max(0.001, deadline - now)`；无 deadline 用客户端默认 | FR2-4：消除 120s 客户端超时与级联 deadline 竞态（每个分段/重试独立推导） |
 
 ### 4.5.1 路由口径修订（真实资产实测驱动，T001/T002 落地）
 

@@ -16,7 +16,7 @@
 | T003 | 双语分层基准集 v2：中英各半 + 分层标签 + 校验（含 order 扰动集） | - | pending | FR1-2/FR4；修正 srs A4 口径错配 |
 | T004 | 级联路由增强：Top-2 margin 升级 + 请求级代价预算 | T002 | passing | FR2-1/FR2-2；默认关闭预算、margin 可配 |
 | T005 | PRE 草稿注入：结构化结论压缩为 system 前缀 + token 计量 | T004 | pending | FR2-3；路径②③ |
-| T006 | 慢响应可靠性：HTTP 超时与级联 deadline 统一预算 + 真实慢对端测试 | - | pending | FR2-4；修复 ST 观察项 |
+| T006 | 慢响应可靠性：HTTP 超时与级联 deadline 统一预算 + 真实慢对端测试 | - | passing | FR2-4；修复 ST 观察项 |
 | T007 | 学习式 shadow 路由：台账特征抽取 + numpy 逻辑回归 + shadow 报告 | T002 | pending | FR2-5；仅记录不切换 |
 | T008 | 蒸馏数据深化：难例优先采样 + 对比样本配对与报告 | - | pending | FR3-1/FR3-2 |
 | T009 | 飞轮闭环 CLI：`jev distill --flywheel`（采集→数据集→校准→复测→门→发布/拒绝） | T002,T008 | pending | FR3-3；退出码反映门 |
@@ -50,7 +50,9 @@
 - 测试：全量单测 427 passed；`ruff check .` 零告警；新增 UT 覆盖异构探针融合、能力门控/关闭回退、unsafe 阻断 direct
 '- 追加 T004（同日）：margin/预算接线到 chat 全链路（非流式+流式）——`X-Jev-Margin`/`X-Jev-Budget` 仅在启用时出现；预算不足降级 light 并回 `capped`，完成 token 受 `effective_max_tokens` 约束；Kernel 暴露 `[cascade] max_brain_tokens/max_latency_ms`（默认关闭）
 - 测试：431 passed；ruff 零告警
-- 下一步：T003（双语基准 v2）、T006（HTTP 超时与级联 deadline 统一）'
+'- 追加 T006（同日）：大脑客户端支持单次 `timeout_s` 覆盖，chat 侧按剩余 deadline 推导（分段/重试各自推导）；消除 120s 客户端超时与级联截止竞态——旧行为「大脑 0.5s 迟到仍当成功」，现 0.15s 内截断降级；light 次段超时保留首段
+- 测试：432 passed；ruff 零告警
+- 下一步：T003（双语基准 v2）、T005（PRE 草稿注入）''
 
 ### 2026-10-24 需求阶段会话记录（Gitee 初版交付 + AR002 立项）
 

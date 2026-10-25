@@ -274,8 +274,13 @@ class LlamaServerClient:
         max_tokens: int = 512,
         temperature: float = 0.7,
         stop: list[str] | None = None,
+        timeout_s: float | None = None,
     ) -> dict[str, Any]:
-        """POST /v1/chat/completions，返回含 choices[0].message.content 与 usage 的 dict。"""
+        """POST /v1/chat/completions，返回含 choices[0].message.content 与 usage 的 dict。
+
+        timeout_s 为单次调用超时覆盖（AR002 FR2-4：由级联剩余 deadline 推导，
+        避免客户端固定超时与服务端 deadline 竞态）。
+        """
         payload: dict[str, Any] = {
             "model": "local",
             "messages": messages,
@@ -284,9 +289,12 @@ class LlamaServerClient:
         }
         if stop is not None:
             payload["stop"] = stop
+        request_kwargs: dict[str, Any] = {"json": payload}
+        if timeout_s is not None:
+            request_kwargs["timeout"] = max(0.001, timeout_s)
         try:
             response = self._client.post(
-                f"{self._base_url}/v1/chat/completions", json=payload
+                f"{self._base_url}/v1/chat/completions", **request_kwargs
             )
         except httpx.HTTPError as exc:
             raise JevUnavailableError(f"大脑服务不可达（{self._base_url}）: {exc}") from exc
@@ -323,10 +331,12 @@ class LlamaServerClient:
         max_tokens: int = 512,
         temperature: float = 0.7,
         stop: list[str] | None = None,
+        timeout_s: float | None = None,
     ) -> Iterator[dict[str, Any]]:
         """POST /v1/chat/completions（stream=true）→ 逐 chunk 产出 OpenAI 流式 dict。
 
         消费方中途停止迭代即关闭上游连接（MID 早停断流口径）。
+        timeout_s 语义同 chat（AR002 FR2-4）。
         """
         payload: dict[str, Any] = {
             "model": "local",
@@ -337,9 +347,12 @@ class LlamaServerClient:
         }
         if stop is not None:
             payload["stop"] = stop
+        stream_kwargs: dict[str, Any] = {"json": payload}
+        if timeout_s is not None:
+            stream_kwargs["timeout"] = max(0.001, timeout_s)
         try:
             with self._client.stream(
-                "POST", f"{self._base_url}/v1/chat/completions", json=payload
+                "POST", f"{self._base_url}/v1/chat/completions", **stream_kwargs
             ) as response:
                 if not 200 <= response.status_code < 300:
                     body = response.read().decode("utf-8", "replace")
