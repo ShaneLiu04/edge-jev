@@ -358,6 +358,8 @@ tools/push_min_pack.py        # 【新】最小包直推
 | 逻辑回归 | `σ(w·x + b)`，L2=1e-2，全批量 GD 400 轮，标准化特征 | 纯 numpy，可复现（固定初始化 0） |
 | 历史压缩 | 保留最近 `keep_turns=2` 轮原文；更早轮次→决策摘要（≤120 字/轮） | 多轮场景 token 降幅门 |
 | 单次 HTTP 超时 | `timeout_s = max(0.001, deadline - now)`；无 deadline 用客户端默认 | FR2-4：消除 120s 客户端超时与级联 deadline 竞态（每个分段/重试独立推导） |
+| 成对 bootstrap CI | 差值重采样 2000 次，固定种子 `20261025`，取 2.5%/97.5% 分位 | FR4-2：可复现；`paired_deltas` 仅统计双端可复核样本 |
+| 环境指纹 | python/onnxruntime/httpx/numpy/yaml 版本 + platform/machine + 资产 SHA-256 | FR4-2：报告可追溯；哈希流式计算不占内存 |
 
 ### 4.5.1 路由口径修订（真实资产实测驱动，T001/T002 落地）
 

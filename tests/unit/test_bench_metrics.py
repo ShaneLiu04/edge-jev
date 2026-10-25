@@ -1,11 +1,18 @@
 """T021：基准指标计算（UT-09，FR13）。纯逻辑无后端。"""
 
+import hashlib
 import math
+
+import pytest
 
 from jev.bench.metrics import (
     bs05_gates,
     cost_summary,
+    environment_fingerprint,
+    file_sha256,
     latency_summary,
+    order_flip_rate,
+    paired_bootstrap_ci,
     percentile,
     precision_delta_pt,
     route_summary,
@@ -109,3 +116,72 @@ class TestBs05Gates:
         gates = bs05_gates(["direct"] * 10, [50.0] * 10, [600.0] * 10)
         assert gates["brain_path_p50_ms"] == 600.0
         assert gates["latency_pass"] is True
+
+class TestOrderFlipRate:
+    """AR002 FR1-2：单顺序 vs 置换融合的 applied 稳定性。"""
+
+    def test_no_flip_when_identical(self):
+        result = order_flip_rate(["low", "high"], ["low", "high"])
+        assert result == {"n": 2, "flips": 0, "rate": 0.0}
+
+    def test_counts_changes_and_ignores_none(self):
+        result = order_flip_rate(["low", None, "high"], ["high", "low", "high"])
+        assert result["n"] == 2
+        assert result["flips"] == 1
+        assert result["rate"] == 0.5
+
+    def test_empty_pairs(self):
+        assert order_flip_rate([], []) == {"n": 0, "flips": 0, "rate": None}
+
+
+class TestPairedBootstrapCI:
+    """AR002 FR4-2：成对 bootstrap 置信区间。"""
+
+    def test_ci_brackets_mean_and_reproducible(self):
+        deltas = [0.1, 0.2, -0.05, 0.3, 0.15, 0.0, 0.25]
+        first = paired_bootstrap_ci(deltas, resamples=400, seed=7)
+        second = paired_bootstrap_ci(deltas, resamples=400, seed=7)
+        assert first == second  # 固定种子可复现
+        assert first["n"] == 7
+        assert first["low"] <= first["mean"] <= first["high"]
+        assert first["low"] <= sum(deltas) / len(deltas) <= first["high"]
+
+    def test_constant_deltas_collapse_to_single_value(self):
+        result = paired_bootstrap_ci([0.2] * 10, resamples=100, seed=3)
+        assert result["low"] == result["high"] == result["mean"] == 0.2
+
+    def test_positive_effect_ci_excludes_zero(self):
+        result = paired_bootstrap_ci([0.4, 0.5, 0.45, 0.6, 0.55], resamples=300, seed=11)
+        assert result["low"] > 0
+
+    def test_empty_and_invalid(self):
+        empty = paired_bootstrap_ci([])
+        assert empty["n"] == 0 and empty["low"] is None
+        with pytest.raises(ValueError):
+            paired_bootstrap_ci([0.1], resamples=0)
+        with pytest.raises(ValueError):
+            paired_bootstrap_ci([0.1], confidence=1.5)
+
+
+class TestEnvironmentFingerprint:
+    def test_contains_runtime_fields(self):
+        fingerprint = environment_fingerprint()
+        assert fingerprint["python"]
+        assert set(fingerprint["versions"]) == {"onnxruntime", "httpx", "numpy", "yaml"}
+        assert fingerprint["platform"]
+        assert fingerprint["machine"]
+
+    def test_extra_and_model_hashes_are_sorted(self):
+        fingerprint = environment_fingerprint(
+            extra={"bench_set": "40q"},
+            model_hashes={"models/b.onnx": "abc", "models/a.onnx": "def"},
+        )
+        assert fingerprint["extra"] == {"bench_set": "40q"}
+        assert list(fingerprint["model_hashes"]) == ["a.onnx", "b.onnx"]
+
+    def test_file_sha256_matches_hashlib(self, tmp_path):
+        target = tmp_path / "asset.bin"
+        target.write_bytes(b"jev-asset" * 1000)
+        expected = hashlib.sha256(b"jev-asset" * 1000).hexdigest()
+        assert file_sha256(target) == expected
+        assert file_sha256(target, chunk_size=7) == expected

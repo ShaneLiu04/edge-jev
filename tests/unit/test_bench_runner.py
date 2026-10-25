@@ -179,6 +179,16 @@ class TestRunBench:
             "brain_path_p50_ms", "latency_pass", "pass",
         }
         assert result.gates["hit_rate_pass"] is True
+        # AR002 T011：成对 bootstrap CI + 环境指纹
+        assert result.significance["usable_pairs"] == 4
+        ci = result.significance["precision_delta_pt"]
+        assert ci["n"] == 4 and ci["low"] is not None
+        assert result.fingerprint["python"]
+        report = result.to_dict()
+        assert report["significance"]["precision_delta_pt"]["resamples"] > 0
+        assert set(report["fingerprint"]["versions"]) == {
+            "onnxruntime", "httpx", "numpy", "yaml"
+        }
 
     def test_quick_mode_skips_baseline(self, cerebellum):
         result = run_bench(
@@ -192,6 +202,8 @@ class TestRunBench:
         assert all(r.baseline_accepted is None for r in result.results)
         assert result.latency["baseline_brain"]["n"] == 0
         assert result.gates["brain_path_p50_ms"] is None
+        assert result.significance["usable_pairs"] == 0
+        assert result.significance["precision_delta_pt"]["low"] is None
 
 
 class TestReports:

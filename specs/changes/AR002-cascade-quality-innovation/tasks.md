@@ -21,7 +21,7 @@
 | T008 | 蒸馏数据深化：难例优先采样 + 对比样本配对与报告 | - | pending | FR3-1/FR3-2 |
 | T009 | 飞轮闭环 CLI：`jev distill --flywheel`（采集→数据集→校准→复测→门→发布/拒绝） | T002,T008 | pending | FR3-3；退出码反映门 |
 | T010 | bench 多基线：brain_direct / cerebellum_only / cascade + 统一指标 | T003 | pending | FR4-1 |
-| T011 | 统计显著性与环境指纹：成对 bootstrap CI + 版本/哈希指纹 | T010 | pending | FR4-2 |
+| T011 | 统计显著性与环境指纹：成对 bootstrap CI + 版本/哈希指纹 | T010 | passing | FR4-2 |
 | T012 | 报告升级：JSON+Markdown 对比汇总表 + 失败样本清单 | T010,T011 | pending | FR4-3 |
 | T013 | README 重写：定位/架构/创新点/快速开始/实验矩阵/指标口径 | - | pending | FR5-1 |
 | T014 | REPRODUCTION.md + 实验矩阵配置（0.8B/4B/9B、ablation、种子） | T012 | pending | FR5-1/FR5-2 |
@@ -56,7 +56,10 @@
 - 测试：440 passed；ruff 零告警；集成用例口径同步（40 题/light 8/full 12）
 '- 追加 T005（同日）：新增 `kernel/cascade/draft.py`（确定性 token 粗估 4 字符/token；轮次切分压缩超期历史 ≤120 字/轮；PRE 结论→`系统预判：…` system 前缀）；chat full 路径接入，默认关闭；另按 FR2-4 细化 `JevTimeoutError`（按异常类型而非时钟判定截断降级，消除 deadline 边界抖动误判 503）
 - 测试：460 passed；ruff 零告警
-- 下一步：T007（shadow 学习路由）、T011（bootstrap CI + order_flip_rate）、真实大脑 bench 精度门实测''''
+'- 追加 T011（同日，指标部分）：`paired_deltas`/`paired_bootstrap_ci`（2000 次重采样，固定种子，2.5%/97.5% 分位）、`environment_fingerprint`（依赖版本+平台+资产 SHA-256 流式）、`order_flip_rate`；bench 报告新增 `significance`/`fingerprint` 字段
+- 测试：470 passed；ruff 零告警
+- 真实资产 40 题（仅小脑）实测：命中率 80.0%（zh 75%/en 85%，门 ≥60% ✓）、精确 45%、误降级 7（均为 full→light，需真实大脑 POST 复核确认精度门）
+- 下一步：T007（shadow 学习路由）、T010/T012（多基线+报告升级）、真实大脑 bench 精度门实测'''''
 
 ### 2026-10-24 需求阶段会话记录（Gitee 初版交付 + AR002 立项）
 

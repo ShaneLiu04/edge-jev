@@ -19,7 +19,10 @@ from fastapi.testclient import TestClient
 from jev.bench.metrics import (
     bs05_gates,
     cost_summary,
+    environment_fingerprint,
     latency_summary,
+    paired_bootstrap_ci,
+    paired_deltas,
     precision_delta_pt,
     route_summary,
 )
@@ -75,6 +78,8 @@ class BenchResult:
     precision: dict
     cost: dict
     gates: dict
+    significance: dict = dataclasses.field(default_factory=dict)
+    fingerprint: dict = dataclasses.field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -87,6 +92,8 @@ class BenchResult:
             "precision": self.precision,
             "cost": self.cost,
             "gates": self.gates,
+            "significance": self.significance,
+            "fingerprint": self.fingerprint,
         }
 
 
@@ -275,6 +282,24 @@ def run_bench(
     )
     from jev.bench.metrics import acceptance_rate
 
+    precision_pairs = paired_deltas(
+        [r.cascade_accepted for r in results],
+        [r.baseline_accepted for r in results],
+    )
+    significance = {
+        "precision_delta_pt": paired_bootstrap_ci(
+            [delta * 100.0 for delta in precision_pairs]
+        ),
+        "usable_pairs": len(precision_pairs),
+    }
+    fingerprint = environment_fingerprint(
+        extra={
+            "questions": len(questions),
+            "baseline_enabled": bool(include_baseline and brain is not None),
+            "generation_timeout": None,
+        }
+    )
+
     return BenchResult(
         results=tuple(results),
         decision_overhead=overhead,
@@ -299,6 +324,8 @@ def run_bench(
         },
         cost=cost_summary(cascade_tokens, baseline_tokens_list, routes),
         gates=bs05_gates(routes, latencies, baseline_latencies),
+        significance=significance,
+        fingerprint=fingerprint,
     )
 
 
