@@ -29,7 +29,7 @@ AR002 已把「多探针判定 + 能力门控路由」从 0% 命中率提升到�
 ## 2. 需求范围
 
 **In Scope：**
-- `kernel/cascade/`：不确定性量化、验证策略、三带路由、预算共享
+- `kernel/runtime/`（新）：不确定性量化、自证、三带、验证器；`kernel/cascade/`：路由 v2、前缀指纹、预算共享
 - `kernel/cerebrum/`：embedding 客户端、验证客户端、槽/前缀复用请求参数
 - `kernel/cache/`（新）：语义缓存与长程记忆
 - `kernel/prefill/`（新）：块分割、显著性、预算选择
@@ -114,7 +114,7 @@ w_c=0.40, w_m=0.25, w_p=0.20, w_x=0.15   # Σw = 1；除 self_agree 外，缺省
 #### FR2-1 前缀指纹与 cache_prompt
 **描述：** 对「system 前缀 + 历史消息」计算稳定指纹，请求中启用 `cache_prompt`，并统计服务端缓存命中。
 
-**期望行为：** 指纹 = sha256(规范化 system + 历史 roles/contents)；相同指纹的连续请求只计一次前缀计算；台账记 `prefix_fingerprint`、`prefix_reused`、`prompt_tokens`、`ttft_ms`。**复用证据优先取 llama-server `/slots` 的 `n_past`/cache 指标或服务端日志；仅在不可得时退化为 TTFT+prompt_tokens 代理，并在台账标注 `evidence=proxy`。**
+**期望行为：** 指纹 = sha256(规范化 system + 历史 roles/contents)；相同指纹的连续请求只计一次前缀计算；台账记 `prefix_fingerprint`、`prefix_reused`、`prompt_tokens`、`ttft_ms`。**复用证据优先取服务端真实指标：响应 `timings.prompt_n`（首选）或 `/slots` 的 `n_past`（补充）；仅在都不可得时退化为 TTFT+prompt_tokens 代理，并在台账标注 `evidence=proxy`。**
 **异常处理：** 服务端不支持 `cache_prompt` → 请求忽略该字段，功能降级为「仅观测」。
 **验收标准：**
 - Given 相同前缀请求重复 ≥5 次，When 取 P50，Then 第 2–5 次 TTFT P50 比冷启动 P50 降 ≥30%（真实计时；证据非 proxy 或已标注）。
@@ -230,7 +230,7 @@ w_c=0.40, w_m=0.25, w_p=0.20, w_x=0.15   # Σw = 1；除 self_agree 外，缺省
   "uncertainty": {"u": 0.0, "band": "confident", "self_agree": 1.0, "probe_agreement": 1.0},
   "self_verify": {"consistency": 1.0, "cross_point": 1.0, "mode": "observe"},
   "verifier": {"called": false, "verdict": null, "tokens": 0, "reason": null, "skipped_reason": null, "unavailable": false},
-  "prefix": {"fingerprint": "sha256:...", "reused": true, "evidence": "slots|proxy"},
+  "prefix": {"fingerprint": "<64hex>", "reused": true, "evidence": "timings|slots|proxy", "ttft_ms": 0.0, "prompt_tokens": 0, "prompt_n": 0},
   "prefill": {"selected": 0, "total": 0, "before_tokens": 0, "after_tokens": 0, "skipped": null},
   "cache": {"layer": "none|exact|semantic", "similarity": null},
   "memory": {"summary_tokens": 0}

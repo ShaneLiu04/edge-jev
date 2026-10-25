@@ -16,8 +16,11 @@ Jev（捷思）是端侧快慢双系统 AI 运行时：进程内 `Kernel` 为组
 | `kernel` | 组合根：构建并持有小脑池/决策点注册表/级联引擎/熔断器/台账 | `kernel.py` |
 | `kernel/cerebellum` | 小脑后端抽象与实现（Laya ONNX 进程内默认；kev HTTP 子进程） | `base.py` `laya_onnx.py` `kev_http.py` `registry.py` |
 | `kernel/cerebrum` | 大脑管理：llama-server 子进程生命周期 + HTTP client | `llama_server.py` `client.py` |
-| `kernel/decisions` | DecisionPoint 注册表（18 内置点）、三态（active/shadow/off）、fallback 规则 | `framework.py` `builtin.py` `fallback.py` |
-| `kernel/cascade` | 三路径级联引擎 + 熔断状态机 | `engine.py` `breaker.py` |
+| `kernel/decisions` | DecisionPoint 注册表（18 内置点）、三态（active/shadow/off）、fallback 规则；多探针/置换/融合 | `framework.py` `builtin.py` `fallback.py` `probes.py` `evaluate.py` `calibration.py` |
+| `kernel/runtime` | 运行时智能（AR003）：不确定性/自证/三带/验证器/prompt 编排 | `uncertainty.py` `selfcheck.py` `bands.py` `verifier.py` `prompt.py` |
+| `kernel/cache` | 语义缓存（精确+近似）与长程记忆 | `semantic.py` `memory.py` |
+| `kernel/prefill` | 稀疏 prefill 规划：块分割/显著性/预算选择 | `blocks.py` `salience.py` `planner.py` |
+| `kernel/cascade` | 三路径级联引擎 + 路由 v2 + 前缀指纹 + 熔断状态机 + 预算/草稿 | `engine.py` `breaker.py` `prefix.py` `budget.py` `draft.py` |
 | `kernel/ledger` | 决策台账：JSONL 队列写线程 + 查询 | `writer.py` `query.py` |
 | `server` | FastAPI：`/v1/systemone`（TypeSafe 严格）+ `/v1/chat/completions`（OpenAI 兼容）+ `/health` | `app.py` `systemone.py` `chat.py` `schemas.py` |
 | `sdk` | `JevClient`（httpx 双模）+ 类型化结果 + 决策点编程注册 | `client.py` `results.py` `programming.py` |
@@ -41,7 +44,11 @@ Jev（捷思）是端侧快慢双系统 AI 运行时：进程内 `Kernel` 为组
 
 ### 3.2 POST /v1/chat/completions（OpenAI 兼容）
 
-请求/响应遵循 OpenAI Chat 规范；扩展响应头 `X-Jev-Route`（direct/light/full）、`X-Jev-Decisions`。
+请求/响应遵循 OpenAI Chat 规范；扩展响应头（只增不改）：
+- 基线：`X-Jev-Route`（direct/light/full）、`X-Jev-Decisions`
+- AR002：`X-Jev-Margin`（校准 margin 启用时）、`X-Jev-Budget`（预算启用时，`ok|capped`）
+- AR003：`X-Jev-Verified`（`accept|reject|skipped|off`）、`X-Jev-Cache`（`hit-exact|hit-semantic|miss`）、`X-Jev-U`（0–1）、`X-Jev-Prefill`（`selected/total|skipped:<reason>`）
+
 错误码：`400`（messages 非法，OpenAI 规范错误体）；`429`（并发超限，仅 chat）；`503`（熔断/重启/过载 + Retry-After，过载统一口径）。
 
 ## 4. 级联三路径语义（关键澄清）
@@ -66,6 +73,7 @@ class CerebrumBackend(ABC):
 
 class CascadeEngine:
     def route_chat(self, pre: DecisionBatch) -> Route
+    def route_chat_v2(self, pre, *, uncertainty=None, policy=BandPolicy(), margin_tau=0.0, budget=None) -> RouteDecision  # AR003
     def handle_mid(self, seg: Segment) -> MidAction
     def handle_post(self, ans, post: DecisionBatch) -> PostVerdict
 
@@ -80,6 +88,7 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 | --- | --- |
 | `JevError` | 基类 |
 | `JevUnavailableError` | 后端不可达/超时 |
+| `JevTimeoutError` | 大脑调用超时（AR002；按类型判定截断降级） |
 | `JevProtocolError` | 响应不符合线协议 |
 | `JevAssetError` | 资产缺失/校验失败 |
 | `BrainStartupError` | llama-server 启动失败（携带诊断） |
@@ -95,7 +104,9 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 | 大脑生成超时 | 120s |
 | 大脑重启上限 | 3 次（退避 2s/4s/8s）→ 大脑侧熔断 Fused |
 | 蒸馏最小样本 | 500 |
-| 台账 | JSONL，队列写线程，主路径 put_nowait |
+| 台账 | JSONL，队列写线程，主路径 put_nowait；AR003 新增 `runtime` 结构化列（7 键 schema） |
+| 运行时（AR003，默认关闭） | 验证器 `verifier_enabled=false`；三带 τ 0.35/0.65；缓存 similarity 0.93、TTL 1800s、容量 256；预填 budget_ratio 0.6；embedding 独立实例端口 8389 |
+| 槽复用 | `[cerebrum] parallel=1`、`slot_prompt_similarity=0.5`（llama-server `--parallel`/`--slot-prompt-similarity`） |
 
 ## 8. 18 决策点
 
@@ -105,3 +116,13 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 - **POST（5）**：answer_complete / matches_request / needs_retry / too_verbose / correct_format
 
 每点字段：stage / question / tau / mode（active·shadow·off）/ fallback_action。
+
+
+## 9 AR003 运行时智能（增量契约）
+
+- **路由 v2**：`CascadeEngine.route_chat_v2(pre, uncertainty=None, policy=BandPolicy(), margin_tau, budget) -> RouteDecision`；`route_chat` 委托 v2（`uncertainty=None`）保持 AR002 逐例语义。
+- **不确定性/自证**：纯函数 `estimate_uncertainty(decisions, fused)`、`self_agreement(fused)`；`FusedPoint.agreement` 为纯增字段。
+- **验证器**：仅依赖 `ChatFn` 协议（`LlamaServerClient` 满足）；解析失败/超时一律 REJECT，不重试。
+- **缓存/记忆**：仅依赖 `EmbeddingProvider` 协议；embedding 服务不可用 → 缓存 disabled（绝不伪造向量）。
+- **预填**：确定性块显著性，首末块必选；块数 <4 或 prompt <512 不压缩。
+- **依赖方向**：`server → kernel.runtime/cache/prefill/cascade/cerebrum`，新模块禁止反向 import server。
