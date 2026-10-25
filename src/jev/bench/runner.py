@@ -35,12 +35,14 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass(frozen=True)
 class BenchQuestion:
-    """基准问题：分层标注（category）+ 期望路由（expect_route）。"""
+    """基准问题：分层标注（category）+ 期望路径（expect_route）+ 语种/轮数（v2）。"""
 
     id: str
     category: str
     expect_route: str
     messages: tuple[dict, ...]
+    lang: str = "zh"
+    turns: int = 1
 
 
 @dataclasses.dataclass(frozen=True)
@@ -89,7 +91,7 @@ class BenchResult:
 
 
 def load_bench_set(path: Path | str) -> list[BenchQuestion]:
-    """加载基准问题集（YAML，简单:复杂分层标注）。"""
+    """加载基准问题集（YAML，v1 兼容/v2 双语）。"""
     file = Path(path)
     if not file.is_file():
         raise JevError(f"基准问题集不存在: {file}")
@@ -100,29 +102,66 @@ def load_bench_set(path: Path | str) -> list[BenchQuestion]:
     questions_raw = payload.get("questions") if isinstance(payload, dict) else None
     if not isinstance(questions_raw, list) or not questions_raw:
         raise JevError(f"基准问题集为空（{file}）")
+    version = payload.get("version", 1)
+    if version not in (1, 2):
+        raise JevError(f"基准问题集版本不支持（{file}）: {version!r}")
 
     questions: list[BenchQuestion] = []
     for index, item in enumerate(questions_raw):
         if not isinstance(item, dict):
-            raise JevError(f"基准问题 #{index} 非对象: {item!r}")
+            raise JevError(f"基准问题 #{index} 不是对象: {item!r}")
         messages = item.get("messages")
         expect = item.get("expect_route")
         category = item.get("category")
+        # v1 无 lang 标注（中文集）；v2 必须显式标注
+        lang = item.get("lang", "zh" if version == 1 else None)
+        turns = item.get("turns", 1)
         if not isinstance(messages, list) or not messages:
-            raise JevError(f"基准问题 #{index} 缺 messages")
+            raise JevError(f"基准问题 #{index} 缺少 messages")
         if expect not in ("direct", "light", "full"):
             raise JevError(f"基准问题 #{index} expect_route 非法: {expect!r}")
         if category not in ("simple", "complex"):
             raise JevError(f"基准问题 #{index} category 非法: {category!r}")
+        if lang not in ("zh", "en"):
+            raise JevError(f"基准问题 #{index} lang 非法: {lang!r}")
+        if isinstance(turns, bool) or not isinstance(turns, int) or turns < 1:
+            raise JevError(f"基准问题 #{index} turns 非法: {turns!r}")
         questions.append(
             BenchQuestion(
                 id=str(item.get("id", f"q-{index}")),
                 category=category,
                 expect_route=expect,
                 messages=tuple(messages),
+                lang=lang,
+                turns=turns,
             )
         )
     return questions
+
+
+def validate_bench_set(
+    questions: list[BenchQuestion],
+    *,
+    require_bilingual: bool = True,
+    min_lang_share: float = 0.4,
+) -> dict[str, int]:
+    """校验问题集：id 唯一 + 双语占比阈值；返回语种计数（供报告指纹）。"""
+    ids = [question.id for question in questions]
+    duplicated = sorted({qid for qid in ids if ids.count(qid) > 1})
+    if duplicated:
+        raise JevError(f"基准问题集 id 重复: {duplicated}")
+    counts: dict[str, int] = {}
+    for question in questions:
+        counts[question.lang] = counts.get(question.lang, 0) + 1
+    if require_bilingual:
+        total = len(questions)
+        for lang in ("zh", "en"):
+            if counts.get(lang, 0) / total < min_lang_share:
+                raise JevError(
+                    f"基准问题集双语失衡: {lang}={counts.get(lang, 0)}/{total} "
+                    f"< {min_lang_share:.0%}"
+                )
+    return counts
 
 
 def run_bench(

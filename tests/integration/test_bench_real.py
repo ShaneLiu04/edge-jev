@@ -20,7 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 class TestBenchRealAssets:
     def test_full_bench_set_meets_bs05_gates(self, real_kernel, brain_client, tmp_path):
         questions = load_bench_set(REPO_ROOT / "configs" / "bench-set.yaml")
-        assert len(questions) == 20
+        assert len(questions) == 40
 
         result = run_bench(
             cerebellum=real_kernel,
@@ -38,7 +38,7 @@ class TestBenchRealAssets:
 
         # 路由分布覆盖基准集预期形态：direct 为主、三路径齐全
         counts = result.routes["counts"]
-        assert counts["direct"] + counts["light"] + counts["full"] == 20
+        assert counts["direct"] + counts["light"] + counts["full"] == 40
         assert counts["direct"] > 0
 
         # 精度保持：双侧复核均有值（POST 决策点真实前向）
@@ -117,7 +117,7 @@ class TestLedgerAggregationRealAssets:
             q for q in load_bench_set(REPO_ROOT / "configs" / "bench-set.yaml")
             if q.expect_route == "light"
         ]
-        assert len(light_questions) == 4
+        assert len(light_questions) == 8
         routed: list[tuple[str, str]] = []
         for question in light_questions:
             resp = client.post(

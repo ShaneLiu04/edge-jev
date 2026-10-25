@@ -13,7 +13,7 @@
 |----|---------|------|------|------|
 | T001 | 探针引擎：DecisionPoint 多探针声明 + 批内并行 + 置换（permutations）生成与归并 | - | passing | FR1-1/FR1-2；复用单前向多问；配置向后兼容 |
 | T002 | 探针融合与路由校准：加权融合、per-point 温度/τ/margin 拟合与扫描落盘 | T001 | passing | FR1-1/FR1-3；复用 distill calibrate |
-| T003 | 双语分层基准集 v2：中英各半 + 分层标签 + 校验（含 order 扰动集） | - | pending | FR1-2/FR4；修正 srs A4 口径错配 |
+| T003 | 双语分层基准集 v2：中英各半 + 分层标签 + 校验（含 order 扰动集） | - | passing | FR1-2/FR4；修正 srs A4 口径错配 |
 | T004 | 级联路由增强：Top-2 margin 升级 + 请求级代价预算 | T002 | passing | FR2-1/FR2-2；默认关闭预算、margin 可配 |
 | T005 | PRE 草稿注入：结构化结论压缩为 system 前缀 + token 计量 | T004 | pending | FR2-3；路径②③ |
 | T006 | 慢响应可靠性：HTTP 超时与级联 deadline 统一预算 + 真实慢对端测试 | - | passing | FR2-4；修复 ST 观察项 |
@@ -52,7 +52,9 @@
 - 测试：431 passed；ruff 零告警
 '- 追加 T006（同日）：大脑客户端支持单次 `timeout_s` 覆盖，chat 侧按剩余 deadline 推导（分段/重试各自推导）；消除 120s 客户端超时与级联截止竞态——旧行为「大脑 0.5s 迟到仍当成功」，现 0.15s 内截断降级；light 次段超时保留首段
 - 测试：432 passed；ruff 零告警
-- 下一步：T003（双语基准 v2）、T005（PRE 草稿注入）''
+'- 追加 T003（同日）：`configs/bench-set.yaml` v2（40 题：中英各 20；每条标注 `lang`，多轮题标注 `turns`；三路径 × 两语种全覆盖 7:3 分层）；加载器 v1 兼容（缺 lang 默认 zh）+ `validate_bench_set`（id 唯一/双语占比 ≥40%）
+- 测试：440 passed；ruff 零告警；集成用例口径同步（40 题/light 8/full 12）
+- 下一步：T005（PRE 草稿注入）、T007（shadow 学习路由）'''
 
 ### 2026-10-24 需求阶段会话记录（Gitee 初版交付 + AR002 立项）
 

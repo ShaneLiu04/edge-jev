@@ -59,7 +59,7 @@ class TestDistillBenchLoop:
         # 1) 构造升级轨迹：复杂题（期望 full）经真实级联 + POST 复核入台账
         client = _chat_app(real_kernel, brain_client, ledger)
         full_questions = _questions_by_expect("full")
-        assert len(full_questions) == 6
+        assert len(full_questions) == 12
         for question in full_questions:
             resp = client.post(
                 "/v1/chat/completions",

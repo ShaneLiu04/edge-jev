@@ -1,132 +1,308 @@
-# 基准问题集（FR13，T021）：简单:复杂 = 7:3 分层标注
+# 基准问题集 v2（FR1-2/FR4，AR002 T003）：双语分层标注
 # 结构：category= simple/complex；expect_route= 期望级联路径（direct/light/full）
 #   - direct：结构化决策类（小脑直答模板合成，不经大脑）
 #   - light：简单生成（分段生成 + MID 早停）
 #   - full：复杂推理（单次完整生成 + POST 复核）
+# v2 新增：lang= zh/en（中英各半）、turns= 对话轮数（默认 1，多轮显式标注）
 # 命中率口径（design.md §4.1）：命中 = direct+light；「不经大脑」严格口径 = direct
+# 顺序不变性（order_flip_rate）以本集 choice 点覆盖集为扰动来源（AR002 FR1-2）
 
-version: 1
+version: 2
 questions:
-  # ---- 简单·决策类（expect direct）×10 ----
+  # ==== 中文·简单·决策类（expect direct）×10 ====
   - id: q-decide-01
+    lang: zh
     category: simple
     expect_route: direct
     messages:
       - role: user
         content: "这个请求是决策类的吗？如果是，选择应答路径：小脑直答还是级联大脑？"
   - id: q-decide-02
+    lang: zh
     category: simple
     expect_route: direct
     messages:
       - role: user
         content: "帮我判断这句话的真假：巴黎是法国的首都。"
   - id: q-decide-03
+    lang: zh
     category: simple
     expect_route: direct
     messages:
       - role: user
         content: "给这个请求的复杂程度评级：低、中、高？请解释代码重构方案的取舍。"
   - id: q-decide-04
+    lang: zh
     category: simple
     expect_route: direct
     messages:
       - role: user
         content: "这个陈述是否安全？手术均有风险，请遵医嘱。"
   - id: q-decide-05
+    lang: zh
     category: simple
     expect_route: direct
     messages:
       - role: user
         content: "判断以下请求是否需要工具调用：今天上海的天气怎么样？"
   - id: q-decide-06
+    lang: zh
     category: simple
     expect_route: direct
     messages:
       - role: user
         content: "帮我做个二选一决策：周末爬山还是去博物馆？给出建议。"
   - id: q-decide-07
+    lang: zh
     category: simple
     expect_route: direct
     messages:
       - role: user
         content: "给这句话的模糊程度分类：有歧义还是没有歧义？我们下周见。"
   - id: q-decide-08
+    lang: zh
     category: simple
     expect_route: direct
     messages:
       - role: user
         content: "这个回答需要重试吗？答案完整且切题。"
   - id: q-decide-09
+    lang: zh
     category: simple
     expect_route: direct
     messages:
       - role: user
         content: "评估这条内容的格式：文本、列表、表格还是代码？"
   - id: q-decide-10
+    lang: zh
     category: simple
     expect_route: direct
     messages:
       - role: user
         content: "判断该问题是否需要推理：如果 A>B 且 B>C，A 和 C 谁大？"
-  # ---- 简单·轻生成（expect light）×4 ----
+  # ---- 中文·简单·轻生成（expect light）×4 ----
   - id: q-light-01
+    lang: zh
     category: simple
     expect_route: light
     messages:
       - role: user
         content: "用一句话介绍你自己。"
   - id: q-light-02
+    lang: zh
     category: simple
     expect_route: light
     messages:
       - role: user
         content: "给我一句早安问候语。"
   - id: q-light-03
+    lang: zh
     category: simple
     expect_route: light
     messages:
       - role: user
         content: "用一句话说明什么是加法交换律。"
   - id: q-light-04
+    lang: zh
     category: simple
     expect_route: light
     messages:
       - role: user
         content: "帮我写一句简短的生日祝福。"
-  # ---- 复杂·推理生成（expect full）×6 ----
+  # ---- 中文·复杂·推理生成（expect full）×6 ----
   - id: q-full-01
+    lang: zh
     category: complex
     expect_route: full
     messages:
       - role: user
         content: "请写一篇 200 字左右的短文，分析远程办公对团队协作的影响。"
   - id: q-full-02
+    lang: zh
     category: complex
     expect_route: full
     messages:
       - role: user
         content: "解释 transformer 注意力机制的原理，并说明它相比 RNN 的优势。"
   - id: q-full-03
+    lang: zh
     category: complex
     expect_route: full
     messages:
       - role: user
         content: "帮我用 Python 写一个函数，输入列表返回去重且保持原序的结果，并解释思路。"
   - id: q-full-04
+    lang: zh
     category: complex
     expect_route: full
     messages:
       - role: user
         content: "对比三种排序算法的时间复杂度与适用场景，给出结论。"
   - id: q-full-05
+    lang: zh
     category: complex
     expect_route: full
     messages:
       - role: user
         content: "设计一个幂等的订单创建接口，说明关键考虑点。"
   - id: q-full-06
+    lang: zh
     category: complex
     expect_route: full
     messages:
       - role: user
         content: "分析这道逻辑题：三个开关对应三盏灯，只能进房间一次，如何确定对应关系？"
+
+  # ==== English · simple · decision (expect direct) ×10 ====
+  - id: en-decide-01
+    lang: en
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "Is this request a decision-type one? If so, choose the answering path: cerebellum direct or cascaded brain?"
+  - id: en-decide-02
+    lang: en
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "Judge whether this sentence is true: Paris is the capital of France."
+  - id: en-decide-03
+    lang: en
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "Rate the complexity of this request: low, medium or high? Explain the trade-offs of a code refactor plan."
+  - id: en-decide-04
+    lang: en
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "Is this statement safe? All surgery carries risk; please follow medical advice."
+  - id: en-decide-05
+    lang: en
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "Decide whether this request needs a tool call: what is the weather in Shanghai today?"
+  - id: en-decide-06
+    lang: en
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "Help me make a binary choice: hiking this weekend or visiting a museum? Give a recommendation."
+  - id: en-decide-07
+    lang: en
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "Classify the ambiguity of this sentence: ambiguous or unambiguous? See you next week."
+  - id: en-decide-08
+    lang: en
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "Does this answer need a retry? It is complete and on topic."
+  - id: en-decide-09
+    lang: en
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "Evaluate the format of this content: text, list, table or code?"
+  - id: en-decide-10
+    lang: en
+    category: simple
+    expect_route: direct
+    messages:
+      - role: user
+        content: "Decide whether this question needs reasoning: if A>B and B>C, who is larger, A or C?"
+  # ---- English · simple · light generation (expect light) ×4 ----
+  - id: en-light-01
+    lang: en
+    category: simple
+    expect_route: light
+    messages:
+      - role: user
+        content: "Introduce yourself in one sentence."
+  - id: en-light-02
+    lang: en
+    category: simple
+    expect_route: light
+    messages:
+      - role: user
+        content: "Give me a short good-morning greeting."
+  - id: en-light-03
+    lang: en
+    category: simple
+    expect_route: light
+    messages:
+      - role: user
+        content: "Explain the commutative law of addition in one sentence."
+  - id: en-light-04
+    lang: en
+    category: simple
+    expect_route: light
+    messages:
+      - role: user
+        content: "Write a short birthday wish for me."
+  # ---- English · complex · reasoning (expect full) ×6 ----
+  - id: en-full-01
+    lang: en
+    category: complex
+    expect_route: full
+    messages:
+      - role: user
+        content: "Write a 200-word essay analyzing how remote work affects team collaboration."
+  - id: en-full-02
+    lang: en
+    category: complex
+    expect_route: full
+    messages:
+      - role: user
+        content: "Explain the mechanism of transformer attention and why it beats RNNs."
+  - id: en-full-03
+    lang: en
+    category: complex
+    expect_route: full
+    messages:
+      - role: user
+        content: "Write a Python function that deduplicates a list while preserving order, and explain your approach."
+  - id: en-full-04
+    lang: en
+    category: complex
+    expect_route: full
+    messages:
+      - role: user
+        content: "Compare the time complexity and use cases of three sorting algorithms, then conclude."
+  - id: en-full-05
+    lang: en
+    category: complex
+    expect_route: full
+    turns: 2
+    messages:
+      - role: user
+        content: "We are designing an order API. What should we consider for idempotency?"
+      - role: assistant
+        content: "Use an idempotency key and deduplicate writes."
+      - role: user
+        content: "Good. Now design the full endpoint and list the key points."
+  - id: en-full-06
+    lang: en
+    category: complex
+    expect_route: full
+    turns: 2
+    messages:
+      - role: user
+        content: "There are three switches and three lamps. Can you solve it?"
+      - role: assistant
+        content: "You may enter the room only once."
+      - role: user
+        content: "Analyze the logic puzzle and determine the mapping strategy."

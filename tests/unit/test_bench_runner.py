@@ -15,7 +15,7 @@ import pytest
 from typer.testing import CliRunner
 
 from jev.bench.report import render_markdown, write_reports
-from jev.bench.runner import BenchQuestion, load_bench_set, run_bench
+from jev.bench.runner import BenchQuestion, load_bench_set, run_bench, validate_bench_set
 from jev.cli.main import app as cli_app
 from jev.errors import JevError
 from jev.kernel.cerebellum.laya_onnx import LayaOnnxBackend
@@ -235,12 +235,69 @@ class TestReports:
 class TestLoadBenchSet:
     def test_loads_real_repo_bench_set_with_stratification(self):
         questions = load_bench_set(REPO_ROOT / "configs" / "bench-set.yaml")
-        assert len(questions) == 20
+        assert len(questions) == 40
         simple = [q for q in questions if q.category == "simple"]
         complex_ = [q for q in questions if q.category == "complex"]
-        assert len(simple) == 14 and len(complex_) == 6  # 7:3 分层
+        assert len(simple) == 28 and len(complex_) == 12  # 7:3 分层
         assert {q.expect_route for q in questions} <= {"direct", "light", "full"}
         assert all(q.messages for q in questions)
+
+    def test_v2_is_bilingual_with_balanced_languages(self):
+        questions = load_bench_set(REPO_ROOT / "configs" / "bench-set.yaml")
+        counts = validate_bench_set(questions)
+        assert counts == {"zh": 20, "en": 20}
+
+    def test_v2_each_language_covers_all_routes(self):
+        questions = load_bench_set(REPO_ROOT / "configs" / "bench-set.yaml")
+        for lang in ("zh", "en"):
+            routes = {q.expect_route for q in questions if q.lang == lang}
+            assert routes == {"direct", "light", "full"}
+
+    def test_v2_multi_turn_questions_are_labeled(self):
+        questions = load_bench_set(REPO_ROOT / "configs" / "bench-set.yaml")
+        multi = [q for q in questions if q.turns > 1]
+        assert multi and all(len(q.messages) >= 3 for q in multi)
+
+    def test_validate_rejects_duplicate_ids(self):
+        questions = load_bench_set(REPO_ROOT / "configs" / "bench-set.yaml")
+        with pytest.raises(JevError, match="id 重复"):
+            validate_bench_set([questions[0], questions[0]], require_bilingual=False)
+
+    def test_validate_rejects_language_imbalance(self):
+        questions = load_bench_set(REPO_ROOT / "configs" / "bench-set.yaml")
+        zh_only = [q for q in questions if q.lang == "zh"]
+        with pytest.raises(JevError, match="双语失衡"):
+            validate_bench_set(zh_only)
+
+    def test_v2_requires_lang_label(self, tmp_path):
+        bad = tmp_path / "v2-no-lang.yaml"
+        bad.write_text(
+            "version: 2\nquestions:\n  - id: q\n    category: simple\n"
+            "    expect_route: direct\n    messages: [{role: user, content: hi}]\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(JevError, match="lang 非法"):
+            load_bench_set(bad)
+
+    def test_v1_without_lang_defaults_to_chinese(self, tmp_path):
+        legacy = tmp_path / "v1.yaml"
+        legacy.write_text(
+            "version: 1\nquestions:\n  - id: q\n    category: simple\n"
+            "    expect_route: direct\n    messages: [{role: user, content: hi}]\n",
+            encoding="utf-8",
+        )
+        loaded = load_bench_set(legacy)
+        assert loaded[0].lang == "zh" and loaded[0].turns == 1
+
+    def test_rejects_unknown_version(self, tmp_path):
+        bad = tmp_path / "v9.yaml"
+        bad.write_text(
+            "version: 9\nquestions:\n  - id: q\n    category: simple\n"
+            "    expect_route: direct\n    messages: [{role: user}]\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(JevError, match="版本不支持"):
+            load_bench_set(bad)
 
     def test_rejects_missing_and_malformed(self, tmp_path):
         with pytest.raises(JevError, match="不存在"):
