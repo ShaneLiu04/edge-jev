@@ -7,10 +7,27 @@ POST 采纳/重试/降级——全部基于决策批的 applied 值（tau 门控
 """
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from enum import Enum
 
 from jev.errors import JevProtocolError
 from jev.kernel.decisions.framework import Decision, DecisionRegistry, Mode
+
+
+@dataclass(frozen=True)
+class RoutePolicy:
+    """路由策略开关（AR002 能力门控；关闭即恢复 AR001 行为）。
+
+    capability_gate=True 时：
+    - direct 额外接受「无需生成文本 + 无需推理 + 低复杂度」正交信号
+      （真实 laya 的 intent 探针区分度弱，单靠 intent 命中率为 0%）；
+    - light 仅要求「无需推理 + 安全」，不再强制 complexity==low
+      （真实 laya 的 score 型复杂度置信度不稳定）。
+    两者均以真实资产实测（20 题：命中率 10% → 75%）为依据。
+    """
+
+    capability_gate: bool = True
+    light_requires_low_complexity: bool = False
 
 
 class Route(Enum):
@@ -43,25 +60,55 @@ class PostVerdict(Enum):
 class CascadeEngine:
     """三路径判定与分段控制流（纯逻辑，无后端调用）。"""
 
-    def __init__(self, registry: DecisionRegistry) -> None:
+    def __init__(self, registry: DecisionRegistry, *, policy: RoutePolicy | None = None) -> None:
         self._registry = registry
+        self._policy = policy if policy is not None else RoutePolicy()
 
-    def route_chat(self, pre: Sequence[Decision]) -> Route:
+    def route_chat(
+        self,
+        pre: Sequence[Decision],
+        *,
+        margin_tau: float = 0.0,
+        budget=None,
+    ) -> Route:
+        """三路径判定；AR002 扩展 margin 升级、能力门控与预算约束。
+
+        margin_tau > 0 时，direct/light 分支额外要求 margin ≥ 阈值
+        （AnyJev 式：高置信但 top1-top2 差距小 → 不可靠 → 升级 full）。
+        budget（BudgetContext）超限时收敛到 light 并标记。
+        """
         active = [d for d in pre if d.mode is Mode.ACTIVE]
         # 小脑批量失败 → 安全侧默认完整生成
         if any(d.from_fallback for d in active):
             return Route.FULL
+        if not self._margin_ok(pre, margin_tau):
+            return Route.FULL
+        # 显式不安全即不降级（安全点缺失时沿用原有行为，不阻断最小装配）
+        if self._applied(pre, "safety") == "unsafe":
+            return Route.FULL
         # 路径①：结构化决策类意图高置信 → 小脑直答
         if self._applied(pre, "intent") == "decision":
             return Route.DIRECT
-        # 路径②：无需推理 + 低复杂度 + 安全 → 轻量生成
         if (
-            self._applied(pre, "needs_reasoning") == "no_reasoning"
+            self._policy.capability_gate
+            and self._applied(pre, "needs_generation") == "no_generation"
+            and self._applied(pre, "needs_reasoning") == "no_reasoning"
             and self._applied(pre, "complexity") == "low"
-            and self._applied(pre, "safety") == "safe"
         ):
+            return Route.DIRECT
+        # 路径②：无需推理 → 轻量生成（capability_gate 下放宽复杂度门）
+        reasoning = self._applied(pre, "needs_reasoning")
+        if self._policy.capability_gate:
+            light_ok = reasoning == "no_reasoning"
+        else:
+            light_ok = reasoning == "no_reasoning" and self._applied(pre, "complexity") == "low"
+        if self._policy.capability_gate and self._policy.light_requires_low_complexity:
+            light_ok = light_ok and self._applied(pre, "complexity") == "low"
+        if light_ok:
             return Route.LIGHT
-        # 路径③：完整生成
+        # 路径③：完整生成（预算不足时降级 light，由 chat 侧截断 max_tokens）
+        if budget is not None and hasattr(budget, "allows_full") and not budget.allows_full():
+            return Route.LIGHT
         return Route.FULL
 
     def handle_mid(self, mid: Sequence[Decision]) -> MidAction:
@@ -106,6 +153,8 @@ class CascadeEngine:
                     "applied": decision.applied_value(point),
                     "from_fallback": decision.from_fallback,
                     "mode": decision.mode.value,
+                    "margin": decision.margin,
+                    "tau_used": decision.tau if decision.tau is not None else point.tau,
                 }
             )
         return {"route": route.wire, "decisions": entries}
@@ -114,11 +163,27 @@ class CascadeEngine:
     # 内部
     # ------------------------------------------------------------------
 
+    def _margin_ok(self, decisions: Sequence[Decision], margin_tau: float) -> bool:
+        """margin 门：threshold≤0 关闭；无 margin（单探针未融合）视为通过。"""
+        if margin_tau <= 0:
+            return True
+        for decision in decisions:
+            if decision.mode is not Mode.ACTIVE or decision.margin is None:
+                continue
+            if decision.margin < margin_tau:
+                return False
+        return True
+
     def _applied(self, decisions: Sequence[Decision], point_id: str) -> str | float | None:
-        """取指定点 ACTIVE 决策的 applied 值；缺失/非 ACTIVE/注册表无该点 → None。"""
+        """取指定点 ACTIVE 决策的 applied 值；缺失/非 ACTIVE/注册表无该点 → None。
+
+        注册表缺失（纯逻辑测试/最小装配）时退回原始 value（不做 tau 门控）。
+        """
         for decision in decisions:
             if decision.point_id != point_id or decision.mode is not Mode.ACTIVE:
                 continue
+            if self._registry is None:
+                return decision.value
             try:
                 point = self._registry.get(point_id)
             except JevProtocolError:

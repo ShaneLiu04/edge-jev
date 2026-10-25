@@ -32,7 +32,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.responses import Response
 
-from jev.errors import JevError, JevProtocolError, JevUnavailableError
+from jev.errors import JevProtocolError, JevUnavailableError
 from jev.kernel.cascade.engine import CascadeEngine, MidAction, PostVerdict, Route
 from jev.kernel.cerebellum.base import (
     Answer,
@@ -42,13 +42,13 @@ from jev.kernel.cerebellum.base import (
     ScoreAnswer,
 )
 from jev.kernel.cerebrum.llama_server import LlamaServerClient
-from jev.kernel.decisions.fallback import fallback_point
+from jev.kernel.decisions.calibration import Calibration
+from jev.kernel.decisions.evaluate import evaluate_stage
 from jev.kernel.decisions.framework import (
     Decision,
     DecisionPoint,
     DecisionRegistry,
     Stage,
-    to_question,
 )
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
 
@@ -166,43 +166,19 @@ def evaluate_decisions(
     cerebellum: CerebellumBackend | None,
     points: list[DecisionPoint],
     state: str,
+    *,
+    seed: int = 0,
+    calibration: Calibration | None = None,
 ) -> tuple[list[Decision], dict[str, Answer], float]:
-    """同 stage active 点合并为单次小脑批量前向；小脑缺失/异常逐点安全侧回退。
+    """兼容 shim（AR002）：委托 kernel.decisions.evaluate.evaluate_stage。
 
-    返回 (决策列表, 逐点原始答案, 批量前向耗时 ms)。bench（T021）与级联
-    共用同一评估口径（公共契约）。
+    保留既有签名（bench/测试调用点不变）；多探针/置换/校准由 kernel 侧实现。
+    返回 (决策列表, 原始答案[qid→Answer], 批量前向耗时 ms)。
     """
-    if not points:
-        return [], {}, 0.0
-    if cerebellum is None:
-        return [fallback_point(point, "小脑后端未配置") for point in points], {}, 0.0
-
-    questions = {point.id: to_question(point) for point in points}
-    started = time.perf_counter()
-    try:
-        response = cerebellum.system_one(state, questions)
-    except JevError as exc:
-        logger.warning(
-            "小脑评估失败，%d 个 %s 点安全侧回退: %s",
-            len(points), points[0].stage.value, exc,
-        )
-        return (
-            [fallback_point(point, f"小脑不可用: {exc}") for point in points],
-            {},
-            (time.perf_counter() - started) * 1000,
-        )
-    latency_ms = (time.perf_counter() - started) * 1000
-
-    decisions: list[Decision] = []
-    answers: dict[str, Answer] = {}
-    for point in points:
-        answer = response.answers.get(point.id)
-        if answer is None:
-            decisions.append(fallback_point(point, "小脑响应缺失该点答案"))
-            continue
-        answers[point.id] = answer
-        decisions.append(_decision_from_answer(point, answer))
-    return decisions, answers, latency_ms
+    result = evaluate_stage(
+        cerebellum, points, state, seed=seed, calibration=calibration
+    )
+    return result.decisions, result.answers, result.latency_ms
 
 
 def render_direct_answer(decisions: list[Decision], registry: DecisionRegistry) -> str:
@@ -294,6 +270,7 @@ class _CascadeContext:
         max_tokens: int,
         stop: list[str] | None,
         generation_timeout_s: float | None = None,
+        calibration: Calibration | None = None,
     ) -> None:
         self.cerebellum = cerebellum
         self.brain = brain
@@ -307,6 +284,7 @@ class _CascadeContext:
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.stop = stop
+        self.calibration = calibration
         self.decision_count = 0
         # EX-04：路径②/③ 生成总时长上限（None 表示不限时）
         self.deadline = (
@@ -336,7 +314,9 @@ class _CascadeContext:
         points = active_points + shadow_points
         if not points:
             return []
-        decisions, answers, latency_ms = evaluate_decisions(self.cerebellum, points, state)
+        decisions, answers, latency_ms = evaluate_decisions(
+            self.cerebellum, points, state, calibration=self.calibration
+        )
         self.decision_count += len(active_points)
         for decision, point in zip(decisions, points, strict=True):
             self._log_decision(decision, point, answers.get(decision.point_id), latency_ms)
@@ -354,7 +334,8 @@ class _CascadeContext:
     def route_of(self, pre: list[Decision]) -> str:
         if self.route_policy is not None:
             return self.route_policy(pre)
-        return self.engine.route_chat(pre).wire
+        margin_tau = self.calibration.margin_tau if self.calibration is not None else 0.0
+        return self.engine.route_chat(pre, margin_tau=margin_tau).wire
 
     def log_route(self, route: str, pre: list[Decision]) -> None:
         if self.ledger is None:
@@ -431,6 +412,7 @@ def create_chat_router(
     engine: CascadeEngine | None = None,
     ledger: LedgerWriter | None = None,
     generation_timeout_s: float | None = None,
+    calibration: Calibration | None = None,
 ) -> APIRouter:
     """构建 /v1/chat/completions 路由。
 
@@ -477,11 +459,13 @@ def create_chat_router(
                 return _handle_chat_passthrough(
                     cerebellum, brain, registry, route_policy,
                     messages, temperature, max_tokens, stop,
+                    calibration=calibration,
                 )
             context = _CascadeContext(
                 cerebellum, brain, registry, engine, route_policy, ledger,
                 uuid.uuid4().hex, messages, temperature, max_tokens, stop,
                 generation_timeout_s=generation_timeout_s,
+                calibration=calibration,
             )
             if stream:
                 return _stream_response(context)
@@ -507,10 +491,13 @@ def _handle_chat_passthrough(
     temperature: float,
     max_tokens: int,
     stop: list[str] | None,
+    calibration: Calibration | None = None,
 ) -> JSONResponse:
     active_pre = registry.active(Stage.PRE) if registry is not None else []
     state = json.dumps(messages, ensure_ascii=False, separators=(",", ":"))
-    decisions, _answers, _latency = evaluate_decisions(cerebellum, active_pre, state)
+    decisions, _answers, _latency = evaluate_decisions(
+        cerebellum, active_pre, state, calibration=calibration
+    )
     route = route_policy(decisions) if route_policy is not None else "full"
 
     if brain is None:

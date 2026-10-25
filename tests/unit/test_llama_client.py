@@ -15,9 +15,9 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
-from jev.kernel.cerebrum.llama_server import LlamaServerClient
 
 from jev.errors import JevProtocolError, JevUnavailableError
+from jev.kernel.cerebrum.llama_server import LlamaServerClient
 
 HANG_SECONDS = 1.0
 

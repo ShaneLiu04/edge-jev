@@ -5,14 +5,21 @@
 """
 
 import pytest
-from jev.kernel.cascade.engine import CascadeEngine, MidAction, PostVerdict, Route
 
+from jev.kernel.cascade.engine import (
+    CascadeEngine,
+    MidAction,
+    PostVerdict,
+    Route,
+    RoutePolicy,
+)
 from jev.kernel.decisions.builtin import load_builtin_registry
 from jev.kernel.decisions.framework import Decision, Mode, Stage
 
 _REGISTRY = load_builtin_registry()
 
 _POSTERIOR_KEYS = {"point_id", "value", "confidence", "applied", "from_fallback", "mode"}
+_POSTERIOR_KEYS_AR002 = _POSTERIOR_KEYS | {"margin", "tau_used"}
 
 
 @pytest.fixture
@@ -81,12 +88,38 @@ def test_route_full_when_reasoning_needed(engine):
     assert engine.route_chat(_pre(needs_reasoning=("reasoning", 0.9))) is Route.FULL
 
 
-def test_route_full_on_medium_complexity(engine):
-    assert engine.route_chat(_pre(complexity=("medium", 0.9))) is Route.FULL
+def test_route_light_on_medium_complexity_when_no_reasoning(engine):
+    """AR002：真实 laya 复杂度门不稳，capability_gate 下不以 complexity 阻断 light。"""
+    assert engine.route_chat(_pre(complexity=("medium", 0.9))) is Route.LIGHT
 
 
-def test_route_full_when_complexity_below_tau_falls_back_high(engine):
-    assert engine.route_chat(_pre(complexity=("low", 0.3))) is Route.FULL
+def test_route_light_when_complexity_below_tau_under_capability_gate(engine):
+    assert engine.route_chat(_pre(complexity=("low", 0.3))) is Route.LIGHT
+
+
+def test_route_full_on_high_complexity_when_low_complexity_required(engine):
+    legacy = CascadeEngine(
+        load_builtin_registry(),
+        policy=RoutePolicy(capability_gate=True, light_requires_low_complexity=True),
+    )
+    assert legacy.route_chat(_pre(complexity=("medium", 0.9))) is Route.FULL
+
+
+def test_capability_gate_routes_direct_without_decision_intent(engine):
+    """正交信号：无需生成 + 无需推理 + 低复杂度 → 直答（intent 仍为 simple）。"""
+    batch = _pre(needs_generation=("no_generation", 0.9))
+    assert engine.route_chat(batch) is Route.DIRECT
+
+
+def test_gate_disabled_restores_legacy_light_rule():
+    legacy = CascadeEngine(load_builtin_registry(), policy=RoutePolicy(capability_gate=False))
+    assert legacy.route_chat(_pre(complexity=("medium", 0.9))) is Route.FULL
+    assert legacy.route_chat(_pre(needs_generation=("no_generation", 0.9))) is Route.LIGHT
+
+
+def test_unsafe_blocks_direct_even_with_capability_signal(engine):
+    batch = _pre(needs_generation=("no_generation", 0.9), safety=("unsafe", 0.9))
+    assert engine.route_chat(batch) is Route.FULL
 
 
 def test_route_full_on_unsafe(engine):
@@ -215,7 +248,7 @@ def test_posterior_carries_route_and_six_key_decision_fields(engine):
     entries = signal["decisions"]
     assert [entry["point_id"] for entry in entries] == ["intent", "complexity", "safety"]
     for entry in entries:
-        assert set(entry) == _POSTERIOR_KEYS
+        assert set(entry) == _POSTERIOR_KEYS_AR002  # AR002 追加 margin/tau_used（只增不改）
     assert entries[0]["applied"] == "decision"
     assert entries[0]["value"] == "decision"
     assert entries[0]["confidence"] == 0.9

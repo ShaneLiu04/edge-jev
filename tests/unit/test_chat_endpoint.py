@@ -20,6 +20,7 @@ from jev.kernel.cerebellum.laya_onnx import LayaOnnxBackend
 from jev.kernel.cerebrum.llama_server import LlamaServerClient
 from jev.kernel.decisions.builtin import load_builtin_registry
 from jev.kernel.decisions.framework import Decision, Stage
+from jev.kernel.decisions.probes import plan_questions
 from jev.server.chat import create_chat_router
 
 HANG_SECONDS = 0.8
@@ -274,7 +275,8 @@ def test_pre_decisions_evaluated_via_single_batched_system_one_call(
 
     # 单次前向多问：全部 active PRE 点合并为一次 system_one 批量调用
     assert counting.system_one_calls == 1
-    assert counting.last_question_count == len(registry.active(Stage.PRE))
+    planned = len(plan_questions(registry.active(Stage.PRE))[0])
+    assert counting.last_question_count == planned
 
 
 def test_none_cerebellum_falls_back_to_safe_side_but_still_200(brain, brain_server, registry):

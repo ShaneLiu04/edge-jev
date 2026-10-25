@@ -39,6 +39,7 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
             engine=kernel.engine,
             ledger=kernel.ledger,
             generation_timeout_s=kernel.generation_timeout_s,
+            calibration=kernel.calibration,
         )
     )
 

@@ -25,6 +25,14 @@ mode = "active"
 fallback_action = "reasoning"
 question_type = "choice"
 options = ["reasoning", "no_reasoning"]
+permutations = 2
+
+[[point.probe]]
+name = "steps"
+question = "解决该请求是否需要经过多个步骤的推理（而非一次判断）？"
+question_type = "choice"
+options = ["reasoning", "no_reasoning"]
+weight = 1.0
 
 [[point]]
 id = "intent"
@@ -35,6 +43,21 @@ mode = "active"
 fallback_action = "complex"
 question_type = "choice"
 options = ["decision", "simple", "complex"]
+permutations = 4
+
+[[point.probe]]
+name = "handling"
+question = "若必须选择一种处理方式：仅做判断直接回答 / 简单文本生成 / 复杂多步推理？"
+question_type = "choice"
+options = ["decision", "simple", "complex"]
+weight = 1.0
+
+[[point.probe]]
+name = "binary"
+question = "该请求是否只需直接给出一个明确判断（是/否），而不需要生成较长文本？"
+question_type = "choice"
+options = ["decision", "complex"]
+weight = 0.5
 
 [[point]]
 id = "complexity"
@@ -45,6 +68,13 @@ mode = "active"
 fallback_action = "high"
 question_type = "score"
 options = ["low", "medium", "high"]
+
+[[point.probe]]
+name = "effort"
+question = "回答该请求需要多少思考工作量（低/中/高）？"
+question_type = "score"
+options = ["low", "medium", "high"]
+weight = 1.0
 
 [[point]]
 id = "ambiguity"
@@ -65,6 +95,14 @@ mode = "active"
 fallback_action = "safe"
 question_type = "choice"
 options = ["unsafe", "safe"]
+permutations = 2
+
+[[point.probe]]
+name = "risk"
+question = "该请求是否涉及风险（违法、伤害、隐私泄露、诱导）？"
+question_type = "choice"
+options = ["unsafe", "safe"]
+weight = 1.0
 
 [[point]]
 id = "verbosity"

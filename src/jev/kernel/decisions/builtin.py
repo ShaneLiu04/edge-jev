@@ -11,6 +11,7 @@ from jev.kernel.decisions.framework import (
     Mode,
     Stage,
 )
+from jev.kernel.decisions.probes import ProbeSpec
 
 BUILTIN_POINTS: tuple[DecisionPoint, ...] = (
     # ===== PRE（请求前，9）=====
@@ -31,6 +32,15 @@ BUILTIN_POINTS: tuple[DecisionPoint, ...] = (
         fallback_action="reasoning",
         question_type="choice",
         options=("reasoning", "no_reasoning"),
+        permutations=2,
+        probes=(
+            ProbeSpec(
+                name="steps",
+                question_type="choice",
+                question="解决该请求是否需要经过多个步骤的推理（而非一次判断）？",
+                options=("reasoning", "no_reasoning"),
+            ),
+        ),
     ),
     DecisionPoint(
         id="intent",
@@ -40,6 +50,22 @@ BUILTIN_POINTS: tuple[DecisionPoint, ...] = (
         fallback_action="complex",
         question_type="choice",
         options=("decision", "simple", "complex"),
+        permutations=4,
+        probes=(
+            ProbeSpec(
+                name="handling",
+                question_type="choice",
+                question="若必须选择一种处理方式：仅做判断直接回答 / 简单文本生成 / 复杂多步推理？",
+                options=("decision", "simple", "complex"),
+            ),
+            ProbeSpec(
+                name="binary",
+                question_type="choice",
+                question="该请求是否只需直接给出一个明确判断（是/否），而不需要生成较长文本？",
+                options=("decision", "complex"),
+                weight=0.5,
+            ),
+        ),
     ),
     DecisionPoint(
         id="complexity",
@@ -49,6 +75,14 @@ BUILTIN_POINTS: tuple[DecisionPoint, ...] = (
         fallback_action="high",
         question_type="score",
         options=("low", "medium", "high"),
+        probes=(
+            ProbeSpec(
+                name="effort",
+                question_type="score",
+                question="回答该请求需要多少思考工作量（低/中/高）？",
+                options=("low", "medium", "high"),
+            ),
+        ),
     ),
     DecisionPoint(
         id="ambiguity",
@@ -68,6 +102,15 @@ BUILTIN_POINTS: tuple[DecisionPoint, ...] = (
         fallback_action="safe",
         question_type="choice",
         options=("unsafe", "safe"),
+        permutations=2,
+        probes=(
+            ProbeSpec(
+                name="risk",
+                question_type="choice",
+                question="该请求是否涉及风险（违法、伤害、隐私泄露、诱导）？",
+                options=("unsafe", "safe"),
+            ),
+        ),
     ),
     DecisionPoint(
         id="verbosity",

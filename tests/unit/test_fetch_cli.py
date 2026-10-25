@@ -7,10 +7,10 @@
 import pathlib
 
 import pytest
-from jev.fetch.manifest import load_manifest
 from typer.testing import CliRunner
 
 from jev.cli import app
+from jev.fetch.manifest import load_manifest
 
 runner = CliRunner()
 

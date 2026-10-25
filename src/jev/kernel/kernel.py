@@ -20,10 +20,11 @@ from pathlib import Path
 
 from jev.errors import JevAssetError, JevError, JevUnavailableError
 from jev.kernel.cascade.breaker import Breaker, BreakerState
-from jev.kernel.cascade.engine import CascadeEngine
+from jev.kernel.cascade.engine import CascadeEngine, RoutePolicy
 from jev.kernel.cerebellum.base import CerebellumBackend, Question, SystemOneResponse
 from jev.kernel.cerebellum.registry import create_backend, repo_root
 from jev.kernel.cerebrum.llama_server import LlamaServerManager
+from jev.kernel.decisions.calibration import Calibration, load_calibration
 from jev.kernel.decisions.framework import DecisionPoint, DecisionRegistry
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
 
@@ -43,15 +44,18 @@ class Kernel(CerebellumBackend):
         ledger: LedgerWriter | None = None,
         fallback_cerebellum: CerebellumBackend | None = None,
         generation_timeout_s: float = 120.0,
+        calibration: Calibration | None = None,
+        policy: RoutePolicy | None = None,
     ) -> None:
         self._cerebellum = cerebellum
         self._registry = registry
         self._breaker = breaker
-        self._engine = CascadeEngine(registry)
+        self._engine = CascadeEngine(registry, policy=policy)
         self._brain = brain
         self._ledger = ledger
         self._fallback = fallback_cerebellum
         self._generation_timeout_s = float(generation_timeout_s)
+        self._calibration = calibration if calibration is not None else Calibration()
 
     # ------------------------------------------------------------------
     # 组合根：configs/jev.toml 单源装配
@@ -108,6 +112,16 @@ class Kernel(CerebellumBackend):
         brain = _build_brain_manager(config)
         ledger = _build_ledger(config)
         cascade_cfg = config.get("cascade", {})
+        laya_cfg = cerebellum_cfg.get("laya_onnx", {})
+        if not isinstance(laya_cfg, dict):
+            laya_cfg = {}
+        calibration = load_calibration(laya_cfg.get("calibration_path"))
+        policy = RoutePolicy(
+            capability_gate=bool(cascade_cfg.get("capability_gate", True)),
+            light_requires_low_complexity=bool(
+                cascade_cfg.get("light_requires_low_complexity", False)
+            ),
+        )
         return cls(
             cerebellum=backend,
             registry=registry,
@@ -116,6 +130,8 @@ class Kernel(CerebellumBackend):
             ledger=ledger,
             fallback_cerebellum=fallback_backend,
             generation_timeout_s=float(cascade_cfg.get("generation_timeout_s", 120.0)),
+            calibration=calibration,
+            policy=policy,
         )
 
     # ------------------------------------------------------------------
@@ -154,6 +170,11 @@ class Kernel(CerebellumBackend):
     def generation_timeout_s(self) -> float:
         """路径②/③ 生成总时长上限（EX-04，[cascade] 单源）。"""
         return self._generation_timeout_s
+
+    @property
+    def calibration(self) -> Calibration:
+        """AR002：逐点温度/τ/margin 校准（缺失时为空校准）。"""
+        return self._calibration
 
     def register_point(self, point: DecisionPoint) -> None:
         """编程注册决策点（SDK 扩展点，FR10：与 TOML 声明等价）。"""

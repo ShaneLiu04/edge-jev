@@ -56,6 +56,8 @@ class DecisionPoint:
     question_type: str = "choice"
     options: tuple[str, ...] = ()
     mode: Mode = Mode.ACTIVE
+    probes: tuple = ()          # tuple[ProbeSpec, ...]；空 = 单探针（AR001 行为）
+    permutations: int = 1       # 仅 choice 型；>1 时选项顺序置换平均
 
 
 @dataclasses.dataclass
@@ -67,10 +69,17 @@ class Decision:
     confidence: float
     from_fallback: bool = False
     reason: str | None = None
+    margin: float | None = None                      # AR002：top1-top2 概率差
+    probes: dict | None = None                       # AR002：逐探针归并分布（台账）
+    tau: float | None = None                         # AR002：校准覆盖阈值（None=点定义）
 
     def applied_value(self, point: DecisionPoint) -> str | float:
-        """tau 门控：置信达阈值采信小脑答案，否则安全侧默认。"""
-        if self.confidence >= point.tau:
+        """tau 门控：置信达阈值采信小脑答案，否则安全侧默认。
+
+        校准产物可经 `tau` 字段覆盖点定义阈值（优先级：Decision.tau > point.tau）。
+        """
+        threshold = self.tau if self.tau is not None else point.tau
+        if self.confidence >= threshold:
             return self.value
         return point.fallback_action
 
@@ -215,7 +224,45 @@ def _point_from_table(table: Any) -> DecisionPoint:
         question_type=table.get("question_type", ""),
         options=tuple(table.get("options", ())),
         mode=mode,
+        probes=_probes_from_table(point_id, table),
+        permutations=_permutations_from_table(point_id, table),
     )
+
+
+def _probes_from_table(point_id: str, table: dict) -> tuple:
+    """解析 [[point.probe]] 子表（AR002）：缺省为空（单探针兼容）。"""
+    from jev.kernel.decisions.probes import ProbeSpec
+
+    raw = table.get("probe", ())
+    if raw in (None, (), []):
+        return ()
+    if not isinstance(raw, list):
+        raise JevProtocolError(f"{point_id}: probe 须为 [[point.probe]] 表数组")
+    probes = []
+    for index, block in enumerate(raw):
+        if not isinstance(block, dict):
+            raise JevProtocolError(f"{point_id}: 第 {index + 1} 个 probe 须为表")
+        spec = ProbeSpec(
+            name=str(block.get("name", f"probe{index}")),
+            question_type=str(block.get("question_type", table.get("question_type", ""))),
+            question=str(block.get("question", "")),
+            options=tuple(block.get("options", table.get("options", ()))),
+            weight=float(block.get("weight", 1.0)),
+        )
+        probes.append(spec.validated(point_id))
+    names = [spec.name for spec in probes]
+    if len(set(names)) != len(names):
+        raise JevProtocolError(f"{point_id}: probe name 重复: {names}")
+    return tuple(probes)
+
+
+def _permutations_from_table(point_id: str, table: dict) -> int:
+    raw = table.get("permutations", 1)
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        raise JevProtocolError(f"{point_id}: permutations 须为整数，实际 {raw!r}")
+    if raw < 1 or raw > 8:
+        raise JevProtocolError(f"{point_id}: permutations 须在 [1, 8]，实际 {raw}")
+    return raw
 
 
 # ----------------------------------------------------------------------

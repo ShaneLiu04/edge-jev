@@ -223,7 +223,7 @@ def _full_registry(*, post_retry: bool) -> DecisionRegistry:
     return _registry(
         [
             _point("intent", Stage.PRE, ("decision", "complex"), tau=0.7),
-            _point("needs_reasoning", Stage.PRE, ("reasoning", "no_reasoning"), tau=0.6),
+            _point("needs_reasoning", Stage.PRE, ("no_reasoning", "reasoning"), tau=0.6),
             _point("complexity", Stage.PRE, ("low", "high"), tau=0.6),
             _point("safety", Stage.PRE, ("unsafe", "safe"), tau=0.8),
             _point("needs_retry", Stage.POST, needs_retry, tau=0.6),
