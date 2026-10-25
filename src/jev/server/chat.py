@@ -32,8 +32,9 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.responses import Response
 
-from jev.errors import JevProtocolError, JevUnavailableError
+from jev.errors import JevProtocolError, JevTimeoutError, JevUnavailableError
 from jev.kernel.cascade.budget import BudgetContext
+from jev.kernel.cascade.draft import DraftConfig, apply_draft, build_draft_prefix
 from jev.kernel.cascade.engine import CascadeEngine, MidAction, PostVerdict, Route
 from jev.kernel.cerebellum.base import (
     Answer,
@@ -274,6 +275,7 @@ class _CascadeContext:
         calibration: Calibration | None = None,
         max_brain_tokens: int | None = None,
         max_latency_ms: float | None = None,
+        draft_config: DraftConfig | None = None,
     ) -> None:
         self.cerebellum = cerebellum
         self.brain = brain
@@ -290,6 +292,7 @@ class _CascadeContext:
         self.calibration = calibration
         self.max_brain_tokens = max_brain_tokens
         self.max_latency_ms = max_latency_ms
+        self.draft_config = draft_config if draft_config is not None else DraftConfig()
         self.budget_capped = False
         self.decision_count = 0
         # EX-04：路径②/③ 生成总时长上限（None 表示不限时）
@@ -458,6 +461,7 @@ def create_chat_router(
     calibration: Calibration | None = None,
     max_brain_tokens: int | None = None,
     max_latency_ms: float | None = None,
+    draft_config: DraftConfig | None = None,
 ) -> APIRouter:
     """构建 /v1/chat/completions 路由。
 
@@ -513,6 +517,7 @@ def create_chat_router(
                 calibration=calibration,
                 max_brain_tokens=max_brain_tokens,
                 max_latency_ms=max_latency_ms,
+                draft_config=draft_config,
             )
             if stream:
                 return _stream_response(context)
@@ -598,7 +603,7 @@ def _handle_chat_cascade(context: _CascadeContext) -> JSONResponse:
         if route == "light":
             content, usage, timed_out = _generate_light(context)
         else:
-            content, usage = _generate_full(context)
+            content, usage = _generate_full(context, pre=pre)
         verdict, degraded, content, usage = _post_review(
             context, content, usage, allow_retry=not timed_out
         )
@@ -606,7 +611,7 @@ def _handle_chat_cascade(context: _CascadeContext) -> JSONResponse:
             # EX-04：生成超时截断——POST correct_format 复核后降级交付
             degraded = True
     except (JevUnavailableError, JevProtocolError) as exc:
-        if context.timed_out():
+        if context.timed_out() or isinstance(exc, JevTimeoutError):
             # EX-04：大脑调用超时——截断（空/部分内容）复核后降级交付
             logger.warning(
                 "大脑生成超时（request_id=%s，route=%s），截断降级交付: %s",
@@ -634,9 +639,20 @@ def _handle_chat_cascade(context: _CascadeContext) -> JSONResponse:
     return _json_response(context, content, usage, degraded=degraded, route=route)
 
 
-def _generate_full(context: _CascadeContext) -> tuple[str, dict[str, int]]:
+def _draft_messages(context: _CascadeContext, pre: list[Decision]) -> list[dict]:
+    """路径③ messages 组装：默认逐字沿用；启用草稿注入时加 system 前缀并压缩历史。"""
+    config = context.draft_config
+    if config is None or not config.enabled:
+        return context.messages
+    prefix = build_draft_prefix(pre, context.registry)
+    return apply_draft(context.messages, prefix, keep_turns=config.keep_turns)
+
+
+def _generate_full(
+    context: _CascadeContext, *, pre: list[Decision] | None = None
+) -> tuple[str, dict[str, int]]:
     response = context.brain.chat(
-        context.messages,
+        _draft_messages(context, pre or []),
         max_tokens=context.effective_max_tokens(),
         temperature=context.temperature,
         stop=context.stop,
@@ -675,7 +691,7 @@ def _generate_light(
                 timeout_s=context.remaining_s(),
             )
         except (JevUnavailableError, JevProtocolError) as exc:
-            if context.timed_out():
+            if context.timed_out() or isinstance(exc, JevTimeoutError):
                 # 超时段调用失败——保留已生成部分截断交付
                 logger.warning(
                     "路径② 段生成超时，截断交付（request_id=%s）: %s",

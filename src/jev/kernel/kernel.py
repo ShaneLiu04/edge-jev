@@ -20,6 +20,7 @@ from pathlib import Path
 
 from jev.errors import JevAssetError, JevError, JevUnavailableError
 from jev.kernel.cascade.breaker import Breaker, BreakerState
+from jev.kernel.cascade.draft import DraftConfig
 from jev.kernel.cascade.engine import CascadeEngine, RoutePolicy
 from jev.kernel.cerebellum.base import CerebellumBackend, Question, SystemOneResponse
 from jev.kernel.cerebellum.registry import create_backend, repo_root
@@ -48,6 +49,7 @@ class Kernel(CerebellumBackend):
         policy: RoutePolicy | None = None,
         max_brain_tokens: int | None = None,
         max_latency_ms: float | None = None,
+        draft_config: DraftConfig | None = None,
     ) -> None:
         self._cerebellum = cerebellum
         self._registry = registry
@@ -60,6 +62,7 @@ class Kernel(CerebellumBackend):
         self._calibration = calibration if calibration is not None else Calibration()
         self._max_brain_tokens = max_brain_tokens
         self._max_latency_ms = max_latency_ms
+        self._draft_config = draft_config if draft_config is not None else DraftConfig()
 
     # ------------------------------------------------------------------
     # 组合根：configs/jev.toml 单源装配
@@ -128,6 +131,10 @@ class Kernel(CerebellumBackend):
         )
         max_brain_tokens = cascade_cfg.get("max_brain_tokens")
         max_latency_ms = cascade_cfg.get("max_latency_ms")
+        draft_config = DraftConfig(
+            enabled=bool(cascade_cfg.get("draft_injection", False)),
+            keep_turns=int(cascade_cfg.get("keep_turns", 2)),
+        )
         return cls(
             cerebellum=backend,
             registry=registry,
@@ -144,6 +151,7 @@ class Kernel(CerebellumBackend):
             max_latency_ms=(
                 float(max_latency_ms) if max_latency_ms is not None else None
             ),
+            draft_config=draft_config,
         )
 
     # ------------------------------------------------------------------
@@ -187,6 +195,11 @@ class Kernel(CerebellumBackend):
     def max_latency_ms(self) -> float | None:
         """请求级延迟预算（[cascade] max_latency_ms；None 不限）。"""
         return self._max_latency_ms
+
+    @property
+    def draft_config(self) -> DraftConfig:
+        """PRE 草稿注入配置（默认关闭）。"""
+        return self._draft_config
 
     @property
     def generation_timeout_s(self) -> float:

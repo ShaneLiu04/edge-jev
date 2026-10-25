@@ -20,7 +20,7 @@ from typing import Any
 
 import httpx
 
-from jev.errors import BrainStartupError, JevProtocolError, JevUnavailableError
+from jev.errors import BrainStartupError, JevProtocolError, JevTimeoutError, JevUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -296,6 +296,8 @@ class LlamaServerClient:
             response = self._client.post(
                 f"{self._base_url}/v1/chat/completions", **request_kwargs
             )
+        except httpx.TimeoutException as exc:
+            raise JevTimeoutError(f"大脑服务超时（{self._base_url}）: {exc}") from exc
         except httpx.HTTPError as exc:
             raise JevUnavailableError(f"大脑服务不可达（{self._base_url}）: {exc}") from exc
 
@@ -373,6 +375,10 @@ class LlamaServerClient:
                         raise JevProtocolError(
                             f"大脑流式响应不是合法 JSON: {data[:200]}"
                         ) from exc
+        except httpx.TimeoutException as exc:
+            raise JevTimeoutError(
+                f"大脑服务超时（{self._base_url}）: {exc}"
+            ) from exc
         except httpx.HTTPError as exc:
             raise JevUnavailableError(
                 f"大脑服务不可达（{self._base_url}）: {exc}"

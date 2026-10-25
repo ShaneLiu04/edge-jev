@@ -16,6 +16,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from jev.kernel.cascade.draft import DraftConfig
 from jev.kernel.cascade.engine import CascadeEngine
 from jev.kernel.cerebellum.laya_onnx import LayaOnnxBackend
 from jev.kernel.cerebrum.llama_server import LlamaServerClient
@@ -712,3 +713,66 @@ class TestRoutingTelemetry:
         resp = client.post("/v1/chat/completions", json=_body(max_tokens=64))
         assert resp.status_code == 200
         assert resp.headers["x-jev-margin"] == "0.180"
+
+class TestDraftInjection:
+    """AR002 FR2-3：草稿注入仅作用于 full 路径，默认关闭保持逐字行为。"""
+
+    def _long_body(self):
+        return _body(
+            messages=[
+                {"role": "user", "content": "第一轮问题：" + "细节" * 80},
+                {"role": "assistant", "content": "第一轮回答：" + "说明" * 80},
+                {"role": "user", "content": "第二轮问题：" + "细节" * 80},
+                {"role": "assistant", "content": "第二轮回答：" + "说明" * 80},
+                {"role": "user", "content": "请给出完整方案。"},
+            ]
+        )
+
+    def test_disabled_keeps_messages_verbatim(self, cerebellum, brain, brain_server):
+        brain_server.canned = [_completion("完整回答。", completion_tokens=8)]
+        registry = _full_registry(post_retry=False)
+        client = TestClient(_app(cerebellum, brain, registry))
+        resp = client.post("/v1/chat/completions", json=self._long_body())
+        assert resp.status_code == 200
+        sent = brain_server.requests[0]["body"]["messages"]
+        assert sent[0]["role"] == "user"
+        assert all(m["role"] != "system" for m in sent)
+
+    def test_enabled_injects_system_prefix_and_compresses_history(
+        self, cerebellum, brain, brain_server
+    ):
+        brain_server.canned = [_completion("完整回答。", completion_tokens=8)]
+        registry = _full_registry(post_retry=False)
+        client = TestClient(
+            _app(
+                cerebellum,
+                brain,
+                registry,
+                draft_config=DraftConfig(enabled=True, keep_turns=1),
+            )
+        )
+        resp = client.post("/v1/chat/completions", json=self._long_body())
+        assert resp.status_code == 200
+        sent = brain_server.requests[0]["body"]["messages"]
+        assert sent[0]["role"] == "system"
+        assert sent[0]["content"].startswith("系统预判：")
+        assert "intent=" in sent[0]["content"]
+        # 超期轮次被压缩（≤120 字 + 省略号），最近一轮原文保留
+        assert any(m["content"].endswith("…") for m in sent)
+        assert sent[-1]["content"] == "请给出完整方案。"
+
+    def test_light_route_not_affected(self, cerebellum, brain, brain_server):
+        brain_server.canned = [_completion("轻量回答。", completion_tokens=8)]
+        registry = _light_registry(mid_stop=True)
+        client = TestClient(
+            _app(
+                cerebellum,
+                brain,
+                registry,
+                draft_config=DraftConfig(enabled=True, keep_turns=1),
+            )
+        )
+        resp = client.post("/v1/chat/completions", json=self._long_body())
+        assert resp.status_code == 200
+        sent = brain_server.requests[0]["body"]["messages"]
+        assert all(m["role"] != "system" for m in sent)

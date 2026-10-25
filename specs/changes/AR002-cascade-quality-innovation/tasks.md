@@ -15,7 +15,7 @@
 | T002 | 探针融合与路由校准：加权融合、per-point 温度/τ/margin 拟合与扫描落盘 | T001 | passing | FR1-1/FR1-3；复用 distill calibrate |
 | T003 | 双语分层基准集 v2：中英各半 + 分层标签 + 校验（含 order 扰动集） | - | passing | FR1-2/FR4；修正 srs A4 口径错配 |
 | T004 | 级联路由增强：Top-2 margin 升级 + 请求级代价预算 | T002 | passing | FR2-1/FR2-2；默认关闭预算、margin 可配 |
-| T005 | PRE 草稿注入：结构化结论压缩为 system 前缀 + token 计量 | T004 | pending | FR2-3；路径②③ |
+| T005 | PRE 草稿注入：结构化结论压缩为 system 前缀 + token 计量 | T004 | passing | FR2-3；路径②③ |
 | T006 | 慢响应可靠性：HTTP 超时与级联 deadline 统一预算 + 真实慢对端测试 | - | passing | FR2-4；修复 ST 观察项 |
 | T007 | 学习式 shadow 路由：台账特征抽取 + numpy 逻辑回归 + shadow 报告 | T002 | pending | FR2-5；仅记录不切换 |
 | T008 | 蒸馏数据深化：难例优先采样 + 对比样本配对与报告 | - | pending | FR3-1/FR3-2 |
@@ -54,7 +54,9 @@
 - 测试：432 passed；ruff 零告警
 '- 追加 T003（同日）：`configs/bench-set.yaml` v2（40 题：中英各 20；每条标注 `lang`，多轮题标注 `turns`；三路径 × 两语种全覆盖 7:3 分层）；加载器 v1 兼容（缺 lang 默认 zh）+ `validate_bench_set`（id 唯一/双语占比 ≥40%）
 - 测试：440 passed；ruff 零告警；集成用例口径同步（40 题/light 8/full 12）
-- 下一步：T005（PRE 草稿注入）、T007（shadow 学习路由）'''
+'- 追加 T005（同日）：新增 `kernel/cascade/draft.py`（确定性 token 粗估 4 字符/token；轮次切分压缩超期历史 ≤120 字/轮；PRE 结论→`系统预判：…` system 前缀）；chat full 路径接入，默认关闭；另按 FR2-4 细化 `JevTimeoutError`（按异常类型而非时钟判定截断降级，消除 deadline 边界抖动误判 503）
+- 测试：460 passed；ruff 零告警
+- 下一步：T007（shadow 学习路由）、T011（bootstrap CI + order_flip_rate）、真实大脑 bench 精度门实测''''
 
 ### 2026-10-24 需求阶段会话记录（Gitee 初版交付 + AR002 立项）
 

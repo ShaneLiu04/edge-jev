@@ -42,6 +42,7 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
             calibration=kernel.calibration,
             max_brain_tokens=kernel.max_brain_tokens,
             max_latency_ms=kernel.max_latency_ms,
+            draft_config=kernel.draft_config,
         )
     )
 

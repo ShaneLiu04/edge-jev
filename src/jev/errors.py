@@ -24,5 +24,9 @@ class JevUnavailableError(JevError):
     """后端不可达/超时（连接拒绝、5xx、超时）。"""
 
 
+class JevTimeoutError(JevUnavailableError):
+    """大脑调用超时（AR002 FR2-4：按异常类型而非时钟判定截断降级）。"""
+
+
 class BrainStartupError(JevError):
     """llama-server 启动失败（携带诊断信息）。"""
