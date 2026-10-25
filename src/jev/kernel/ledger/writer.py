@@ -27,6 +27,7 @@ class LedgerEntry:
         "breaker_state", "latency_ms", "backend_fallback",
         "route", "state", "posterior",
         "content", "post_verdict", "tokens",
+        "runtime",
     )
 
     def __init__(
@@ -54,6 +55,7 @@ class LedgerEntry:
         content: str | None = None,
         post_verdict: str | None = None,
         tokens: int | None = None,
+        runtime: dict | None = None,
     ) -> None:
         self.request_id = request_id
         self.kind = kind
@@ -77,6 +79,7 @@ class LedgerEntry:
         self.content = content
         self.post_verdict = post_verdict
         self.tokens = tokens
+        self.runtime = runtime
 
     def to_dict(self) -> dict:
         """JSONL 行载荷：None 字段省略（行保持紧凑）。"""

@@ -21,7 +21,9 @@ llama_server_bin = "models/llama-server/bin/llama-server.exe"
 gguf_path = "models/qwen/qwen2.5-1.5b-instruct-q4_k_m.gguf"
 ctx_size = 4096
 startup_probe = "/health"
-restart_max = 3                          # 崩溃自动重启上限（指数退避 2s/4s/8s）
+restart_max = 3
+parallel = 1                             # AR003 多槽：并行请求共享前缀（1=关闭）
+# slot_prompt_similarity = 0.5          # AR003 槽位前缀相似度阈值（留空=llama 默认）                          # 崩溃自动重启上限（指数退避 2s/4s/8s）
 
 [cascade]
 generation_timeout_s = 120               # 路径②/③ 生成总时长上限（EX-04：超时截断降级）
@@ -48,3 +50,37 @@ proxy_url = "http://proxyhk.huawei.com:8080"  # 显式下载代理（覆盖 env�
 dir = "data/ledger"                      # JSONL 台账目录（gitignored）
 queue_maxsize = 10000
 warn_after_failures = 100
+
+# AR003 运行时智能（全部默认关闭，保持 AR002 逐例回归）
+[runtime]
+enabled = false
+tau_low = 0.35
+tau_high = 0.65
+verifier_enabled = false
+self_verify_mode = "observe"
+gate_threshold = 0.60
+verifier_max_tokens = 16
+draft_injection = false
+memory_enabled = false
+keep_turns = 2
+
+[cache]
+enabled = false
+similarity = 0.93
+margin = 0.02
+ttl_s = 1800.0
+capacity = 256
+
+[prefill]
+enabled = false
+budget_ratio = 0.6
+min_prompt_tokens = 512
+min_blocks = 4
+block_tokens = 256
+
+[embeddings]
+model_path = ""
+base_url = ""
+model = "local"
+port = 8389
+timeout_s = 10.0

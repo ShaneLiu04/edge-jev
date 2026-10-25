@@ -111,6 +111,7 @@ class FusedPoint:
     confidence: float
     margin: float
     probes: dict[str, dict[str, float]]
+    agreement: float | None = None
 
     @property
     def value(self) -> str:

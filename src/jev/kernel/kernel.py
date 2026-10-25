@@ -19,15 +19,21 @@ import uuid
 from pathlib import Path
 
 from jev.errors import JevAssetError, JevError, JevUnavailableError
+from jev.kernel.cache.semantic import CacheConfig, SemanticCache
 from jev.kernel.cascade.breaker import Breaker, BreakerState
 from jev.kernel.cascade.draft import DraftConfig
 from jev.kernel.cascade.engine import CascadeEngine, RoutePolicy
 from jev.kernel.cerebellum.base import CerebellumBackend, Question, SystemOneResponse
 from jev.kernel.cerebellum.registry import create_backend, repo_root
-from jev.kernel.cerebrum.llama_server import LlamaServerManager
+from jev.kernel.cerebrum.embeddings import EmbeddingClient, EmbeddingService
+from jev.kernel.cerebrum.llama_server import LlamaServerManager, slot_server_args
 from jev.kernel.decisions.calibration import Calibration, load_calibration
 from jev.kernel.decisions.framework import DecisionPoint, DecisionRegistry
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
+from jev.kernel.prefill.planner import PrefillConfig
+from jev.kernel.runtime.bands import BandPolicy
+from jev.kernel.runtime.config import RuntimeConfig
+from jev.kernel.runtime.prompt import PromptConfig
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +56,9 @@ class Kernel(CerebellumBackend):
         max_brain_tokens: int | None = None,
         max_latency_ms: float | None = None,
         draft_config: DraftConfig | None = None,
+        runtime_config: RuntimeConfig | None = None,
+        cache: SemanticCache | None = None,
+        embeddings: EmbeddingService | None = None,
     ) -> None:
         self._cerebellum = cerebellum
         self._registry = registry
@@ -63,6 +72,9 @@ class Kernel(CerebellumBackend):
         self._max_brain_tokens = max_brain_tokens
         self._max_latency_ms = max_latency_ms
         self._draft_config = draft_config if draft_config is not None else DraftConfig()
+        self._runtime_config = runtime_config if runtime_config is not None else RuntimeConfig()
+        self._cache = cache
+        self._embeddings = embeddings
 
     # ------------------------------------------------------------------
     # 组合根：configs/jev.toml 单源装配
@@ -135,6 +147,8 @@ class Kernel(CerebellumBackend):
             enabled=bool(cascade_cfg.get("draft_injection", False)),
             keep_turns=int(cascade_cfg.get("keep_turns", 2)),
         )
+        runtime_config, cache = _build_runtime(config)
+        embeddings = _build_embeddings(config)
         return cls(
             cerebellum=backend,
             registry=registry,
@@ -152,6 +166,9 @@ class Kernel(CerebellumBackend):
                 float(max_latency_ms) if max_latency_ms is not None else None
             ),
             draft_config=draft_config,
+            runtime_config=runtime_config,
+            cache=cache,
+            embeddings=embeddings,
         )
 
     # ------------------------------------------------------------------
@@ -200,6 +217,21 @@ class Kernel(CerebellumBackend):
     def draft_config(self) -> DraftConfig:
         """PRE 草稿注入配置（默认关闭）。"""
         return self._draft_config
+
+    @property
+    def runtime_config(self) -> RuntimeConfig:
+        """AR003 运行时配置（默认关闭）。"""
+        return self._runtime_config
+
+    @property
+    def cache(self) -> SemanticCache | None:
+        """语义缓存实例（启用时非空）。"""
+        return self._cache
+
+    @property
+    def embeddings(self) -> EmbeddingService | None:
+        """真实 embedding 服务（未配置时为 None）。"""
+        return self._embeddings
 
     @property
     def generation_timeout_s(self) -> float:
@@ -323,4 +355,94 @@ def _build_brain_manager(config: dict) -> LlamaServerManager | None:
         ctx_size=int(cerebrum_cfg.get("ctx_size", 4096)),
         startup_probe=cerebrum_cfg.get("startup_probe", "/health"),
         restart_max=int(cerebrum_cfg.get("restart_max", 3)),
+        extra_args=slot_server_args(
+            parallel=int(cerebrum_cfg.get("parallel", 1)),
+            slot_prompt_similarity=cerebrum_cfg.get("slot_prompt_similarity"),
+        ),
     )
+
+
+def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
+    """[runtime]/[cache]/[prefill] → RuntimeConfig + 缓存实例（默认关闭）。"""
+    runtime_cfg = config.get("runtime", {}) or {}
+    cache_cfg = config.get("cache", {}) or {}
+    prefill_cfg = config.get("prefill", {}) or {}
+    bands = BandPolicy(
+        tau_low=float(runtime_cfg.get("tau_low", 0.35)),
+        tau_high=float(runtime_cfg.get("tau_high", 0.65)),
+        verifier_enabled=bool(runtime_cfg.get("verifier_enabled", False)),
+        self_verify_mode=str(runtime_cfg.get("self_verify_mode", "observe")),
+        gate_threshold=float(runtime_cfg.get("gate_threshold", 0.60)),
+    )
+    cache_config = CacheConfig(
+        enabled=bool(cache_cfg.get("enabled", False)),
+        similarity=float(cache_cfg.get("similarity", 0.93)),
+        margin=float(cache_cfg.get("margin", 0.02)),
+        ttl_s=float(cache_cfg.get("ttl_s", 1800.0)),
+        capacity=int(cache_cfg.get("capacity", 256)),
+    )
+    prefill = PrefillConfig(
+        enabled=bool(prefill_cfg.get("enabled", False)),
+        budget_ratio=float(prefill_cfg.get("budget_ratio", 0.6)),
+        min_prompt_tokens=int(prefill_cfg.get("min_prompt_tokens", 512)),
+        min_blocks=int(prefill_cfg.get("min_blocks", 4)),
+        block_tokens=int(prefill_cfg.get("block_tokens", 256)),
+    )
+    prompt = PromptConfig(
+        draft_enabled=bool(runtime_cfg.get("draft_injection", False)),
+        memory_enabled=bool(runtime_cfg.get("memory_enabled", False)),
+        prefill_enabled=prefill.enabled,
+        keep_turns=int(runtime_cfg.get("keep_turns", 2)),
+    )
+    runtime_config = RuntimeConfig(
+        enabled=bool(runtime_cfg.get("enabled", False)),
+        bands=bands,
+        cache=cache_config,
+        prefill=prefill,
+        prompt=prompt,
+        verifier_max_tokens=int(runtime_cfg.get("verifier_max_tokens", 16)),
+    )
+    cache = SemanticCache(cache_config) if cache_config.enabled else None
+    return runtime_config, cache
+
+
+def _build_embeddings(config: dict) -> EmbeddingService | None:
+    """[embeddings]：base_url 直连或独立子进程（惰性启动）；空则禁用。"""
+    embeddings_cfg = config.get("embeddings", {}) or {}
+    base_url = str(embeddings_cfg.get("base_url", "") or "").strip()
+    model = str(embeddings_cfg.get("model", "local"))
+    timeout_s = float(embeddings_cfg.get("timeout_s", 10.0))
+    if base_url:
+        return EmbeddingService(
+            None, EmbeddingClient(base_url, model=model, timeout_s=timeout_s)
+        )
+    model_path = str(embeddings_cfg.get("model_path", "") or "").strip()
+    if not model_path:
+        return None
+    cerebrum_cfg = config.get("cerebrum", {}) or {}
+
+    def _resolve(path: str) -> Path:
+        resolved = Path(path)
+        return resolved if resolved.is_absolute() else repo_root() / resolved
+
+    port = int(embeddings_cfg.get("port", 8389))
+    manager = LlamaServerManager(
+        llama_server_bin=_resolve(
+            cerebrum_cfg.get(
+                "llama_server_bin", "models/llama-server/bin/llama-server.exe"
+            )
+        ),
+        gguf_path=_resolve(model_path),
+        host=cerebrum_cfg.get("host", "127.0.0.1"),
+        port=port,
+        ctx_size=int(embeddings_cfg.get("ctx_size", 2048)),
+        startup_probe="/health",
+        restart_max=int(embeddings_cfg.get("restart_max", 1)),
+        extra_args=["--embeddings", "--pooling", "mean"],
+    )
+    client = EmbeddingClient(
+        f"http://{cerebrum_cfg.get('host', '127.0.0.1')}:{port}",
+        model=model,
+        timeout_s=timeout_s,
+    )
+    return EmbeddingService(manager, client)

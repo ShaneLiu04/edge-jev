@@ -33,9 +33,17 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.responses import Response
 
 from jev.errors import JevProtocolError, JevTimeoutError, JevUnavailableError
+from jev.kernel.cache.semantic import CacheHit, SemanticCache
 from jev.kernel.cascade.budget import BudgetContext
 from jev.kernel.cascade.draft import DraftConfig, apply_draft, build_draft_prefix
-from jev.kernel.cascade.engine import CascadeEngine, MidAction, PostVerdict, Route
+from jev.kernel.cascade.engine import (
+    CascadeEngine,
+    MidAction,
+    PostVerdict,
+    Route,
+    RouteDecision,
+)
+from jev.kernel.cascade.prefix import prefix_fingerprint
 from jev.kernel.cerebellum.base import (
     Answer,
     CerebellumBackend,
@@ -43,9 +51,10 @@ from jev.kernel.cerebellum.base import (
     NoulAnswer,
     ScoreAnswer,
 )
+from jev.kernel.cerebrum.embeddings import EmbeddingService
 from jev.kernel.cerebrum.llama_server import LlamaServerClient
 from jev.kernel.decisions.calibration import Calibration
-from jev.kernel.decisions.evaluate import evaluate_stage
+from jev.kernel.decisions.evaluate import StageEvaluation, evaluate_stage
 from jev.kernel.decisions.framework import (
     Decision,
     DecisionPoint,
@@ -53,6 +62,11 @@ from jev.kernel.decisions.framework import (
     Stage,
 )
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
+from jev.kernel.runtime.bands import apply_self_verify_gate, classify_band
+from jev.kernel.runtime.config import RuntimeConfig
+from jev.kernel.runtime.prompt import build_prompt
+from jev.kernel.runtime.uncertainty import estimate_uncertainty
+from jev.kernel.runtime.verifier import BrainVerifier, VerifyResult
 
 logger = logging.getLogger(__name__)
 
@@ -276,6 +290,10 @@ class _CascadeContext:
         max_brain_tokens: int | None = None,
         max_latency_ms: float | None = None,
         draft_config: DraftConfig | None = None,
+        runtime_config: RuntimeConfig | None = None,
+        cache: SemanticCache | None = None,
+        verifier: BrainVerifier | None = None,
+        embeddings: EmbeddingService | None = None,
     ) -> None:
         self.cerebellum = cerebellum
         self.brain = brain
@@ -293,6 +311,25 @@ class _CascadeContext:
         self.max_brain_tokens = max_brain_tokens
         self.max_latency_ms = max_latency_ms
         self.draft_config = draft_config if draft_config is not None else DraftConfig()
+        self.runtime_config = runtime_config
+        self.cache = cache
+        self.verifier = verifier
+        self.embeddings = embeddings
+        self.last_fused: dict = {}
+        self.last_runtime: dict = {
+            "uncertainty": {"u": None, "band": "off", "self_agree": 1.0,
+                            "probe_agreement": None, "disagreement": None},
+            "self_verify": {"consistency": 1.0, "cross_point": 1.0, "mode": "observe"},
+            "verifier": {"called": False, "verdict": None, "tokens": 0, "reason": None,
+                         "skipped_reason": None, "unavailable": False},
+            "prefix": {"fingerprint": None, "reused": False, "evidence": None,
+                       "ttft_ms": 0.0, "prompt_tokens": 0, "prompt_n": 0},
+            "prefill": {"selected": 0, "total": 0, "before_tokens": 0,
+                        "after_tokens": 0, "skipped": None},
+            "cache": {"layer": "none", "similarity": None},
+            "memory": {"summary_tokens": 0},
+        }
+        self.prompt_build = None
         self.budget_capped = False
         self.decision_count = 0
         # EX-04：路径②/③ 生成总时长上限（None 表示不限时）
@@ -345,6 +382,191 @@ class _CascadeContext:
             else self.messages + [{"role": "assistant", "content": assistant_text}]
         )
         return json.dumps(messages, ensure_ascii=False, separators=(",", ":"))
+
+
+    # ------------------------------------------------------------------
+    # AR003 运行时（默认关闭）
+    # ------------------------------------------------------------------
+
+    @property
+    def runtime_enabled(self) -> bool:
+        return bool(self.runtime_config is not None and self.runtime_config.enabled)
+
+    def query_text(self) -> str:
+        for message in reversed(self.messages):
+            if message.get("role") == "user":
+                return str(message.get("content", ""))
+        return ""
+
+    def applied_map(self, decisions: list[Decision]) -> dict:
+        result: dict = {}
+        if self.registry is None:
+            return {decision.point_id: decision.value for decision in decisions}
+        for decision in decisions:
+            try:
+                point = self.registry.get(decision.point_id)
+            except JevProtocolError:
+                result[decision.point_id] = decision.value
+                continue
+            result[decision.point_id] = decision.applied_value(point)
+        return result
+
+    def cache_lookup(self) -> CacheHit | None:
+        if not self.runtime_enabled or self.cache is None:
+            return None
+        fingerprint = prefix_fingerprint(self.messages)
+        self.last_runtime["prefix"]["fingerprint"] = fingerprint
+        hit = self.cache.lookup(fingerprint, self.query_text(), embeddings=self.embeddings)
+        if hit is not None:
+            self.last_runtime["cache"] = {
+                "layer": hit.layer,
+                "similarity": hit.similarity,
+            }
+        return hit
+
+    def cache_store(self, answer: str, route: str) -> None:
+        if not self.runtime_enabled or self.cache is None or not answer:
+            return
+        fingerprint = self.last_runtime["prefix"].get("fingerprint")
+        if fingerprint is None:
+            fingerprint = prefix_fingerprint(self.messages)
+            self.last_runtime["prefix"]["fingerprint"] = fingerprint
+        self.cache.store(
+            fingerprint,
+            self.query_text(),
+            answer,
+            route,
+            embeddings=self.embeddings,
+        )
+
+    def evaluate_detailed(self, stage: Stage, state: str) -> StageEvaluation:
+        """与 evaluate 同口径，但保留 fused 供不确定性/自证使用。"""
+        if self.registry is None:
+            return StageEvaluation([], {}, 0.0, {})
+        active_points = self.registry.active(stage)
+        shadow_points = self.registry.shadow(stage)
+        points = active_points + shadow_points
+        if not points:
+            return StageEvaluation([], {}, 0.0, {})
+        from jev.kernel.decisions.evaluate import evaluate_stage
+
+        result = evaluate_stage(
+            self.cerebellum, points, state, calibration=self.calibration
+        )
+        self.decision_count += len(active_points)
+        for decision, point in zip(result.decisions, points, strict=True):
+            self._log_decision(
+                decision, point, result.answers.get(decision.point_id), result.latency_ms
+            )
+        if stage is Stage.PRE:
+            self.last_fused = result.fused
+        return result
+
+    def route_decision(self, pre: list[Decision]) -> RouteDecision:
+
+        if self.route_policy is not None:
+            return RouteDecision(
+                route=Route(self.route_policy(pre)), band="off", needs_verify=False
+            )
+        if not self.runtime_enabled or self.runtime_config is None:
+            budget = self.budget()
+            legacy_route = self.engine.route_chat(
+                pre, margin_tau=self.margin_tau, budget=budget
+            )
+            self.budget_capped = (
+                budget is not None
+                and budget.max_brain_tokens is not None
+                and not budget.allows_full()
+                and legacy_route is not Route.FULL
+            )
+            return RouteDecision(route=legacy_route, band="off", needs_verify=False)
+        config = self.runtime_config
+        uncertainty = estimate_uncertainty(pre, self.last_fused)
+        self.last_runtime["uncertainty"] = {
+            "u": round(uncertainty.u, 6),
+            "band": classify_band(uncertainty.u, config.bands),
+            "self_agree": round(uncertainty.self_agree, 6),
+            "probe_agreement": uncertainty.probe_agreement,
+            "disagreement": uncertainty.disagreement,
+        }
+        decision = self.engine.route_chat_v2(
+            pre,
+            uncertainty=uncertainty,
+            policy=config.bands,
+            margin_tau=self.margin_tau,
+            budget=self.budget(),
+        )
+        band = apply_self_verify_gate(
+            decision.band, uncertainty.self_agree, config.bands
+        )
+        if band != decision.band:
+            decision = RouteDecision(
+                route=Route.FULL if band == "uncertain" else decision.route,
+                band=band,
+                needs_verify=False if band == "uncertain" else decision.needs_verify,
+                skipped_reason=decision.skipped_reason,
+            )
+        self.last_runtime["uncertainty"]["band"] = band
+        budget = self.budget()
+        self.budget_capped = (
+            budget is not None
+            and budget.max_brain_tokens is not None
+            and not budget.allows_full()
+            and decision.route is not Route.FULL
+        )
+        return decision
+
+    def prepare_prompt(self, pre: list[Decision], *, full_route: bool = True) -> list[dict]:
+        if not self.runtime_enabled or self.runtime_config is None:
+            return _draft_messages(self, pre) if full_route else self.messages
+        config = self.runtime_config
+        prompt_config = config.prompt
+        if not full_route:
+            import dataclasses as _dc
+
+            prompt_config = _dc.replace(prompt_config, draft_enabled=False)
+        applied = self.applied_map(pre)
+        build = build_prompt(
+            self.messages,
+            pre,
+            prompt_config,
+            query=self.query_text(),
+            registry=self.registry,
+            applied=applied,
+            prefill_config=config.prefill,
+        )
+        self.prompt_build = build
+        self.last_runtime["memory"] = {"summary_tokens": build.memory_summary_tokens}
+        if build.prefill is not None:
+            self.last_runtime["prefill"] = {
+                "selected": build.prefill.selected,
+                "total": build.prefill.total,
+                "before_tokens": build.prefill.before_tokens,
+                "after_tokens": build.prefill.after_tokens,
+                "skipped": build.prefill.skipped,
+            }
+        return build.messages
+
+    def verify_draft(
+        self, pre: list[Decision], draft: str
+    ) -> VerifyResult | None:
+        if self.verifier is None or not self.runtime_enabled:
+            return None
+        result = self.verifier.verify(
+            self.query_text(),
+            draft,
+            self.applied_map(pre),
+            timeout_s=self.remaining_s(),
+        )
+        self.last_runtime["verifier"] = {
+            "called": True,
+            "verdict": result.verdict,
+            "tokens": result.tokens,
+            "reason": result.reason,
+            "skipped_reason": None,
+            "unavailable": result.unavailable,
+        }
+        return result
 
     @property
     def margin_tau(self) -> float:
@@ -462,6 +684,9 @@ def create_chat_router(
     max_brain_tokens: int | None = None,
     max_latency_ms: float | None = None,
     draft_config: DraftConfig | None = None,
+    runtime_config: RuntimeConfig | None = None,
+    cache: SemanticCache | None = None,
+    embeddings=None,
 ) -> APIRouter:
     """构建 /v1/chat/completions 路由。
 
@@ -518,6 +743,17 @@ def create_chat_router(
                 max_brain_tokens=max_brain_tokens,
                 max_latency_ms=max_latency_ms,
                 draft_config=draft_config,
+                runtime_config=runtime_config,
+                cache=cache,
+                verifier=(
+                    BrainVerifier(brain, max_tokens=runtime_config.verifier_max_tokens)
+                    if runtime_config is not None
+                    and runtime_config.enabled
+                    and runtime_config.bands.verifier_enabled
+                    and brain is not None
+                    else None
+                ),
+                embeddings=embeddings,
             )
             if stream:
                 return _stream_response(context)
@@ -581,17 +817,41 @@ def _handle_chat_passthrough(
 
 
 def _handle_chat_cascade(context: _CascadeContext) -> JSONResponse:
-    pre = context.evaluate(Stage.PRE, context.state_json())
-    route = context.route_of(pre)
+    # AR003：语义缓存先于判定（命中直接返回，tokens=0）
+    hit = context.cache_lookup()
+    if hit is not None:
+        empty_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        context.log_answer(hit.answer, None, 0)
+        response = _json_response(
+            context, hit.answer, empty_usage, degraded=False, route=hit.route
+        )
+        response.headers["X-Jev-Route"] = hit.route
+        return response
+
+    evaluated = context.evaluate_detailed(Stage.PRE, context.state_json())
+    pre = evaluated.decisions
+    decision = context.route_decision(pre)
+    route = decision.route.wire
+    if decision.skipped_reason:
+        context.last_runtime["verifier"]["skipped_reason"] = decision.skipped_reason
+        context.last_runtime["verifier"]["called"] = False
     context.log_route(route, pre)
 
     if route == "direct":
         content = render_direct_answer(pre, context.registry)
         context.log_answer(content, None, 0)
+        context.cache_store(content, route)
         empty_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
         return _json_response(
             context, content, empty_usage, degraded=False, route=route
         )
+
+    light_messages = context.prepare_prompt(pre, full_route=False)
+    full_messages = (
+        context.prepare_prompt(pre, full_route=True)
+        if route == "full" or decision.needs_verify
+        else None
+    )
 
     if context.brain is None:
         return _error(
@@ -600,10 +860,29 @@ def _handle_chat_cascade(context: _CascadeContext) -> JSONResponse:
         )
     timed_out = False
     try:
-        if route == "light":
-            content, usage, timed_out = _generate_light(context)
+        if decision.needs_verify and context.verifier is not None:
+            draft_content, draft_usage, draft_timeout = _generate_light(
+                context, messages=light_messages
+            )
+            if draft_timeout:
+                content, usage, timed_out = draft_content, draft_usage, True
+            else:
+                verified = context.verify_draft(pre, draft_content)
+                if verified is not None and verified.verdict == "accept":
+                    content, usage = draft_content, draft_usage
+                else:
+                    route = "full"
+                    content, usage = _generate_full(
+                        context, messages=full_messages or light_messages
+                    )
+        elif route == "light":
+            content, usage, timed_out = _generate_light(
+                context, messages=light_messages
+            )
         else:
-            content, usage = _generate_full(context, pre=pre)
+            content, usage = _generate_full(
+                context, messages=full_messages or light_messages
+            )
         verdict, degraded, content, usage = _post_review(
             context, content, usage, allow_retry=not timed_out
         )
@@ -635,6 +914,8 @@ def _handle_chat_cascade(context: _CascadeContext) -> JSONResponse:
         logger.warning(
             "路径%s 生成超时截断，降级交付（request_id=%s）", route, context.request_id
         )
+    if not degraded and verdict.value == "accept":
+        context.cache_store(content, route)
     context.log_answer(content, verdict.value, usage["completion_tokens"])
     return _json_response(context, content, usage, degraded=degraded, route=route)
 
@@ -649,20 +930,26 @@ def _draft_messages(context: _CascadeContext, pre: list[Decision]) -> list[dict]
 
 
 def _generate_full(
-    context: _CascadeContext, *, pre: list[Decision] | None = None
+    context: _CascadeContext,
+    *,
+    pre: list[Decision] | None = None,
+    messages: list[dict] | None = None,
 ) -> tuple[str, dict[str, int]]:
     response = context.brain.chat(
-        _draft_messages(context, pre or []),
+        messages if messages is not None else _draft_messages(context, pre or []),
         max_tokens=context.effective_max_tokens(),
         temperature=context.temperature,
         stop=context.stop,
         timeout_s=context.remaining_s(),
+        extra_body={"cache_prompt": True},
     )
     return _content_of(response), _usage_of(response)
 
 
 def _generate_light(
     context: _CascadeContext,
+    *,
+    messages: list[dict] | None = None,
 ) -> tuple[str, dict[str, int], bool]:
     """路径②：按 LIGHT_SEGMENT_TOKENS 分段生成，段间 MID 批早停。
 
@@ -670,6 +957,7 @@ def _generate_light(
     """
     segments: list[str] = []
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    base_messages = context.messages if messages is None else messages
     remaining = context.effective_max_tokens()
     timed_out = False
     while remaining > 0:
@@ -678,9 +966,9 @@ def _generate_light(
             break
         prefix = "".join(segments)
         segment_messages = (
-            context.messages + [{"role": "assistant", "content": prefix}]
+            base_messages + [{"role": "assistant", "content": prefix}]
             if prefix
-            else context.messages
+            else base_messages
         )
         try:
             response = context.brain.chat(
@@ -774,6 +1062,30 @@ def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
         headers["X-Jev-Margin"] = f"{context.margin_tau:.3f}"
     if context.max_brain_tokens is not None or context.max_latency_ms is not None:
         headers["X-Jev-Budget"] = "capped" if context.budget_capped else "ok"
+    if context.runtime_enabled:
+        runtime = context.last_runtime
+        u = runtime["uncertainty"]["u"]
+        if u is not None:
+            headers["X-Jev-U"] = f"{float(u):.3f}"
+        verifier = runtime["verifier"]
+        if verifier["called"] or verifier["skipped_reason"]:
+            headers["X-Jev-Verified"] = (
+                "skipped" if verifier["skipped_reason"] else str(verifier["verdict"])
+            )
+        else:
+            headers["X-Jev-Verified"] = "off"
+        headers["X-Jev-Cache"] = (
+            f"hit-{runtime['cache']['layer']}"
+            if runtime["cache"]["layer"] in {"exact", "semantic"}
+            else "miss"
+        )
+        prefill = runtime["prefill"]
+        if prefill["skipped"]:
+            headers["X-Jev-Prefill"] = f"skipped:{prefill['skipped']}"
+        elif prefill["total"]:
+            headers["X-Jev-Prefill"] = f"{prefill['selected']}/{prefill['total']}"
+        else:
+            headers["X-Jev-Prefill"] = "off"
     return headers
 
 

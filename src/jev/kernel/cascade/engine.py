@@ -42,6 +42,16 @@ class Route(Enum):
         return self.value
 
 
+@dataclass(frozen=True)
+class RouteDecision:
+    """路由 v2 结果：路径 + 三带 + 是否需要大脑验证（AR003）。"""
+
+    route: Route
+    band: str
+    needs_verify: bool
+    skipped_reason: str | None = None
+
+
 class MidAction(Enum):
     """MID 分段生成动作：早停/继续。"""
 
@@ -110,6 +120,74 @@ class CascadeEngine:
         if budget is not None and hasattr(budget, "allows_full") and not budget.allows_full():
             return Route.LIGHT
         return Route.FULL
+
+    def route_chat_v2(
+        self,
+        pre: Sequence[Decision],
+        *,
+        uncertainty=None,
+        policy=None,
+        margin_tau: float = 0.0,
+        budget=None,
+    ) -> RouteDecision:
+        """三带路由 v2（AR003 FR1-2/FR1-4）。
+
+        - `uncertainty=None` → 与 `route_chat` 逐例等价（AR002 回归）；
+        - confident → 能力门控；uncertain → 强制 full；borderline → 验证器
+          （开启且预算足）/ 直接按能力门控（关闭或预算不足）；
+        - 硬信号（from_fallback / safety=unsafe）永远 full 且不调验证器。
+        """
+        from jev.kernel.runtime.bands import (
+            BORDERLINE,
+            CONFIDENT,
+            UNCERTAIN,
+            BandPolicy,
+            apply_self_verify_gate,
+            classify_band,
+        )
+
+        policy = policy if policy is not None else BandPolicy()
+        if uncertainty is None:
+            return RouteDecision(
+                route=self.route_chat(pre, margin_tau=margin_tau, budget=budget),
+                band="off",
+                needs_verify=False,
+            )
+
+        active = [d for d in pre if d.mode is Mode.ACTIVE]
+        if any(d.from_fallback for d in active) or self._applied(pre, "safety") == "unsafe":
+            return RouteDecision(route=Route.FULL, band=UNCERTAIN, needs_verify=False)
+
+        band = apply_self_verify_gate(
+            classify_band(uncertainty.u, policy), uncertainty.self_agree, policy
+        )
+        if band == UNCERTAIN:
+            return RouteDecision(route=Route.FULL, band=band, needs_verify=False)
+        if band == CONFIDENT:
+            return RouteDecision(
+                route=self.route_chat(pre, margin_tau=margin_tau, budget=budget),
+                band=band,
+                needs_verify=False,
+            )
+        # borderline
+        if not policy.verifier_enabled:
+            return RouteDecision(
+                route=self.route_chat(pre, margin_tau=margin_tau, budget=budget),
+                band=band,
+                needs_verify=False,
+            )
+        if budget is not None and hasattr(budget, "allows_full") and not budget.allows_full():
+            return RouteDecision(
+                route=self.route_chat(pre, margin_tau=margin_tau, budget=budget),
+                band=band,
+                needs_verify=False,
+                skipped_reason="budget",
+            )
+        if not self._margin_ok(pre, margin_tau):
+            return RouteDecision(
+                route=Route.FULL, band=band, needs_verify=False, skipped_reason="margin"
+            )
+        return RouteDecision(route=Route.LIGHT, band=BORDERLINE, needs_verify=True)
 
     def handle_mid(self, mid: Sequence[Decision]) -> MidAction:
         if self._applied(mid, "should_stop") == "stop":

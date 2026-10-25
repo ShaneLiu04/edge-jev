@@ -275,6 +275,7 @@ class LlamaServerClient:
         temperature: float = 0.7,
         stop: list[str] | None = None,
         timeout_s: float | None = None,
+        extra_body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """POST /v1/chat/completions，返回含 choices[0].message.content 与 usage 的 dict。
 
@@ -289,6 +290,8 @@ class LlamaServerClient:
         }
         if stop is not None:
             payload["stop"] = stop
+        if extra_body:
+            payload.update(extra_body)
         request_kwargs: dict[str, Any] = {"json": payload}
         if timeout_s is not None:
             request_kwargs["timeout"] = max(0.001, timeout_s)
@@ -334,6 +337,7 @@ class LlamaServerClient:
         temperature: float = 0.7,
         stop: list[str] | None = None,
         timeout_s: float | None = None,
+        extra_body: dict[str, Any] | None = None,
     ) -> Iterator[dict[str, Any]]:
         """POST /v1/chat/completions（stream=true）→ 逐 chunk 产出 OpenAI 流式 dict。
 
@@ -349,6 +353,8 @@ class LlamaServerClient:
         }
         if stop is not None:
             payload["stop"] = stop
+        if extra_body:
+            payload.update(extra_body)
         stream_kwargs: dict[str, Any] = {"json": payload}
         if timeout_s is not None:
             stream_kwargs["timeout"] = max(0.001, timeout_s)
@@ -383,3 +389,25 @@ class LlamaServerClient:
             raise JevUnavailableError(
                 f"大脑服务不可达（{self._base_url}）: {exc}"
             ) from exc
+
+
+def slot_server_args(
+    *, parallel: int = 1, slot_prompt_similarity: float | None = None
+) -> list[str]:
+    """主大脑实例的槽复用启动参数（AR003 FR2-2）。
+
+    parallel >= 1 -> ``--parallel N``；
+    slot_prompt_similarity in (0,1] -> ``--slot-prompt-similarity S``（0/None 关闭）。
+    """
+    if isinstance(parallel, bool) or not isinstance(parallel, int) or parallel < 1:
+        raise ValueError(f"parallel 须为 >=1 的整数: {parallel!r}")
+    args = ["--parallel", str(parallel)]
+    if slot_prompt_similarity is not None:
+        value = float(slot_prompt_similarity)
+        if not 0.0 <= value <= 1.0:
+            raise ValueError(
+                f"slot_prompt_similarity 须在 [0,1]: {slot_prompt_similarity!r}"
+            )
+        if value > 0.0:
+            args.extend(["--slot-prompt-similarity", str(value)])
+    return args
