@@ -84,6 +84,23 @@ uv run jev matrix --config configs/experiments/server-14b.toml   # 资产缺失�
 
 产物同样写入 `benchmarks/results/server-7b-*/`。**14B 未实际运行前，不得对外宣称 14B 结论。**
 
+### 2.4 AR006 组合实验（7B/14B）
+
+```bash
+# 组合：B1（路由基线）/ P60（固定 0.6 压缩）/ AEB（证据+自适应）/ AEB_ALLOC（+JCBA）
+uv run jev matrix --config configs/experiments/server-7b-combos.toml
+uv run jev matrix --config configs/experiments/server-14b-combos.toml
+```
+
+- 大脑/embedding 均为 `external`；先按 2.2 启动，端口与 TOML 的 `brain_base_url` /
+  `embedding_base_url` 保持一致。
+- 如需长上下文：把 `dataset` 改为 `"needles"`、`ctx_size` 提到 `16384`、`max_tokens` 降到 16；
+  长 prompt 下务必保持 `timeout_s >= 600`，并启用服务端 `--parallel 4` 提升吞吐。
+- 自适应预算默认范围 `0.22–0.60`；如需更保守，改 `[prefill] adaptive_min_ratio/adaptive_max_ratio`。
+- 服务器 embedding 建议 `--batch-size 2048 --ubatch-size 1024`（本仓库矩阵已按此口径）。
+- 若服务端长时间运行后假死，在 `configs/jev.toml` 打开 `[cerebrum] supervisor_enabled = true`
+  并使用 `build_serve_app` 路径；矩阵每 arm 独立重启大脑，天然隔离。
+
 ## 3. 实验口径
 
 | 方案 | 定义 |

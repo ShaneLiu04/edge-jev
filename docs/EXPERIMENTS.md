@@ -50,9 +50,30 @@
 | --- | --- |
 | 质量不降 | AR005 ≥ B2 − 1pt |
 | 成本 | AR005 completion tokens ≤ B2；目标 ↓≥10% |
+| AR006 长上下文 | AEB ≥ B1 − 2pt；prompt tokens ↓≥50% |
 | 风险违规 | ≤ α（默认 0.10）+ 有限样本松弛 |
 | 缓存误命中 | ≤1/20 负例（α=0.10） |
 | 决策稳定性 | 同 seed 两次运行 `decision` 一致 |
+
+## 5.1 AR006 组合实验
+
+`configs/experiments/combos.toml`（needles 12 题）与 `quality-combos.toml`（短问答 12 题）：
+
+| 组合 | 定义 |
+| --- | --- |
+| B1 | 路由基线（无运行时压缩） |
+| P60 | 固定 0.6 预算 |
+| AEB | 真实 embedding 证据 + 自适应预算（0.22–0.60） |
+| AEB_ALLOC | AEB + JCBA 统一预算 |
+
+运行：`uv run jev matrix --config configs/experiments/combos.toml`
+
+服务器：`server-7b-combos.toml` / `server-14b-combos.toml`（external 大脑+embedding），
+结果分别写入 `benchmarks/results/ar006-server-7b-combos-*/`，不得把小模型结论外推到大模型。
+
+判定：选择器仍按配对 bootstrap + LOO；若 AEB 质量下降 >2pt 或无正下界 → rollback；
+若通过，`docs/RESULTS.md` 记录实际运行数字与延迟代价（embedding 选块开销）。
+
 
 ## 6. 选择与回退
 

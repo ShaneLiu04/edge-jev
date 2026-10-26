@@ -49,6 +49,33 @@ AR005 与 B2 相同：本次运行中 Conformal 风险门找到的可行阈值�
 > 本实验显式关闭二者以隔离 prefill/JCBA（配置见 `configs/experiments/needles.toml`），
 > 不代表这些能力无效，只表示该环境下未测。
 
+## 实验 4：AR006 AEB 组合（needles 12 题 ×4 组合，真实 embedding）
+
+命令：`jev matrix --config configs/experiments/combos.toml`
+
+| arm | 说明 | quality | prompt tok | mean latency |
+| --- | --- | --- | --- | --- |
+| B1 | 仅级联（无压缩） | 0.917 | 2457.3 | 33.6s |
+| P60 | 固定 0.6 预算 | 0.917 | 1493.2 | 30.1s |
+| **AEB** | 证据 + 自适应预算 | **0.917** | **1204.2** | 45.2s |
+| AEB_ALLOC | AEB + JCBA 统一预算 | **0.917** | **1204.2** | 45.8s |
+
+- 相对 B1：prompt tokens **↓51.0%**，质量完全不变（12/12），达到 FR6-5 门（≥50%，Δq≤2pt）。
+- 相对固定 0.6：再降 **19.3%** 词元；选择器 `adopt AEB`（效用下界 > 0）。
+- 代价：embedding 选块增加约 10–12s（本机外部 GPU 负载下）；纯生成阶段并未变慢。
+- AEB_ALLOC 与 AEB 同解，说明 JCBA 组合没有破坏收益（组合一致性成立）。
+
+### 实验 5：短问答回归（quality 12 题 ×4 组合）
+
+| arm | quality | prompt tok | 路由 |
+| --- | --- | --- | --- |
+| B1 | 0.333 | 141 | light 12 |
+| P60 | 0.333 | 141 | light 12 |
+| AEB | 0.333 | 141 | light 12 |
+| AEB_ALLOC | 0.333 | 141 | light 12 |
+
+短 prompt 不触发压缩，四组合完全一致；选择器 `rollback B1`，符合“无增益即回退”。
+
 ## 关键发现（诚实记录）
 
 1. **缓存价值已验证**：重复请求命中后 token/延迟显著下降，且不改变答案。
@@ -58,7 +85,11 @@ AR005 与 B2 相同：本次运行中 Conformal 风险门找到的可行阈值�
 4. **AR005 增量在长上下文上验证了预算收益**（prompt↓39%，质量不变），但在短问答上未超过 B2/B0；
    选择器正确 adopt B0 或 rollback B2，体现“无增益即回退”。
 5. **环境风险**：外部 GPU 负载与 llama-server 长时间运行后偶发假死；矩阵已改为**每 arm 重启大脑**
-   并写 `progress.json` 检查点，避免整轮丢失。
+   并写 `progress.json` 检查点，避免整轮丢失；AR006 另提供 `BrainSupervisor`（探针→重启→重试一次）
+   与 embedding 子进程自愈，真实集成测试覆盖。
+6. **AR006 AEB 已达标**：证据锚点 + 自适应预算在 needles 上将 prompt 词元从 2457 降至 1204
+   （−51%），质量不变；但 embedding 选块带来约 10s 额外延迟。生产建议：
+   长文档/内存受限场景用 AEB，低延迟短问答保持 B1（选择器已自动回退）。
 
 ## 下一步（正式复现）
 

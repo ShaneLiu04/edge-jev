@@ -79,6 +79,12 @@ uv run jev matrix --config configs/experiments/ar005.toml
 
 # 采纳结果后写入 profile（仅当选择器判定有正效用下界）
 uv run jev matrix --config configs/experiments/ar005.toml --write-profile
+
+# AR006 长上下文组合（B1 / 固定压缩 / 证据+自适应预算 / +JCBA）
+uv run jev matrix --config configs/experiments/combos.toml
+
+# AR006 短问答回归（验证不在短 prompt 上引入变化）
+uv run jev matrix --config configs/experiments/quality-combos.toml
 ```
 
 产物目录 `benchmarks/results/<run>/`：
@@ -170,6 +176,7 @@ specs/              SDD 需求/设计/任务与归档
 - **AR003** 运行时智能：不确定性/验证器/复用/缓存/记忆（已交付主体）
 - **AR004** 学习与复现：飞轮 / 多基线 / LoRA / 大模型矩阵
 - **AR005** 风险可控自适应编排：Conformal + JCBA + 选择/回退 + 可复现矩阵
+- **AR006** 证据驱动自适应上下文（AEB）+ 大脑/embedding 自愈 + 组合最优与回退
 
 ## 许可
 

@@ -71,3 +71,41 @@
 - `LedgerEntry.runtime` 为结构化 dict（AR003 起）；
 - AR005 追加 `risk` / `plan` / `admission` 子键；
 - 台账用于离线分析、校准与 AR004 飞轮，不进入主路径阻塞。
+
+## 7. AR006 增量（AEB + 自愈 + 组合实验）
+
+```text
+prefill/evidence.py  真实 embedding 打分 + MMR + 证据锚点 + 检索意图抽取
+prefill/planner.py   自适应预算比例（相对均值 margin + top-gap）
+runtime/prompt.py    AEB 接入 JCBA（统一预算，输出 selector/ratio/entropy/gap）
+cerebrum/supervisor.py  健康探针 → 重启 → 重试一次（显式失败，不掩盖）
+cerebrum/embeddings.py  长跑假死时重启 embedding 子进程并重试一次
+bench/matrix.py      任意组合 arm（overlays 定义即合法）+ 组合选择/回退
+```
+
+### 7.1 证据选择
+
+1. `retrieval_query` 从「长文 + 末尾问题」提取真正意图；
+2. 长块按字符切块，分批真实 embedding 后按 owner 均值聚合（避免超出服务 batch）；
+3. 融合分 = `0.55·emb + 0.25·lexical + 0.10·position + 0.10·decision`；
+4. MMR 抑制相邻冗余；首末块 + 证据锚点（排除末块问题）强制保留；
+5. embedding 失败 → 回退 salience，记录 `fallback`，绝不伪造向量。
+
+### 7.2 自适应预算
+
+- `concentration = 0.5·top_gap + 0.5·(top−mean)/top`；
+- `ratio = min + (max−min)·(1−concentration)`，默认 `[0.22, 0.60]`；
+- 证据集中 → 更激进；分布均匀 → 保持上界（与固定 0.6 相同的安全侧）。
+
+### 7.3 组合实验
+
+- `arms` 中非内置名称必须在 `[overlays.<arm>]` 出现，否则启动即报错；
+- 每 arm 独立重启大脑并写检查点；选择器统一采用配对 bootstrap + 留一；
+- 无正收益 → `rollback`；`profile.toml` 记录实际生效节。
+
+### 7.4 新增可观测
+
+- 响应头 `X-Jev-Prefill-Mode: <selector>;r=<ratio>`；
+- `last_runtime.prefill` 增 `selector/budget_ratio/entropy/top_gap/fallback`；
+- `/health` 在启用监督器时返回 `supervisor` 统计（restarts/retries/last_recovery_ms）。
+

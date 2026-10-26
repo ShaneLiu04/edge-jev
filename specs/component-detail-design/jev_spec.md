@@ -136,4 +136,19 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 - **矩阵**：`jev matrix --config <toml> [--limit N] [--write-profile]`；产出 `benchmarks/results/<run>/{results.json,report.md,profile.toml}`；后端失败退出码非 0，不写 adopt。
 - **响应头**：`X-Jev-Risk: allow|deny|off`、`X-Jev-Plan: <arm>`（仅启用时）；其余头语义不变。
 
+## 11 AR006 证据自适应与自愈（增量契约）
+
+- **证据选择**：`EvidenceSelector(embed, EvidenceConfig).score(blocks, query, applied) -> EvidenceResult`；
+  真实 embedding 余弦 + 词法/位置/决策融合，MMR 去冗余，证据锚点必选（排除末块问题）；
+  embedding 失败返回 `fallback` 并回退 salience，绝不伪造向量；长文本按字符切块并分批聚合。
+- **自适应预算**：`adaptive_ratio(result, config)`；范围默认 `[0.22, 0.60]`；
+  `PrefillPlan`/`Allocation` 增 `selector/budget_ratio/entropy/top_gap/fallback`。
+- **大脑自愈**：`BrainSupervisor(manager, client, health_interval_s, health_timeout_s, max_recoveries)`
+  提供 `chat/chat_stream/health/stats`；探针失败或调用超时 → `stop/start` 并重试一次；恢复超限抛
+  `BrainStartupError`；`EmbeddingService.embed` 对超时/不可达做一次子进程重启重试。
+- **组合矩阵**：`arms` 允许非内置名称，但必须在 `[overlays.<arm>]` 定义；每 arm 独立重启大脑；
+  无正效用下界 → `rollback`；profile 依据实际 chosen arm 生成。
+- **响应头**：增 `X-Jev-Prefill-Mode: <selector>;r=<ratio>`；`/health` 增 `supervisor` 子对象（启用时）。
+
+
 
