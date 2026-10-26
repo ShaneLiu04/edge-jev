@@ -1,0 +1,51 @@
+# AR006 质量集组合实验（短问答；用于确认 AEB 不在短 prompt 上引入回归）。
+name = "ar006-quality-combos"
+seed = 20261026
+lambda_cost = 0.15
+limit = 12
+dataset = "quality"
+brain = "spawn"
+embedding = "auto"
+gpu_layers = 99
+ctx_size = 4096
+max_tokens = 32
+timeout_s = 240.0
+prompt_prefix = "写一段回答，并说明理由："
+arms = ["B1", "P60", "AEB", "AEB_ALLOC"]
+
+[overlays.P60.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+
+[overlays.P60.prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = false
+evidence = false
+
+[overlays.AEB.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+
+[overlays.AEB.prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = true
+evidence = true
+anchor = true
+
+[overlays.AEB_ALLOC.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+allocator_enabled = true
+allocator_budget_ratio = 0.6
+
+[overlays.AEB_ALLOC.prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = true
+evidence = true
+anchor = true

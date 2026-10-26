@@ -93,3 +93,39 @@ def test_calibrate_risk_writes_only_when_feasible(tmp_path):
     data = json.loads((tmp_path / "risk.json").read_text(encoding="utf-8"))
     assert data["enabled"] is True
     assert "threshold" in data
+
+
+def test_combo_arms_require_overlay_definition(tmp_path):
+    import pytest
+
+    from jev.errors import JevError
+
+    good = tmp_path / "good.toml"
+    good.write_text(
+        'name = "x"\narms = ["B1", "AEB"]\n'
+        '[overlays.AEB.prefill]\nenabled = true\nevidence = true\n',
+        encoding="utf-8",
+    )
+    config = load_matrix_config(good)
+    assert config.arms == ("B1", "AEB")
+    assert config.overlays["AEB"]["prefill"]["evidence"] is True
+
+    bad = tmp_path / "bad.toml"
+    bad.write_text('name = "x"\narms = ["NOPE"]\n', encoding="utf-8")
+    with pytest.raises(JevError):
+        load_matrix_config(bad)
+
+
+def test_combo_arm_config_is_base_plus_overlay():
+    base = {
+        "runtime": {"enabled": False, "allocator_enabled": False},
+        "prefill": {"enabled": False, "budget_ratio": 0.6},
+    }
+    extra = {
+        "runtime": {"enabled": True, "allocator_enabled": True},
+        "prefill": {"enabled": True, "evidence": True, "adaptive": True},
+    }
+    merged = _arm_config(base, "AEB_ALLOC", extra)
+    assert merged["runtime"]["enabled"] is True
+    assert merged["prefill"]["evidence"] is True
+    assert merged["prefill"]["budget_ratio"] == 0.6

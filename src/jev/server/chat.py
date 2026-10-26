@@ -62,6 +62,7 @@ from jev.kernel.decisions.framework import (
     Stage,
 )
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
+from jev.kernel.prefill.evidence import EvidenceSelector
 from jev.kernel.runtime.bands import apply_self_verify_gate, classify_band
 from jev.kernel.runtime.config import RuntimeConfig
 from jev.kernel.runtime.conformal import AdmissionPolicy, RiskController
@@ -298,6 +299,7 @@ class _CascadeContext:
         risk_controller: RiskController | None = None,
         admission_policy: AdmissionPolicy | None = None,
         profile_name: str = "",
+        evidence: EvidenceSelector | None = None,
     ) -> None:
         self.cerebellum = cerebellum
         self.brain = brain
@@ -322,6 +324,7 @@ class _CascadeContext:
         self.risk_controller = risk_controller or RiskController.disabled()
         self.admission_policy = admission_policy
         self.profile_name = profile_name
+        self.evidence = evidence
         self.last_fused: dict = {}
         self.last_runtime: dict = {
             "uncertainty": {"u": None, "band": "off", "self_agree": 1.0,
@@ -332,7 +335,9 @@ class _CascadeContext:
             "prefix": {"fingerprint": None, "reused": False, "evidence": None,
                        "ttft_ms": 0.0, "prompt_tokens": 0, "prompt_n": 0},
             "prefill": {"selected": 0, "total": 0, "before_tokens": 0,
-                        "after_tokens": 0, "skipped": None},
+                        "after_tokens": 0, "skipped": None,
+                        "selector": "salience", "budget_ratio": 0.0,
+                        "entropy": 0.0, "top_gap": 0.0, "fallback": None},
             "cache": {"layer": "none", "similarity": None},
             "memory": {"summary_tokens": 0},
             "risk": {"mode": "off", "score": None, "threshold": None, "decision": "off"},
@@ -574,6 +579,7 @@ class _CascadeContext:
             registry=self.registry,
             applied=applied,
             prefill_config=config.prefill,
+            evidence=self.evidence,
         )
         self.prompt_build = build
         self.last_runtime["memory"] = {"summary_tokens": build.memory_summary_tokens}
@@ -584,6 +590,11 @@ class _CascadeContext:
                 "before_tokens": build.prefill.before_tokens,
                 "after_tokens": build.prefill.after_tokens,
                 "skipped": build.prefill.skipped,
+                "selector": build.prefill.selector,
+                "budget_ratio": build.prefill.budget_ratio,
+                "entropy": build.prefill.entropy,
+                "top_gap": build.prefill.top_gap,
+                "fallback": build.prefill.fallback,
             }
         if build.allocation is not None:
             self.last_runtime["prefill"] = {
@@ -593,6 +604,11 @@ class _CascadeContext:
                 "before_tokens": build.allocation.before_tokens,
                 "after_tokens": build.allocation.after_tokens,
                 "skipped": build.allocation.skipped,
+                "selector": build.allocation.selector,
+                "budget_ratio": build.allocation.budget_ratio,
+                "entropy": build.allocation.entropy,
+                "top_gap": build.allocation.top_gap,
+                "fallback": build.allocation.fallback,
             }
         return build.messages
 
@@ -739,6 +755,7 @@ def create_chat_router(
     risk_controller: RiskController | None = None,
     admission_policy: AdmissionPolicy | None = None,
     profile_name: str = "",
+    evidence: EvidenceSelector | None = None,
 ) -> APIRouter:
     """构建 /v1/chat/completions 路由。
 
@@ -809,6 +826,7 @@ def create_chat_router(
                 risk_controller=risk_controller,
                 admission_policy=admission_policy,
                 profile_name=profile_name,
+                evidence=evidence,
             )
             if stream:
                 return _stream_response(context)
@@ -1146,6 +1164,10 @@ def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
             headers["X-Jev-Prefill"] = f"{prefill['selected']}/{prefill['total']}"
         else:
             headers["X-Jev-Prefill"] = "off"
+        mode = prefill.get("selector") or "salience"
+        ratio = prefill.get("budget_ratio") or 0.0
+        if prefill["selected"]:
+            headers["X-Jev-Prefill-Mode"] = f"{mode};r={ratio:.2f}"
     return headers
 
 

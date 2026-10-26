@@ -23,6 +23,11 @@ ctx_size = 4096
 startup_probe = "/health"
 restart_max = 3
 parallel = 1                             # AR003 多槽：并行请求共享前缀（1=关闭）
+supervisor_enabled = false               # AR006 大脑自愈监督（默认关闭）
+health_interval_s = 30.0                 # 健康探针最小间隔
+health_timeout_s = 3.0                   # 探针超时（秒）
+max_recoveries = 5                       # 一小时最大重启次数
+recovery_cooldown_s = 5.0                # 两次重启最小间隔
 # slot_prompt_similarity = 0.5          # AR003 槽位前缀相似度阈值（留空=llama 默认）                          # 崩溃自动重启上限（指数退避 2s/4s/8s）
 
 [cascade]
@@ -87,6 +92,16 @@ budget_ratio = 0.6
 min_prompt_tokens = 512
 min_blocks = 4
 block_tokens = 256
+adaptive = false                 # AR006 自适应预算比例
+evidence = false                 # AR006 embedding 证据选择
+anchor = true                    # AR006 证据锚点必选
+evidence_embed_weight = 0.55
+evidence_lexical_weight = 0.25
+evidence_position_weight = 0.10
+evidence_decision_weight = 0.10
+evidence_mmr_lambda = 0.25
+adaptive_min_ratio = 0.22
+adaptive_max_ratio = 0.60
 
 [embeddings]
 model_path = ""

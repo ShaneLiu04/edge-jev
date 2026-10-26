@@ -8,7 +8,11 @@ from __future__ import annotations
 
 import httpx
 
-from jev.errors import JevProtocolError, JevTimeoutError, JevUnavailableError
+from jev.errors import (
+    JevProtocolError,
+    JevTimeoutError,
+    JevUnavailableError,
+)
 from jev.kernel.cerebrum.llama_server import LlamaServerManager
 
 _MAX_TEXTS = 64
@@ -121,7 +125,16 @@ class EmbeddingService:
     def embed(self, texts: list[str] | tuple[str, ...]) -> list[list[float]]:
         if not self._ensure_started():
             raise JevUnavailableError("embedding 服务无法启动")
-        return self._client.embed(texts)
+        try:
+            return self._client.embed(texts)
+        except (JevTimeoutError, JevUnavailableError):
+            if self._manager is None:
+                raise
+            # AR006：embedding 子进程长跑后可能假死；重启并重试一次，仍失败则上抛。
+            self._manager.stop()
+            self._manager.start()
+            self._started = True
+            return self._client.embed(texts)
 
     def _ensure_started(self) -> bool:
         if self._started:

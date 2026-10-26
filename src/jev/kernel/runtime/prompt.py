@@ -14,6 +14,11 @@ from jev.kernel.cache.memory import compress_with_memory, memory_tokens
 from jev.kernel.cascade.draft import build_draft_prefix
 from jev.kernel.decisions.framework import Decision
 from jev.kernel.prefill.blocks import estimate_tokens, split_blocks
+from jev.kernel.prefill.evidence import (
+    EvidenceConfig,
+    EvidenceSelector,
+    adaptive_ratio,
+)
 from jev.kernel.prefill.planner import PrefillConfig, PrefillPlan, plan_prefill
 from jev.kernel.prefill.salience import score_blocks
 from jev.kernel.runtime.allocator import Allocation, AllocatorConfig, Unit, allocate
@@ -30,6 +35,10 @@ class PromptConfig:
     allocator_min_prompt_tokens: int = 512
     allocator_draft_benefit: float = 0.4
     allocator_memory_benefit: float = 0.5
+    evidence_enabled: bool = False
+    adaptive: bool = False
+    anchor: bool = True
+    evidence_config: EvidenceConfig = dataclasses.field(default_factory=EvidenceConfig)
 
     def __post_init__(self) -> None:
         if self.keep_turns < 1:
@@ -71,12 +80,32 @@ def _allocate_prompt(
     applied: Mapping[str, str | float | None],
     config: PromptConfig,
     prefill_config: PrefillConfig,
+    evidence: EvidenceSelector | None = None,
 ) -> tuple[list[dict], Allocation]:
-    """JCBA：草稿/记忆摘要/prefill 块在同一预算内竞争。"""
+    """JCBA：草稿/记忆摘要/prefill 块在同一预算内竞争；AR006 接入证据与自适应预算。"""
     summary = [m for m in working if _is_memory(m)]
     body = [m for m in working if not _is_memory(m)]
     blocks = split_blocks(body, block_tokens=prefill_config.block_tokens)
     scores = score_blocks(blocks, query, applied)
+    selector = "salience"
+    fallback: str | None = None
+    entropy = 0.0
+    top_gap = 0.0
+    ratio = config.allocator_budget_ratio
+    if config.evidence_enabled and evidence is not None and blocks:
+        result = evidence.score(blocks, query, applied)
+        if result.usable:
+            scores = list(result.scores)
+            selector = "evidence"
+            entropy = result.entropy
+            top_gap = result.top_gap
+            if config.adaptive:
+                ratio = adaptive_ratio(result, evidence.config)
+        else:
+            fallback = result.fallback or "unusable"
+    elif config.evidence_enabled and evidence is None:
+        fallback = "selector_unavailable"
+    ratio = min(1.0, max(0.05, ratio))
     units: list[Unit] = []
     if draft_prefix:
         units.append(
@@ -97,6 +126,10 @@ def _allocate_prompt(
             )
         )
     total = len(blocks)
+    anchor_index: int | None = None
+    if config.anchor and config.evidence_enabled and selector == "evidence" and total:
+        candidates = range(1, total - 1) if total > 2 else range(total)
+        anchor_index = max(candidates, key=lambda index: (scores[index], -index))
     for index, block in enumerate(blocks):
         units.append(
             Unit(
@@ -104,19 +137,27 @@ def _allocate_prompt(
                 block.tokens,
                 min(1.0, scores[index]) + (total - index) * 1e-6,
                 order=2 + index,
-                mandatory=index == 0 or index == total - 1,
+                mandatory=index == 0 or index == total - 1 or index == anchor_index,
             )
         )
     allocation = allocate(
         units,
         config=AllocatorConfig(
             enabled=True,
-            budget_ratio=config.allocator_budget_ratio,
+            budget_ratio=ratio,
             min_prompt_tokens=config.allocator_min_prompt_tokens,
             min_blocks=prefill_config.min_blocks,
             draft_benefit=config.allocator_draft_benefit,
             memory_benefit=config.allocator_memory_benefit,
         ),
+    )
+    allocation = dataclasses.replace(
+        allocation,
+        budget_ratio=ratio,
+        selector=selector,
+        entropy=entropy,
+        top_gap=top_gap,
+        fallback=fallback,
     )
     if allocation.skipped is not None:
         return _merge_prefix(working, draft_prefix), allocation
@@ -151,6 +192,7 @@ def build_prompt(
     registry=None,
     applied: Mapping[str, str | float | None] | None = None,
     prefill_config: PrefillConfig | None = None,
+    evidence: EvidenceSelector | None = None,
 ) -> PromptBuild:
     """按固定顺序组装生成用 messages（全部关闭时逐字返回输入副本）。"""
     config = config if config is not None else PromptConfig()
@@ -183,6 +225,7 @@ def build_prompt(
             applied=applied or {},
             config=config,
             prefill_config=prefill_config or PrefillConfig(),
+            evidence=evidence,
         )
     else:
         if prefix:
@@ -195,7 +238,15 @@ def build_prompt(
             )
             if not cfg.enabled:
                 cfg = dataclasses.replace(cfg, enabled=True)
-            plan = plan_prefill(working, query, applied or {}, cfg)
+            if config.evidence_enabled:
+                cfg = dataclasses.replace(
+                    cfg,
+                    evidence=True,
+                    adaptive=config.adaptive,
+                    anchor=config.anchor,
+                    evidence_config=config.evidence_config,
+                )
+            plan = plan_prefill(working, query, applied or {}, cfg, evidence=evidence)
             working = plan.messages
 
     after_tokens = memory_tokens(working)

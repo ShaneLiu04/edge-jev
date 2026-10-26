@@ -56,6 +56,11 @@ class Allocation:
     before_tokens: int
     after_tokens: int
     skipped: str | None = None
+    budget_ratio: float = 0.0
+    selector: str = ""
+    entropy: float = 0.0
+    top_gap: float = 0.0
+    fallback: str | None = None
 
     @property
     def saved_tokens(self) -> int:
@@ -69,6 +74,11 @@ class Allocation:
             "after_tokens": self.after_tokens,
             "saved_tokens": self.saved_tokens,
             "skipped": self.skipped,
+            "budget_ratio": round(self.budget_ratio, 4),
+            "selector": self.selector,
+            "entropy": round(self.entropy, 4),
+            "top_gap": round(self.top_gap, 4),
+            "fallback": self.fallback,
         }
 
 

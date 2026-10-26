@@ -1,0 +1,54 @@
+# 服务器 14B 组合实验（大脑/embedding 均在服务器预启动）。
+# 用法：uv run jev matrix --config configs/experiments/server-14b-combos.toml
+# 前置：llama-server 监听 8388（14B chat）与 8389（embedding），详见 REPRODUCTION.md。
+name = "ar006-server-14b-combos"
+seed = 20261026
+lambda_cost = 0.15
+limit = 30
+dataset = "quality"
+brain = "external"
+brain_base_url = "http://127.0.0.1:8388"
+embedding = "external"
+embedding_base_url = "http://127.0.0.1:8389"
+gpu_layers = 99
+ctx_size = 8192
+max_tokens = 128
+timeout_s = 600.0
+prompt_prefix = "写一段回答，并说明理由："
+arms = ["B1", "P60", "AEB", "AEB_ALLOC"]
+
+[overlays.P60.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+
+[overlays.P60.prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = false
+evidence = false
+
+[overlays.AEB.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+
+[overlays.AEB.prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = true
+evidence = true
+anchor = true
+
+[overlays.AEB_ALLOC.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+allocator_enabled = true
+
+[overlays.AEB_ALLOC.prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = true
+evidence = true
+anchor = true

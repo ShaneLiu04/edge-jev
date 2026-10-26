@@ -266,13 +266,21 @@ class LlamaServerClient:
         self._client = httpx.Client(timeout=timeout_s)
         self._cache_prompt = cache_prompt
 
+    @property
+    def base_url(self) -> str:
+        return self._base_url
+
     def health(self) -> bool:
-        """2xx → True；连接失败/非 2xx → False（不抛，供探活轮询）。"""
+        """2xx → True；连接失�?→ 非 2xx → False（不抛，供探活轮询）。"""
         try:
             response = self._client.get(f"{self._base_url}/health")
         except httpx.HTTPError:
             return False
         return 200 <= response.status_code < 300
+
+    def close(self) -> None:
+        """释放 HTTP 连接池（幂等）。"""
+        self._client.close()
 
     def chat(
         self,

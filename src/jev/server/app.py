@@ -28,7 +28,13 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
     """
     app = create_app(kernel)
     brain_client = (
-        LlamaServerClient(kernel.brain.base_url) if kernel.brain is not None else None
+        kernel.supervisor
+        if kernel.supervisor is not None
+        else (
+            LlamaServerClient(kernel.brain.base_url)
+            if kernel.brain is not None
+            else None
+        )
     )
     app.include_router(
         create_chat_router(
@@ -49,6 +55,7 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
             risk_controller=kernel.risk_controller,
             admission_policy=kernel.admission_policy,
             profile_name=(kernel.profile.name if kernel.profile is not None else ""),
+            evidence=kernel.evidence_selector,
         )
     )
 
@@ -60,13 +67,16 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
             kernel.brain.is_running() if kernel.brain is not None else False
         )
         ready = kernel.brain is None or cerebrum_running
-        return {
+        payload = {
             "status": "ok" if ready else "starting",
             "cerebellum": True,
             "cerebrum": cerebrum_running,
             "breaker": kernel.breaker.state.value,
             "uptime": round(time.monotonic() - started, 3),
         }
+        if kernel.supervisor is not None:
+            payload["supervisor"] = kernel.supervisor.stats()
+        return payload
 
     return app
 

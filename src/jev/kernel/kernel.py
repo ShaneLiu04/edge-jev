@@ -27,9 +27,11 @@ from jev.kernel.cerebellum.base import CerebellumBackend, Question, SystemOneRes
 from jev.kernel.cerebellum.registry import create_backend, repo_root
 from jev.kernel.cerebrum.embeddings import EmbeddingClient, EmbeddingService
 from jev.kernel.cerebrum.llama_server import LlamaServerManager, slot_server_args
+from jev.kernel.cerebrum.supervisor import BrainSupervisor
 from jev.kernel.decisions.calibration import Calibration, load_calibration
 from jev.kernel.decisions.framework import DecisionPoint, DecisionRegistry
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
+from jev.kernel.prefill.evidence import EvidenceConfig, EvidenceSelector
 from jev.kernel.prefill.planner import PrefillConfig
 from jev.kernel.runtime.bands import BandPolicy
 from jev.kernel.runtime.config import RuntimeConfig
@@ -72,6 +74,8 @@ class Kernel(CerebellumBackend):
         risk_controller: RiskController | None = None,
         admission_policy: AdmissionPolicy | None = None,
         profile: RuntimeProfile | None = None,
+        evidence_selector: EvidenceSelector | None = None,
+        supervisor: BrainSupervisor | None = None,
     ) -> None:
         self._cerebellum = cerebellum
         self._registry = registry
@@ -93,11 +97,8 @@ class Kernel(CerebellumBackend):
         )
         self._admission_policy = admission_policy
         self._profile = profile
-        self._risk_controller = (
-            risk_controller if risk_controller is not None else RiskController.disabled()
-        )
-        self._admission_policy = admission_policy
-        self._profile = profile
+        self._evidence_selector = evidence_selector
+        self._supervisor = supervisor
 
     # ------------------------------------------------------------------
     # 组合根：configs/jev.toml 单源装配
@@ -181,6 +182,16 @@ class Kernel(CerebellumBackend):
             if profile_path
             else None
         )
+        evidence_config = _build_evidence_config(config)
+        evidence_selector = (
+            EvidenceSelector(embeddings.embed, evidence_config)
+            if (
+                embeddings is not None
+                and bool((config.get("prefill") or {}).get("evidence", False))
+            )
+            else None
+        )
+        supervisor = _build_supervisor(config, brain)
         return cls(
             cerebellum=backend,
             registry=registry,
@@ -204,6 +215,8 @@ class Kernel(CerebellumBackend):
             risk_controller=risk_controller,
             admission_policy=admission_policy,
             profile=profile,
+            evidence_selector=evidence_selector,
+            supervisor=supervisor,
         )
 
     # ------------------------------------------------------------------
@@ -284,6 +297,16 @@ class Kernel(CerebellumBackend):
         return self._profile
 
     @property
+    def evidence_selector(self) -> EvidenceSelector | None:
+        """AR006：证据选择器（未启用/无 embedding 时为 None）。"""
+        return self._evidence_selector
+
+    @property
+    def supervisor(self) -> BrainSupervisor | None:
+        """AR006：大脑自愈监督器（未启用时为 None）。"""
+        return self._supervisor
+
+    @property
     def generation_timeout_s(self) -> float:
         """路径②/③ 生成总时长上限（EX-04，[cascade] 单源）。"""
         return self._generation_timeout_s
@@ -358,6 +381,8 @@ class Kernel(CerebellumBackend):
 
     def close(self) -> None:
         """释放底层资源（大脑子进程/台账写线程）；幂等。"""
+        if self._supervisor is not None:
+            self._supervisor.close()
         if self._brain is not None:
             self._brain.stop()
         if self._ledger is not None:
@@ -437,6 +462,10 @@ def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
         min_prompt_tokens=int(prefill_cfg.get("min_prompt_tokens", 512)),
         min_blocks=int(prefill_cfg.get("min_blocks", 4)),
         block_tokens=int(prefill_cfg.get("block_tokens", 256)),
+        adaptive=bool(prefill_cfg.get("adaptive", False)),
+        evidence=bool(prefill_cfg.get("evidence", False)),
+        anchor=bool(prefill_cfg.get("anchor", True)),
+        evidence_config=_build_evidence_config(config),
     )
     prompt = PromptConfig(
         draft_enabled=bool(runtime_cfg.get("draft_injection", False)),
@@ -450,6 +479,10 @@ def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
         allocator_min_prompt_tokens=int(
             runtime_cfg.get("allocator_min_prompt_tokens", prefill.min_prompt_tokens)
         ),
+        evidence_enabled=prefill.evidence,
+        adaptive=prefill.adaptive,
+        anchor=prefill.anchor,
+        evidence_config=prefill.evidence_config,
     )
     runtime_config = RuntimeConfig(
         enabled=bool(runtime_cfg.get("enabled", False)),
@@ -500,10 +533,18 @@ def _build_embeddings(config: dict) -> EmbeddingService | None:
         gguf_path=_resolve(model_path),
         host=cerebrum_cfg.get("host", "127.0.0.1"),
         port=port,
-        ctx_size=int(embeddings_cfg.get("ctx_size", 2048)),
+        ctx_size=int(embeddings_cfg.get("ctx_size", 4096)),
         startup_probe="/health",
         restart_max=int(embeddings_cfg.get("restart_max", 1)),
-        extra_args=["--embeddings", "--pooling", "mean"],
+        extra_args=[
+            "--embeddings",
+            "--pooling",
+            "mean",
+            "--batch-size",
+            "2048",
+            "--ubatch-size",
+            "1024",
+        ],
     )
     client = EmbeddingClient(
         f"http://{cerebrum_cfg.get('host', '127.0.0.1')}:{port}",
@@ -539,6 +580,32 @@ def _apply_profile(config: dict, base: Path) -> dict:
     merged = merge_profile(config, profile)
     logger.info("已加载运行时 profile: %s", profile.name)
     return merged
+
+
+def _build_evidence_config(config: dict) -> EvidenceConfig:
+    prefill_cfg = config.get("prefill") or {}
+    return EvidenceConfig(
+        embed_weight=float(prefill_cfg.get("evidence_embed_weight", 0.55)),
+        lexical_weight=float(prefill_cfg.get("evidence_lexical_weight", 0.25)),
+        position_weight=float(prefill_cfg.get("evidence_position_weight", 0.10)),
+        decision_weight=float(prefill_cfg.get("evidence_decision_weight", 0.10)),
+        mmr_lambda=float(prefill_cfg.get("evidence_mmr_lambda", 0.25)),
+        min_ratio=float(prefill_cfg.get("adaptive_min_ratio", 0.22)),
+        max_ratio=float(prefill_cfg.get("adaptive_max_ratio", 0.60)),
+    )
+
+
+def _build_supervisor(config: dict, brain: LlamaServerManager | None) -> BrainSupervisor | None:
+    cerebrum_cfg = config.get("cerebrum") or {}
+    if brain is None or not bool(cerebrum_cfg.get("supervisor_enabled", False)):
+        return None
+    return BrainSupervisor(
+        manager=brain,
+        health_interval_s=float(cerebrum_cfg.get("health_interval_s", 30.0)),
+        health_timeout_s=float(cerebrum_cfg.get("health_timeout_s", 3.0)),
+        max_recoveries=int(cerebrum_cfg.get("max_recoveries", 5)),
+        recovery_cooldown_s=float(cerebrum_cfg.get("recovery_cooldown_s", 5.0)),
+    )
 
 
 def _build_risk(config: dict, base: Path) -> RiskController:

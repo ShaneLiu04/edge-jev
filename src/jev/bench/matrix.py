@@ -27,9 +27,11 @@ from jev.kernel.cerebrum.llama_server import LlamaServerClient, LlamaServerManag
 from jev.kernel.kernel import (
     Kernel,
     _build_admission,
+    _build_evidence_config,
     _build_risk,
     _build_runtime,
 )
+from jev.kernel.prefill.evidence import EvidenceSelector
 from jev.kernel.runtime.conformal import (
     calibrate_cache_admission,
     conformal_risk_threshold,
@@ -121,9 +123,12 @@ def load_matrix_config(path: Path | str) -> MatrixConfig:
     except (OSError, tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
         raise JevError(f"实验配置不可用: {file}: {exc}") from exc
     arms = tuple(data.get("arms", ARMS))
-    unknown = [arm for arm in arms if arm not in ARMS]
+    overlays = data.get("overlays", {}) or {}
+    unknown = [arm for arm in arms if arm not in ARMS and arm not in overlays]
     if unknown:
-        raise JevError(f"未知 arm: {unknown}（可选 {list(ARMS)}）")
+        raise JevError(
+            f"未知 arm: {unknown}（内置 {list(ARMS)}；组合需在 [overlays] 定义）"
+        )
     return MatrixConfig(
         name=str(data.get("name", file.stem)),
         seed=int(data.get("seed", 20261026)),
@@ -143,7 +148,7 @@ def load_matrix_config(path: Path | str) -> MatrixConfig:
         repeat=int(data.get("repeat", 1)),
         dataset=str(data.get("dataset", "quality")),
         timeout_s=float(data.get("timeout_s", 180.0)),
-        overlays=data.get("overlays", {}) or {},
+        overlays=overlays,
     )
 
 
@@ -167,8 +172,8 @@ def _deep_merge(base: dict, overlay: dict) -> dict:
 
 
 def _arm_config(base: dict, arm: str, extra: dict | None = None) -> dict:
-    overlay = dict(_ARM_OVERLAYS[arm])
-    overlay = _deep_merge(overlay, extra or {})
+    preset = _ARM_OVERLAYS.get(arm, {})
+    overlay = _deep_merge(preset, extra or {})
     return _deep_merge(base, overlay)
 
 
@@ -199,18 +204,22 @@ def _spawn_embedding(config: MatrixConfig) -> EmbeddingService:
         llama_server_bin=DEFAULT_LLAMA_BIN,
         gguf_path=DEFAULT_BRAIN_GGUF,
         port=port,
-        ctx_size=1024,
+        ctx_size=4096,
         probe_timeout_s=180.0,
         restart_max=0,
         extra_args=[
             "--embeddings",
             "--pooling",
             "mean",
+            "--batch-size",
+            "2048",
+            "--ubatch-size",
+            "1024",
             "--n-gpu-layers",
             str(config.gpu_layers),
         ],
     )
-    client = EmbeddingClient(f"http://127.0.0.1:{port}", timeout_s=60.0)
+    client = EmbeddingClient(f"http://127.0.0.1:{port}", timeout_s=25.0)
     service = EmbeddingService(manager, client)
     if not service.available():
         service.close()
@@ -234,6 +243,7 @@ def _build_client(
     embedding_service: EmbeddingService | None,
     profile_name: str,
     force_full: bool = False,
+    evidence: EvidenceSelector | None = None,
 ) -> TestClient:
     runtime_config, cache = _build_runtime(config)
     embeddings = embedding_service
@@ -251,6 +261,7 @@ def _build_client(
             risk_controller=_build_risk(config, REPO_ROOT / "configs"),
             admission_policy=_build_admission(config, REPO_ROOT / "configs"),
             profile_name=profile_name,
+            evidence=evidence,
         )
     )
     return TestClient(app)
@@ -423,7 +434,7 @@ def run_matrix(
             if not config.embedding_base_url:
                 raise JevError("embedding=external 但未配置 embedding_base_url")
             embedding_service = EmbeddingService(
-                None, EmbeddingClient(config.embedding_base_url, timeout_s=60.0)
+                None, EmbeddingClient(config.embedding_base_url, timeout_s=25.0)
             )
             if not embedding_service.available():
                 raise JevError(f"外部 embedding 不可用: {config.embedding_base_url}")
@@ -446,17 +457,31 @@ def run_matrix(
                     cache_prompt=False,
                 )
             try:
+                arm_prefill = arm_cfg.get("prefill", {}) or {}
+                arm_cache = arm_cfg.get("cache", {}) or {}
+                needs_embeddings = bool(arm_cache.get("enabled", False)) or bool(
+                    arm_prefill.get("evidence", False)
+                )
+                arm_evidence = (
+                    EvidenceSelector(
+                        embedding_service.embed, _build_evidence_config(arm_cfg)
+                    )
+                    if (
+                        embedding_service is not None
+                        and bool(arm_prefill.get("evidence", False))
+                    )
+                    else None
+                )
                 client = _build_client(
                     kernel,
                     arm_brain,
                     arm_cfg,
                     embedding_service=(
-                        embedding_service
-                        if arm_cfg.get("cache", {}).get("enabled", False)
-                        else None
+                        embedding_service if needs_embeddings else None
                     ),
                     profile_name=arm,
                     force_full=(arm == "B0"),
+                    evidence=arm_evidence,
                 )
                 raw[arm] = _run_questions(
                     client, questions, arm=arm, seed=config.seed,
@@ -508,12 +533,24 @@ def run_matrix(
                     cache_prompt=False,
                 )
             try:
+                ar_prefill = ar_cfg.get("prefill", {}) or {}
+                ar_evidence = (
+                    EvidenceSelector(
+                        embedding_service.embed, _build_evidence_config(ar_cfg)
+                    )
+                    if (
+                        embedding_service is not None
+                        and bool(ar_prefill.get("evidence", False))
+                    )
+                    else None
+                )
                 client = _build_client(
                     kernel,
                     arm_brain,
                     ar_cfg,
                     embedding_service=embedding_service,
                     profile_name="AR005",
+                    evidence=ar_evidence,
                 )
                 raw["AR005"] = _run_questions(
                     client, questions, arm="AR005", seed=config.seed,
@@ -553,10 +590,13 @@ def run_matrix(
                         band=row["route"] or "unknown",
                     )
                 )
+        baseline_arm = (
+            "B2" if "B2" in raw else ("B1" if "B1" in raw else (list(raw)[0] if raw else "B1"))
+        )
         selection = select(
             outcomes,
             lambda_cost=config.lambda_cost,
-            baseline_arm="B2" if "B2" in raw else "B1",
+            baseline_arm=baseline_arm,
             seed=config.seed,
             min_samples=min(20, len(questions)),
         )
@@ -592,28 +632,44 @@ def run_matrix(
         (out / "report.md").write_text(
             _render_report(payload), encoding="utf-8"
         )
-        profile_text = to_toml(
-            "AR005",
-            {
-                "runtime": {
-                    "enabled": True,
-                    "verifier_enabled": True,
-                    "self_verify_mode": "gate",
-                    "risk_control": "risk" in calibrations,
-                    "risk_calibration": calibrations.get("risk", {}).get("path", ""),
-                    "allocator_enabled": True,
-                    "memory_enabled": True,
-                    "keep_turns": 2,
+        if "AR005" in raw:
+            profile_text = to_toml(
+                "AR005",
+                {
+                    "runtime": {
+                        "enabled": True,
+                        "verifier_enabled": True,
+                        "self_verify_mode": "gate",
+                        "risk_control": "risk" in calibrations,
+                        "risk_calibration": calibrations.get("risk", {}).get("path", ""),
+                        "allocator_enabled": True,
+                        "memory_enabled": True,
+                        "keep_turns": 2,
+                    },
+                    "cache": {
+                        "enabled": True,
+                        "conformal_admission": "cache" in calibrations,
+                        "admission_calibration": calibrations.get("cache", {}).get("path", ""),
+                    },
+                    "prefill": {"enabled": True},
+                    "portfolio": {"name": "AR005"},
                 },
-                "cache": {
-                    "enabled": True,
-                    "conformal_admission": "cache" in calibrations,
-                    "admission_calibration": calibrations.get("cache", {}).get("path", ""),
-                },
-                "prefill": {"enabled": True},
-                "portfolio": {"name": "AR005"},
-            },
-        )
+            )
+        else:
+            chosen_cfg = _arm_config(
+                base,
+                selection.chosen_arm,
+                extra.get(selection.chosen_arm),
+            )
+            profile_text = to_toml(
+                selection.chosen_arm,
+                {
+                    section: chosen_cfg.get(section, {})
+                    for section in ("runtime", "cache", "prefill")
+                    if isinstance(chosen_cfg.get(section), dict)
+                }
+                | {"portfolio": {"name": selection.chosen_arm}},
+            )
         (out / "profile.toml").write_text(profile_text, encoding="utf-8")
         if write_profile and selection.decision == "adopt":
             (REPO_ROOT / "configs" / "runtime-profile.toml").write_text(
@@ -672,7 +728,7 @@ def _counts(values) -> dict[str, int]:
 
 def _render_report(payload: dict) -> str:
     lines = [
-        "# Jev 实验矩阵报告（AR005）",
+        "# Jev 实验矩阵报告",
         "",
         f"- run: {payload['run']['name']}",
         f"- lambda_cost: {payload['run']['lambda_cost']}",
