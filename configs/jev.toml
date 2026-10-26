@@ -63,6 +63,12 @@ verifier_max_tokens = 16
 draft_injection = false
 memory_enabled = false
 keep_turns = 2
+risk_control = false
+risk_calibration = ""
+risk_alpha = 0.10
+allocator_enabled = false
+allocator_budget_ratio = 0.6
+allocator_min_prompt_tokens = 512
 
 [cache]
 enabled = false
@@ -70,6 +76,10 @@ similarity = 0.93
 margin = 0.02
 ttl_s = 1800.0
 capacity = 256
+conformal_admission = false
+admission_calibration = ""
+admission_alpha = 0.10
+admission_min_recall = 0.60
 
 [prefill]
 enabled = false
@@ -84,3 +94,6 @@ base_url = ""
 model = "local"
 port = 8389
 timeout_s = 10.0
+
+[portfolio]
+profile = ""

@@ -1,0 +1,24 @@
+# 服务器档（14B）：配置完整，本机不执行（无资产/显存）。
+# 启动示例：
+#    llama-server -m /models/qwen2.5-14b-instruct-q4_k_m.gguf \
+#      --host 0.0.0.0 --port 8390 --ctx-size 8192 --n-gpu-layers 99 \
+#      --parallel 2 --slot-prompt-similarity 0.5
+# 缺少 14B 资产时：矩阵必须报 JevAssetError/deferred-server，不得产出指标。
+name = "server-14b"
+seed = 20261026
+lambda_cost = 0.15
+limit = 0
+brain = "external"
+brain_base_url = "http://127.0.0.1:8390"
+embedding = "external"
+embedding_base_url = "http://127.0.0.1:8389"
+arms = ["B0", "B1", "B2", "AR005"]
+
+[server]
+model = "Qwen2.5-14B-Instruct-Q4_K_M"
+gpu_layers = 99
+ctx_size = 8192
+parallel = 2
+slot_prompt_similarity = 0.5
+deferred = true
+notes = "本机不执行；服务器结果补录后才可宣称 14B 结论"

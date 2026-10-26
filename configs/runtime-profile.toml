@@ -1,0 +1,23 @@
+# 默认运行时 profile（保守：AR003 B2，不加载）。
+# 由 `jev matrix --write-profile` 在决策为 adopt 时覆盖。
+# 要启用：把 [portfolio] profile 指向本文件。
+[portfolio]
+name = "B2"
+
+[runtime]
+enabled = true
+verifier_enabled = true
+self_verify_mode = "gate"
+risk_control = false
+risk_calibration = ""
+allocator_enabled = false
+memory_enabled = true
+keep_turns = 2
+
+[cache]
+enabled = true
+conformal_admission = false
+admission_calibration = ""
+
+[prefill]
+enabled = true

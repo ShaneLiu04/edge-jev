@@ -1,0 +1,19 @@
+# AR005 本机实验档：真实 Laya + 真实 llama-server（1.5B）+ 真实 embedding。
+# 用法：uv run jev matrix --config configs/experiments/ar005.toml --limit 8
+name = "ar005-local-1.5b"
+seed = 20261026
+lambda_cost = 0.15
+limit = 0
+brain = "spawn"                 # spawn | external
+brain_base_url = ""
+embedding = "auto"              # auto | off | external（auto = 独立真实 --embeddings 实例）
+embedding_base_url = ""
+arms = ["B0", "B1", "B2", "AR005"]
+
+# 可选：覆盖内置 arm 片段（节内键与 jev.toml 同名）
+[overlays.AR005.runtime]
+risk_alpha = 0.10
+allocator_budget_ratio = 0.6
+
+[overlays.AR005.cache]
+similarity = 0.93

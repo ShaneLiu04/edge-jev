@@ -1,0 +1,7 @@
+# 基线 B0：全 full（禁用能力门控/运行时/缓存/prefill）。
+name = "b0-full"
+seed = 20261026
+lambda_cost = 0.15
+brain = "spawn"
+embedding = "off"
+arms = ["B0"]

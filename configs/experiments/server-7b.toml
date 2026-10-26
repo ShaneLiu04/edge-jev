@@ -1,0 +1,28 @@
+# 服务器档（7B）：在 GPU 服务器执行；本机不跑。
+# 1) 启动大脑（示例，路径按服务器实际资产调整）：
+#    llama-server -m /models/qwen2.5-7b-instruct-q4_k_m.gguf \
+#      --host 0.0.0.0 --port 8388 --ctx-size 8192 --n-gpu-layers 99 \
+#      --parallel 4 --slot-prompt-similarity 0.5
+# 2) 启动 embedding（独立实例）：
+#    llama-server -m /models/bge-m3-q8_0.gguf --host 127.0.0.1 --port 8389 \
+#      --embeddings --pooling mean --ctx-size 2048 --n-gpu-layers 99
+# 3) 运行矩阵：
+#    uv run jev matrix --config configs/experiments/server-7b.toml
+name = "server-7b"
+seed = 20261026
+lambda_cost = 0.15
+limit = 0
+brain = "external"
+brain_base_url = "http://127.0.0.1:8388"
+embedding = "external"
+embedding_base_url = "http://127.0.0.1:8389"
+arms = ["B0", "B1", "B2", "AR005"]
+
+# 文档字段（脚本按需读取，不参与本机运行）
+[server]
+model = "Qwen2.5-7B-Instruct-Q4_K_M"
+gpu_layers = 99
+ctx_size = 8192
+parallel = 4
+slot_prompt_similarity = 0.5
+notes = "7B 真跑；结果写入 benchmarks/results/server-7b-*；禁止伪造"

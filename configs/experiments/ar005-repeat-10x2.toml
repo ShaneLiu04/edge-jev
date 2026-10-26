@@ -1,0 +1,13 @@
+name = "ar005-repeat-gpu"
+seed = 20261026
+lambda_cost = 0.15
+limit = 10
+repeat = 2
+brain = "spawn"
+embedding = "auto"
+gpu_layers = 99
+ctx_size = 2048
+max_tokens = 32
+timeout_s = 180.0
+prompt_prefix = "写一段回答，并说明理由："
+arms = ["B0", "B1", "B2", "AR005"]

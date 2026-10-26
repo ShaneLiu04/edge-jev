@@ -1,0 +1,7 @@
+# 基线 B1：AR002 能力门控（无 AR003 运行时）。
+name = "b1-capability-gate"
+seed = 20261026
+lambda_cost = 0.15
+brain = "spawn"
+embedding = "off"
+arms = ["B1"]

@@ -1,0 +1,7 @@
+# 基线 B2：AR003 运行时全开（验证器/缓存/prefill/记忆）。
+name = "b2-runtime"
+seed = 20261026
+lambda_cost = 0.15
+brain = "spawn"
+embedding = "auto"
+arms = ["B2"]

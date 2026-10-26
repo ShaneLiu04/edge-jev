@@ -1,0 +1,155 @@
+# AR005 质量集（gold 判分）：30 题，覆盖数学/逻辑/事实/指令。
+# gold.type: contains | regex | numeric（numeric 支持 tolerance）。
+# 注意：题目保持自包含，答案可由字符串/数值客观判定。
+version: 1
+questions:
+  - id: q-001
+    lang: zh
+    category: math
+    prompt: "3 + 5 等于多少？只回答数字。"
+    gold: {type: numeric, value: "8"}
+  - id: q-002
+    lang: zh
+    category: math
+    prompt: "一本书 120 页，已读 3/4，还剩多少页？只回答数字。"
+    gold: {type: numeric, value: "30"}
+  - id: q-003
+    lang: zh
+    category: math
+    prompt: "A 比 B 大 3 岁，B 比 C 大 2 岁，若 C=10，A 多少岁？只回答数字。"
+    gold: {type: numeric, value: "15"}
+  - id: q-004
+    lang: zh
+    category: math
+    prompt: "三个连续整数之和为 33，最小的是多少？只回答数字。"
+    gold: {type: numeric, value: "10"}
+  - id: q-005
+    lang: zh
+    category: math
+    prompt: "正方形边长 4，面积是多少？只回答数字。"
+    gold: {type: numeric, value: "16"}
+  - id: q-006
+    lang: zh
+    category: math
+    prompt: "半径 2 的圆面积（π=3.14）？只回答数字。"
+    gold: {type: numeric, value: "12.56", tolerance: 0.05}
+  - id: q-007
+    lang: zh
+    category: math
+    prompt: "1+2+3+...+10 等于多少？只回答数字。"
+    gold: {type: numeric, value: "55"}
+  - id: q-008
+    lang: zh
+    category: math
+    prompt: "2 的 5 次方是多少？只回答数字。"
+    gold: {type: numeric, value: "32"}
+  - id: q-009
+    lang: zh
+    category: math
+    prompt: "x^2=16 且 x>0，x 等于多少？只回答数字。"
+    gold: {type: numeric, value: "4"}
+  - id: q-010
+    lang: zh
+    category: math
+    prompt: "甲有 5 元，乙给甲 3 元后两人一样多，乙原来有多少元？只回答数字。"
+    gold: {type: numeric, value: "11"}
+  - id: q-011
+    lang: zh
+    category: math
+    prompt: "二进制 1011 的十进制是多少？只回答数字。"
+    gold: {type: numeric, value: "11"}
+  - id: q-012
+    lang: zh
+    category: math
+    prompt: "时钟 3:15 时，时针与分针的夹角是多少度？只回答数字。"
+    gold: {type: numeric, value: "7.5", tolerance: 0.1}
+  - id: q-013
+    lang: zh
+    category: logic
+    prompt: "如果今天周三，10 天后是周几？只回答星期几。"
+    gold: {type: regex, value: "周六|星期六"}
+  - id: q-014
+    lang: zh
+    category: logic
+    prompt: "5 台机器 5 分钟生产 5 个零件，100 台机器生产 100 个零件需要几分钟？只回答数字。"
+    gold: {type: numeric, value: "5"}
+  - id: q-015
+    lang: zh
+    category: logic
+    prompt: "鸡兔同笼共 10 只，脚共 28 只，兔子有几只？只回答数字。"
+    gold: {type: numeric, value: "4"}
+  - id: q-016
+    lang: zh
+    category: logic
+    prompt: "3 个人两两握手一次，总共握手几次？只回答数字。"
+    gold: {type: numeric, value: "3"}
+  - id: q-017
+    lang: zh
+    category: logic
+    prompt: "序列 2,4,8,16,? 下一个数是多少？只回答数字。"
+    gold: {type: numeric, value: "32"}
+  - id: q-018
+    lang: zh
+    category: logic
+    prompt: "判断：若所有 A 都是 B，所有 B 都是 C，则所有 A 都是 C。回答“是”或“否”。"
+    gold: {type: contains, value: "是"}
+  - id: q-019
+    lang: zh
+    category: factual
+    prompt: "中国的首都是哪里？只回答城市名。"
+    gold: {type: contains, value: "北京"}
+  - id: q-020
+    lang: zh
+    category: factual
+    prompt: "水的化学式是什么？只回答化学式。"
+    gold: {type: contains, value: "H2O"}
+  - id: q-021
+    lang: zh
+    category: factual
+    prompt: "标准大气压下水的沸点是多少摄氏度？只回答数字。"
+    gold: {type: numeric, value: "100", tolerance: 0}
+  - id: q-022
+    lang: zh
+    category: factual
+    prompt: "太阳系中离太阳最近的行星是什么？只回答行星名。"
+    gold: {type: contains, value: "水星"}
+  - id: q-023
+    lang: zh
+    category: factual
+    prompt: "NaCl 的俗名是什么？只回答两个字的名称。"
+    gold: {type: contains, value: "食盐"}
+  - id: q-024
+    lang: zh
+    category: factual
+    prompt: "世界上最大的海洋是什么？只回答名称。"
+    gold: {type: contains, value: "太平洋"}
+  - id: q-025
+    lang: zh
+    category: factual
+    prompt: "一年中有 31 天的月份共有几个？只回答数字。"
+    gold: {type: numeric, value: "7"}
+  - id: q-026
+    lang: zh
+    category: instruction
+    prompt: "把字符串 abc 反转后输出，只输出结果。"
+    gold: {type: contains, value: "cba"}
+  - id: q-027
+    lang: zh
+    category: instruction
+    prompt: "把 3.14159 保留两位小数，只输出结果。"
+    gold: {type: contains, value: "3.14"}
+  - id: q-028
+    lang: zh
+    category: instruction
+    prompt: "Python 中列表去重最常用的是哪种内置类型转换？只回答类型名。"
+    gold: {type: contains, value: "set"}
+  - id: q-029
+    lang: zh
+    category: instruction
+    prompt: "下面哪个不是编程语言：Python、Java、HTML？只回答一个。"
+    gold: {type: contains, value: "HTML"}
+  - id: q-030
+    lang: en
+    category: instruction
+    prompt: "Convert 'hello world' to uppercase. Reply with the result only."
+    gold: {type: contains, value: "HELLO WORLD"}
