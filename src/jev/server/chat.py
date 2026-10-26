@@ -64,6 +64,7 @@ from jev.kernel.decisions.framework import (
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
 from jev.kernel.runtime.bands import apply_self_verify_gate, classify_band
 from jev.kernel.runtime.config import RuntimeConfig
+from jev.kernel.runtime.conformal import AdmissionPolicy, RiskController
 from jev.kernel.runtime.prompt import build_prompt
 from jev.kernel.runtime.uncertainty import estimate_uncertainty
 from jev.kernel.runtime.verifier import BrainVerifier, VerifyResult
@@ -294,6 +295,9 @@ class _CascadeContext:
         cache: SemanticCache | None = None,
         verifier: BrainVerifier | None = None,
         embeddings: EmbeddingService | None = None,
+        risk_controller: RiskController | None = None,
+        admission_policy: AdmissionPolicy | None = None,
+        profile_name: str = "",
     ) -> None:
         self.cerebellum = cerebellum
         self.brain = brain
@@ -315,6 +319,9 @@ class _CascadeContext:
         self.cache = cache
         self.verifier = verifier
         self.embeddings = embeddings
+        self.risk_controller = risk_controller or RiskController.disabled()
+        self.admission_policy = admission_policy
+        self.profile_name = profile_name
         self.last_fused: dict = {}
         self.last_runtime: dict = {
             "uncertainty": {"u": None, "band": "off", "self_agree": 1.0,
@@ -328,6 +335,9 @@ class _CascadeContext:
                         "after_tokens": 0, "skipped": None},
             "cache": {"layer": "none", "similarity": None},
             "memory": {"summary_tokens": 0},
+            "risk": {"mode": "off", "score": None, "threshold": None, "decision": "off"},
+            "plan": profile_name,
+            "admission": {"mode": "similarity", "threshold": None},
         }
         self.prompt_build = None
         self.budget_capped = False
@@ -416,11 +426,20 @@ class _CascadeContext:
             return None
         fingerprint = prefix_fingerprint(self.messages)
         self.last_runtime["prefix"]["fingerprint"] = fingerprint
-        hit = self.cache.lookup(fingerprint, self.query_text(), embeddings=self.embeddings)
+        hit = self.cache.lookup(
+            fingerprint,
+            self.query_text(),
+            embeddings=self.embeddings,
+            admission=self.admission_policy,
+        )
         if hit is not None:
             self.last_runtime["cache"] = {
                 "layer": hit.layer,
                 "similarity": hit.similarity,
+            }
+            self.last_runtime["admission"] = {
+                "mode": hit.admission,
+                "threshold": hit.threshold,
             }
         return hit
 
@@ -514,7 +533,28 @@ class _CascadeContext:
             and not budget.allows_full()
             and decision.route is not Route.FULL
         )
+        decision = self._apply_risk_gate(decision, uncertainty.u)
         return decision
+
+    def _apply_risk_gate(self, decision: RouteDecision, u: float) -> RouteDecision:
+        controller = self.risk_controller
+        self.last_runtime["risk"] = {
+            "mode": "conformal" if controller.enabled else "off",
+            "score": round(float(u), 6) if isinstance(u, (int, float)) else None,
+            "threshold": controller.threshold,
+            "decision": "off" if not controller.enabled else "allow",
+        }
+        if not controller.enabled or decision.route is Route.FULL:
+            return decision
+        if controller.allow_downgrade(u):
+            return decision
+        self.last_runtime["risk"]["decision"] = "deny"
+        return RouteDecision(
+            route=Route.FULL,
+            band="uncertain",
+            needs_verify=False,
+            skipped_reason="risk",
+        )
 
     def prepare_prompt(self, pre: list[Decision], *, full_route: bool = True) -> list[dict]:
         if not self.runtime_enabled or self.runtime_config is None:
@@ -544,6 +584,15 @@ class _CascadeContext:
                 "before_tokens": build.prefill.before_tokens,
                 "after_tokens": build.prefill.after_tokens,
                 "skipped": build.prefill.skipped,
+            }
+        if build.allocation is not None:
+            self.last_runtime["prefill"] = {
+                "selected": len(build.allocation.selected),
+                "total": len(build.allocation.selected)
+                + len(build.allocation.omitted),
+                "before_tokens": build.allocation.before_tokens,
+                "after_tokens": build.allocation.after_tokens,
+                "skipped": build.allocation.skipped,
             }
         return build.messages
 
@@ -687,6 +736,9 @@ def create_chat_router(
     runtime_config: RuntimeConfig | None = None,
     cache: SemanticCache | None = None,
     embeddings=None,
+    risk_controller: RiskController | None = None,
+    admission_policy: AdmissionPolicy | None = None,
+    profile_name: str = "",
 ) -> APIRouter:
     """构建 /v1/chat/completions 路由。
 
@@ -754,6 +806,9 @@ def create_chat_router(
                     else None
                 ),
                 embeddings=embeddings,
+                risk_controller=risk_controller,
+                admission_policy=admission_policy,
+                profile_name=profile_name,
             )
             if stream:
                 return _stream_response(context)
@@ -1079,6 +1134,11 @@ def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
             if runtime["cache"]["layer"] in {"exact", "semantic"}
             else "miss"
         )
+        risk = runtime.get("risk") or {}
+        if risk.get("mode") == "conformal":
+            headers["X-Jev-Risk"] = str(risk.get("decision", "allow"))
+        if context.profile_name:
+            headers["X-Jev-Plan"] = context.profile_name
         prefill = runtime["prefill"]
         if prefill["skipped"]:
             headers["X-Jev-Prefill"] = f"skipped:{prefill['skipped']}"

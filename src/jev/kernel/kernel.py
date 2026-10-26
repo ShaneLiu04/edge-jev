@@ -33,6 +33,16 @@ from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
 from jev.kernel.prefill.planner import PrefillConfig
 from jev.kernel.runtime.bands import BandPolicy
 from jev.kernel.runtime.config import RuntimeConfig
+from jev.kernel.runtime.conformal import (
+    AdmissionPolicy,
+    RiskController,
+    load_admission,
+)
+from jev.kernel.runtime.portfolio import (
+    RuntimeProfile,
+    load_profile,
+    merge_profile,
+)
 from jev.kernel.runtime.prompt import PromptConfig
 
 logger = logging.getLogger(__name__)
@@ -59,6 +69,9 @@ class Kernel(CerebellumBackend):
         runtime_config: RuntimeConfig | None = None,
         cache: SemanticCache | None = None,
         embeddings: EmbeddingService | None = None,
+        risk_controller: RiskController | None = None,
+        admission_policy: AdmissionPolicy | None = None,
+        profile: RuntimeProfile | None = None,
     ) -> None:
         self._cerebellum = cerebellum
         self._registry = registry
@@ -75,6 +88,16 @@ class Kernel(CerebellumBackend):
         self._runtime_config = runtime_config if runtime_config is not None else RuntimeConfig()
         self._cache = cache
         self._embeddings = embeddings
+        self._risk_controller = (
+            risk_controller if risk_controller is not None else RiskController.disabled()
+        )
+        self._admission_policy = admission_policy
+        self._profile = profile
+        self._risk_controller = (
+            risk_controller if risk_controller is not None else RiskController.disabled()
+        )
+        self._admission_policy = admission_policy
+        self._profile = profile
 
     # ------------------------------------------------------------------
     # 组合根：configs/jev.toml 单源装配
@@ -100,6 +123,7 @@ class Kernel(CerebellumBackend):
         except (tomllib.TOMLDecodeError, UnicodeDecodeError, OSError) as exc:
             raise JevAssetError(f"配置文件不是合法 TOML（{config_file}）: {exc}") from exc
 
+        config = _apply_profile(config, config_file.parent)
         cerebellum_cfg = config.get("cerebellum", {})
         backend_name = cerebellum_cfg.get("default_backend", "laya_onnx")
         backend = create_backend(backend_name, config_file)
@@ -149,6 +173,14 @@ class Kernel(CerebellumBackend):
         )
         runtime_config, cache = _build_runtime(config)
         embeddings = _build_embeddings(config)
+        risk_controller = _build_risk(config, config_file.parent)
+        admission_policy = _build_admission(config, config_file.parent)
+        profile_path = _section_value(config, "portfolio", "profile", "")
+        profile = (
+            load_profile(_resolve(_repo_or_base(profile_path, config_file.parent)))
+            if profile_path
+            else None
+        )
         return cls(
             cerebellum=backend,
             registry=registry,
@@ -169,6 +201,9 @@ class Kernel(CerebellumBackend):
             runtime_config=runtime_config,
             cache=cache,
             embeddings=embeddings,
+            risk_controller=risk_controller,
+            admission_policy=admission_policy,
+            profile=profile,
         )
 
     # ------------------------------------------------------------------
@@ -232,6 +267,21 @@ class Kernel(CerebellumBackend):
     def embeddings(self) -> EmbeddingService | None:
         """真实 embedding 服务（未配置时为 None）。"""
         return self._embeddings
+
+    @property
+    def risk_controller(self) -> RiskController:
+        """Conformal 风险门（默认 disabled）。"""
+        return self._risk_controller
+
+    @property
+    def admission_policy(self) -> AdmissionPolicy | None:
+        """缓存准入策略（未启用/未校准时 None）。"""
+        return self._admission_policy
+
+    @property
+    def profile(self) -> RuntimeProfile | None:
+        """当前运行时 profile（未配置时为 None）。"""
+        return self._profile
 
     @property
     def generation_timeout_s(self) -> float:
@@ -393,6 +443,13 @@ def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
         memory_enabled=bool(runtime_cfg.get("memory_enabled", False)),
         prefill_enabled=prefill.enabled,
         keep_turns=int(runtime_cfg.get("keep_turns", 2)),
+        allocator_enabled=bool(runtime_cfg.get("allocator_enabled", False)),
+        allocator_budget_ratio=float(
+            runtime_cfg.get("allocator_budget_ratio", prefill.budget_ratio)
+        ),
+        allocator_min_prompt_tokens=int(
+            runtime_cfg.get("allocator_min_prompt_tokens", prefill.min_prompt_tokens)
+        ),
     )
     runtime_config = RuntimeConfig(
         enabled=bool(runtime_cfg.get("enabled", False)),
@@ -401,6 +458,14 @@ def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
         prefill=prefill,
         prompt=prompt,
         verifier_max_tokens=int(runtime_cfg.get("verifier_max_tokens", 16)),
+        risk_control=bool(runtime_cfg.get("risk_control", False)),
+        risk_calibration=str(runtime_cfg.get("risk_calibration", "")),
+        risk_alpha=float(runtime_cfg.get("risk_alpha", 0.10)),
+        allocator_enabled=bool(runtime_cfg.get("allocator_enabled", False)),
+        allocator_budget_ratio=float(runtime_cfg.get("allocator_budget_ratio", 0.6)),
+        allocator_min_prompt_tokens=int(
+            runtime_cfg.get("allocator_min_prompt_tokens", 512)
+        ),
     )
     cache = SemanticCache(cache_config) if cache_config.enabled else None
     return runtime_config, cache
@@ -446,3 +511,55 @@ def _build_embeddings(config: dict) -> EmbeddingService | None:
         timeout_s=timeout_s,
     )
     return EmbeddingService(manager, client)
+
+
+def _resolve(path: str | Path) -> Path:
+    candidate = Path(path)
+    return candidate if candidate.is_absolute() else repo_root() / candidate
+
+
+def _repo_or_base(path: str, base: Path) -> Path:
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return candidate
+    in_repo = repo_root() / candidate
+    return in_repo if in_repo.is_file() else base / candidate
+
+
+def _section_value(config: dict, section: str, key: str, default=None):
+    values = config.get(section) or {}
+    return values.get(key, default) if isinstance(values, dict) else default
+
+
+def _apply_profile(config: dict, base: Path) -> dict:
+    path = _section_value(config, "portfolio", "profile", "")
+    if not path:
+        return config
+    profile = load_profile(_repo_or_base(str(path), base))
+    merged = merge_profile(config, profile)
+    logger.info("已加载运行时 profile: %s", profile.name)
+    return merged
+
+
+def _build_risk(config: dict, base: Path) -> RiskController:
+    runtime_cfg = config.get("runtime") or {}
+    if not bool(runtime_cfg.get("risk_control", False)):
+        return RiskController.disabled()
+    path = str(runtime_cfg.get("risk_calibration", "") or "")
+    if not path:
+        logger.warning("risk_control 开启但未配置校准文件，风险门回退 disabled")
+        return RiskController.disabled()
+    return RiskController.from_file(
+        _repo_or_base(path, base), alpha=float(runtime_cfg.get("risk_alpha", 0.10))
+    )
+
+
+def _build_admission(config: dict, base: Path) -> AdmissionPolicy | None:
+    cache_cfg = config.get("cache") or {}
+    if not bool(cache_cfg.get("conformal_admission", False)):
+        return None
+    path = str(cache_cfg.get("admission_calibration", "") or "")
+    if not path:
+        logger.warning("conformal_admission 开启但未配置校准文件，回退固定阈值")
+        return None
+    return load_admission(_repo_or_base(path, base))

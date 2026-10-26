@@ -11,7 +11,7 @@ import uvicorn
 
 import jev
 from jev.cli.doctor import render_checks, run_doctor
-from jev.errors import BrainStartupError, JevAssetError
+from jev.errors import BrainStartupError, JevAssetError, JevError
 from jev.fetch.downloader import AssetFetcher
 from jev.fetch.manifest import load_manifest
 from jev.kernel.kernel import Kernel
@@ -246,6 +246,45 @@ def distill(
             f"服务接入: kev.serve --run {out_dir / 'lora' / 'adapter'} "
             f"+ [cerebellum] default_backend=\"kev\""
         )
+
+
+@app.command()
+def matrix(
+    config: Annotated[
+        Path,
+        typer.Option("--config", help="实验配置（如 configs/experiments/ar005.toml）"),
+    ],
+    limit: Annotated[
+        int,
+        typer.Option("--limit", help="只跑前 N 题（0=全部）"),
+    ] = 0,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="输出目录（默认 benchmarks/results/<run>）"),
+    ] = None,
+    write_profile: Annotated[
+        bool,
+        typer.Option("--write-profile", help="采纳时写入 configs/runtime-profile.toml"),
+    ] = False,
+) -> None:
+    """真实实验矩阵（AR005）：B0/B1/B2/AR005 + 校准 + 选择/回退。"""
+    from jev.bench.matrix import run_matrix
+
+    try:
+        payload = run_matrix(
+            config, out_dir=out, limit=limit or None, write_profile=write_profile
+        )
+    except (JevAssetError, JevError) as exc:
+        typer.echo(f"错误: {exc}", err=True)
+        raise typer.Exit(2) from exc
+    selection = payload["selection"]
+    run_name = payload["run"]["name"]
+    typer.echo(
+        f"矩阵完成: {run_name}\n"
+        f"选择: {selection['decision']}（chosen={selection['chosen_arm']}，"
+        f"baseline={selection['baseline_arm']}）\n"
+        f"原因: {selection['reason']}"
+    )
 
 
 @app.command()

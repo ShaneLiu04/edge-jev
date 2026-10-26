@@ -255,9 +255,16 @@ class LlamaServerManager:
 class LlamaServerClient:
     """llama-server 的 OpenAI 兼容客户端（/v1/chat/completions + /health）。"""
 
-    def __init__(self, base_url: str, timeout_s: float = 120.0) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        timeout_s: float = 120.0,
+        *,
+        cache_prompt: bool | None = None,
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._client = httpx.Client(timeout=timeout_s)
+        self._cache_prompt = cache_prompt
 
     def health(self) -> bool:
         """2xx → True；连接失败/非 2xx → False（不抛，供探活轮询）。"""
@@ -290,6 +297,8 @@ class LlamaServerClient:
         }
         if stop is not None:
             payload["stop"] = stop
+        if self._cache_prompt is not None:
+            payload["cache_prompt"] = self._cache_prompt
         if extra_body:
             payload.update(extra_body)
         request_kwargs: dict[str, Any] = {"json": payload}
@@ -353,6 +362,8 @@ class LlamaServerClient:
         }
         if stop is not None:
             payload["stop"] = stop
+        if self._cache_prompt is not None:
+            payload["cache_prompt"] = self._cache_prompt
         if extra_body:
             payload.update(extra_body)
         stream_kwargs: dict[str, Any] = {"json": payload}

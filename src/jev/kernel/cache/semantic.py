@@ -16,6 +16,8 @@ from collections import OrderedDict
 from collections.abc import Sequence
 from typing import Protocol
 
+from jev.kernel.runtime.conformal import AdmissionPolicy
+
 _CACHEABLE_ROUTES = frozenset({"direct", "light"})
 _WHITESPACE = re.compile(r"\s+")
 
@@ -50,6 +52,8 @@ class CacheHit:
     answer: str
     route: str
     age_s: float
+    admission: str = "similarity"
+    threshold: float | None = None
 
 
 @dataclasses.dataclass
@@ -109,6 +113,7 @@ class SemanticCache:
         *,
         embeddings: EmbeddingProvider | None = None,
         now: float | None = None,
+        admission: AdmissionPolicy | None = None,
     ) -> CacheHit | None:
         if not self._config.enabled:
             return None
@@ -146,8 +151,12 @@ class SemanticCache:
                     second = score
             if (
                 best_key is not None
-                and best >= self._config.similarity
-                and (best - second) >= self._config.margin
+                and (
+                    admission.allows(best, second)
+                    if admission is not None and admission.enabled
+                    else best >= self._config.similarity
+                    and (best - second) >= self._config.margin
+                )
             ):
                 candidate = self._entries[best_key]
                 self._entries.move_to_end(best_key)
@@ -158,6 +167,16 @@ class SemanticCache:
                     answer=candidate.answer,
                     route=candidate.route,
                     age_s=moment - candidate.created_at,
+                    admission=(
+                        "conformal"
+                        if admission is not None and admission.enabled
+                        else "similarity"
+                    ),
+                    threshold=(
+                        admission.threshold
+                        if admission is not None and admission.enabled
+                        else self._config.similarity
+                    ),
                 )
         self._misses += 1
         return None

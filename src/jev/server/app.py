@@ -46,6 +46,9 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
             runtime_config=kernel.runtime_config,
             cache=kernel.cache,
             embeddings=kernel.embeddings,
+            risk_controller=kernel.risk_controller,
+            admission_policy=kernel.admission_policy,
+            profile_name=(kernel.profile.name if kernel.profile is not None else ""),
         )
     )
 
