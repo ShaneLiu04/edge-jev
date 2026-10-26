@@ -1,0 +1,67 @@
+{
+  "schema": "jev.matrix.progress/1",
+  "completed_arms": [
+    "AR005",
+    "B0",
+    "B1",
+    "B2"
+  ],
+  "remaining": [],
+  "metrics": {
+    "B0": {
+      "count": 20,
+      "quality": 0.7,
+      "mean_completion_tokens": 24.85,
+      "mean_prompt_tokens": 57.65,
+      "mean_latency_ms": 11729.292,
+      "p50_latency_ms": 12783.074,
+      "routes": {
+        "full": 20
+      },
+      "cache_hits": 0,
+      "risk_denies": 0
+    },
+    "B1": {
+      "count": 20,
+      "quality": 0.6,
+      "mean_completion_tokens": 29.2,
+      "mean_prompt_tokens": 107.75,
+      "mean_latency_ms": 16392.682,
+      "p50_latency_ms": 15756.584,
+      "routes": {
+        "light": 18,
+        "full": 2
+      },
+      "cache_hits": 0,
+      "risk_denies": 0
+    },
+    "B2": {
+      "count": 20,
+      "quality": 0.5,
+      "mean_completion_tokens": 26.0,
+      "mean_prompt_tokens": 86.85,
+      "mean_latency_ms": 17603.744,
+      "p50_latency_ms": 20193.097,
+      "routes": {
+        "light": 19,
+        "full": 1
+      },
+      "cache_hits": 2,
+      "risk_denies": 0
+    },
+    "AR005": {
+      "count": 20,
+      "quality": 0.5,
+      "mean_completion_tokens": 26.0,
+      "mean_prompt_tokens": 86.85,
+      "mean_latency_ms": 16985.649,
+      "p50_latency_ms": 18355.047,
+      "routes": {
+        "light": 19,
+        "full": 1
+      },
+      "cache_hits": 2,
+      "risk_denies": 0
+    }
+  }
+}
