@@ -110,6 +110,7 @@ class MatrixConfig:
     timeout_s: float
     prompt_prefix: str
     repeat: int
+    dataset: str
     overlays: dict
 
 
@@ -140,9 +141,20 @@ def load_matrix_config(path: Path | str) -> MatrixConfig:
             data.get("prompt_prefix", "写一段回答，并说明理由：")
         ),
         repeat=int(data.get("repeat", 1)),
+        dataset=str(data.get("dataset", "quality")),
         timeout_s=float(data.get("timeout_s", 180.0)),
         overlays=data.get("overlays", {}) or {},
     )
+
+
+def _load_questions(config: MatrixConfig):
+    if config.dataset == "needles":
+        from jev.bench.needles import build_needles
+
+        return build_needles(30)
+    if config.dataset != "quality":
+        raise JevError(f"未知 dataset: {config.dataset}")
+    return load_quality_set(DEFAULT_QUALITY_SET)
 
 
 def _deep_merge(base: dict, overlay: dict) -> dict:
@@ -378,7 +390,7 @@ def run_matrix(
     write_profile: bool = False,
 ) -> dict:
     config = load_matrix_config(config_path)
-    questions = load_quality_set(DEFAULT_QUALITY_SET)
+    questions = _load_questions(config)
     limit = config.limit if limit is None else limit
     if limit > 0:
         questions = questions[:limit]
