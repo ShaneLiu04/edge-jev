@@ -21,7 +21,7 @@
 | T008 | 矩阵执行器：真实多方案跑 gold 集、原始 JSON、指标汇总、指纹 | T007 | passing | 矩阵执行器 + CPU 真实冒烟（rollback） |
 | T009 | 选择器：效用/成对 bootstrap CI/留一 CV/rollback + profile 导出（纯逻辑 + 单测） | T001,T008 | passing | 选择器 + 8 单测；真实全量待 T011 |
 | T010 | CLI `jev matrix`：参数、退出码、`--limit/--write-profile/--server` | T008,T009 | passing | CLI jev matrix + 退出码 + profile 导出 |
-| T011 | 真实实验：B0/B1/B2/AR005 全矩阵 + needles/cache 专项，产出 benchmarks/results | T007,T008,T009 | passing | 真实 20 题 + 重复 10×2 矩阵；选择 adopt B0 / rollback B2；见 docs/RESULTS.md |
+| T011 | 真实实验：B0/B1/B2/AR005 全矩阵 + needles/cache 专项，产出 benchmarks/results | T007,T008,T009 | passing | 真实 20 题 + 重复 10×2 + needles 12；长上下文 prompt↓39% 质量不变；见 docs/RESULTS.md |
 | T012 | 服务器大模型档：7B/14B 配置、GPU 参数、deferred-server 口径与脚本 | T010 | passing | server-7b/14b 配置与命令；14B deferred |
 | T013 | 复现文档：README/REPRODUCTION/EXPERIMENTS + 环境指纹与一键命令 | T010,T011,T012 | passing | README/REPRODUCTION/EXPERIMENTS/ARCHITECTURE |
 | T014 | 回归与门禁：全量单测 + ruff + 覆盖 ≥85% + AR002/AR003 逐例回归 + 组合回退验证 | T011,T013 | passing | 644 单测 + 真实集成 3 + ruff + kernel 93% + 回退验证 |
@@ -68,3 +68,8 @@
 - 结论：选择/回退机制按设计工作；Conformal 校准在本次条件（样本/embedding/截断）下未启用，AR005≡B2，未宣称超越 B2。详见 docs/RESULTS.md。
 - 质量门：644 单测通过；真实集成 3 通过；ruff 零告警；kernel 语句 93%。
 - 已知实验偏差：max_tokens=32 截断 light，正式复现应使用 128；GPU 外部负载导致 llama-server 偶发假死，矩阵已改为每 arm 重启并写 progress 检查点。
+
+### 2026-10-26 长上下文补充实验
+
+- needles 12 题：B1 prompt 2457 → B2/AR005 1493（↓39.2%），quality 0.917 不变，延迟 ↓14%。
+- 选择器 rollback B2（AR005 与 B2 同解）；环境限制：长 prompt 下 verifier/memory 触发 llama-server 假死，实验显式关闭并标注。

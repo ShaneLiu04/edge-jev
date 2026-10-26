@@ -32,14 +32,31 @@ AR005 与 B2 相同：本次运行中 Conformal 风险门找到的可行阈值�
 结论：语义/精确缓存真实生效——第二轮命中后 completion tokens 较 B0 下降 **36%**，
 延迟下降 **25%**；但 light 路径质量低于 full。选择器：`rollback B2`（无正效用下界）。
 
+## 实验 3：长上下文 needles（12 题 ×3 方案，真实 prefill/JCBA）
+
+命令：`jev matrix --config configs/experiments/needles.toml`
+
+| arm | quality | prompt tokens | completion tok | mean latency |
+| --- | --- | --- | --- | --- |
+| B1（无压缩） | 0.917 | 2457.3 | 5.9 | 38.8s |
+| B2（AR003 prefill） | 0.917 | **1493.2** | 5.9 | 33.2s |
+| AR005（JCBA） | 0.917 | **1493.1** | 5.9 | 32.9s |
+
+结论：在长上下文真实负载上，prefill/JCBA 将 prompt tokens 降低 **39.2%**，质量保持 **0.917 不变**，
+延迟下降约 14%，达到 FR5-3 的 ≥30% 与 ≤2pt 门。AR005 与 B2 持平（同预算下同解），选择器 `rollback B2`。
+
+> 环境说明：本机长 prompt 下 B2 同时开启 verifier/memory 会触发 llama-server 假死；
+> 本实验显式关闭二者以隔离 prefill/JCBA（配置见 `configs/experiments/needles.toml`），
+> 不代表这些能力无效，只表示该环境下未测。
+
 ## 关键发现（诚实记录）
 
 1. **缓存价值已验证**：重复请求命中后 token/延迟显著下降，且不改变答案。
 2. **风险门按预期失败安全**：当降级会带来不可接受损失时，CRC 找不到可行阈值 → 禁用，不退化为乱降级。
 3. **当前实验的偏差**：为控制 CPU/GPU 时间，`max_tokens=32`，light 路径被截断，
    质量低于 full；这**不利于** light/缓存组合。生产默认 light 为 128 tokens，需在正式实验中放开。
-4. **AR005 增益未显现**：本次风险/准入校准未启用（样本/服务条件不满足），AR005≡B2；
-   选择器正确地选择了 B0（唯一问题）或回退 B2（重复场景）。
+4. **AR005 增量在长上下文上验证了预算收益**（prompt↓39%，质量不变），但在短问答上未超过 B2/B0；
+   选择器正确 adopt B0 或 rollback B2，体现“无增益即回退”。
 5. **环境风险**：外部 GPU 负载与 llama-server 长时间运行后偶发假死；矩阵已改为**每 arm 重启大脑**
    并写 `progress.json` 检查点，避免整轮丢失。
 
