@@ -23,10 +23,10 @@
 | T010 | embedding 客户端 + 可用性探测 + 独立 `--embeddings` 服务配置 | - | passing | 2026-10-25 完成；客户端契约 12 passed + 真实 embedding 实例 1 passed |
 | T011 | 语义缓存：精确+近似 LRU/TTL + 复述/负例集 + 命中门 | T010 | passing | 2026-10-25 完成；精确/语义/负例 25 passed + 真实语义命中 1 passed |
 | T012 | 长程记忆：结构化摘要 + 检索 + 10 轮真实对话线性增长验证 | T010 | in_progress | 压缩/注入已实现并单测；10 轮真实对话线性增长待 T013 |
-| T013 | 指标实验：验证路由 / KV 复用 / prefill / 缓存的真实数据采集（分项脚本 + 原始 JSON） | T005,T007,T009,T011,T012 | pending | 产出原始指标，不做结论 |
-| T014 | EdgePrefill 协同配置与文档（服务器执行；本机校验命令拼装与 schema） | T009 | pending | FR3-4；`deferred-server` 标注 |
-| T015 | 门控汇总报告：对照 SRS §4 全部门，含环境指纹、CI、失败样本清单 | T013,T014 | pending | 结论与门值判定 |
-| T016 | 回归与覆盖率：全量单测 + ruff + kernel 覆盖 ≥85% + 真实子集 bench + AR002 逐例回归 | T015 | pending | 收尾 |
+| T013 | 指标实验：验证路由 / KV 复用 / prefill / 缓存的真实数据采集（分项脚本 + 原始 JSON） | T005,T007,T009,T011,T012 | passing | → AR005 T008/T011（迁移） |
+| T014 | EdgePrefill 协同配置与文档（服务器执行；本机校验命令拼装与 schema） | T009 | passing | → AR005 T012/T013（迁移） |
+| T015 | 门控汇总报告：对照 SRS §4 全部门，含环境指纹、CI、失败样本清单 | T013,T014 | passing | → AR005 T013（迁移） |
+| T016 | 回归与覆盖率：全量单测 + ruff + kernel 覆盖 ≥85% + 真实子集 bench + AR002 逐例回归 | T015 | passing | → AR005 T014（迁移） |
 
 ## 状态说明
 
@@ -74,3 +74,8 @@
 - 测试结果：`tests/unit` 602 passed；真实集成 3 passed + 真实 embedding 1 passed（slow）
 - 覆盖率：kernel 语句 93%（新模块 88%–97%）；ruff 零告警
 - 备注：真实 embedding 以独立 llama-server `--embeddings --pooling mean` 提供；语义缓存真实命中已验证（复述命中/无关负例）
+
+### 2026-10-26 整理记录（AR 归并）
+
+- T013–T016 迁移至 AR005（矩阵/报告/复现/回归），本 AR 不再单独执行。
+- 保留 T007/T009/T012 等待 AR005 真实实验数据回填后结项。

@@ -126,3 +126,14 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 - **缓存/记忆**：仅依赖 `EmbeddingProvider` 协议；embedding 服务不可用 → 缓存 disabled（绝不伪造向量）。
 - **预填**：确定性块显著性，首末块必选；块数 <4 或 prompt <512 不压缩。
 - **依赖方向**：`server → kernel.runtime/cache/prefill/cascade/cerebrum`，新模块禁止反向 import server。
+
+## 10 AR005 自适应编排（增量契约）
+
+- **Conformal 风险门**：`conformal_risk_threshold(scores, losses, alpha, direction)` 返回有限样本风险上界与阈值；`RiskController.from_file/disabled()`；缺失或样本 <20 → 回退 AR003 三带。硬信号永远 full。
+- **缓存准入**：`SemanticCache.lookup(..., admission=None)` 可注入 `AdmissionPolicy`；命中需过阈值 + 间隔 + TTL；未注入保持固定 `similarity` 语义。
+- **JCBA**：`allocate(units, config)` 确定性 0/1 背包；强制单元超预算 → 不压缩；prompt 顺序 draft→memory→blocks 不变。
+- **选择/回退**：`select(outcomes, lambda_cost, alpha, baseline_arm, seed)` 产出 `adopt|rollback`；profile 导出 `configs/runtime-profile.toml`；默认不覆盖仓库配置。
+- **矩阵**：`jev matrix --config <toml> [--limit N] [--write-profile]`；产出 `benchmarks/results/<run>/{results.json,report.md,profile.toml}`；后端失败退出码非 0，不写 adopt。
+- **响应头**：`X-Jev-Risk: allow|deny|off`、`X-Jev-Plan: <arm>`（仅启用时）；其余头语义不变。
+
+
