@@ -1,0 +1,1756 @@
+{
+  "schema": "jev.matrix/1",
+  "run": {
+    "name": "ar005-repeat-gpu-20261026-150619",
+    "started": 1792998379.1013377,
+    "finished": 1792999353.6004593,
+    "seed": 20261026,
+    "lambda_cost": 0.15,
+    "limit": 10,
+    "fingerprint": {
+      "python": "3.11.9",
+      "versions": {
+        "onnxruntime": "1.31.0",
+        "httpx": "0.28.1",
+        "numpy": "2.4.6",
+        "yaml": "6.0.3"
+      },
+      "platform": "Windows-10-10.0.26200-SP0",
+      "machine": "AMD64",
+      "extra": {
+        "arms": [
+          "B0",
+          "B1",
+          "B2",
+          "AR005"
+        ],
+        "commands": [
+          "jev matrix --config C:\\Users\\L30086~1\\AppData\\Local\\Temp\\opencode\\ar005-repeat-gpu.toml"
+        ],
+        "run": "ar005-repeat-gpu-20261026-150619"
+      }
+    }
+  },
+  "config": {
+    "name": "ar005-repeat-gpu",
+    "seed": 20261026,
+    "lambda_cost": 0.15,
+    "limit": 10,
+    "arms": [
+      "B0",
+      "B1",
+      "B2",
+      "AR005"
+    ],
+    "brain": "spawn",
+    "brain_base_url": "",
+    "embedding": "auto",
+    "embedding_base_url": "",
+    "gpu_layers": 99,
+    "ctx_size": 2048,
+    "max_tokens": 32,
+    "timeout_s": 180.0,
+    "prompt_prefix": "写一段回答，并说明理由：",
+    "repeat": 2,
+    "overlays": {}
+  },
+  "calibrations": {},
+  "arms": {
+    "B0": [
+      {
+        "arm": "B0",
+        "question_id": "q-001",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "8",
+        "prompt_tokens": 50,
+        "completion_tokens": 2,
+        "latency_ms": 9015.794,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-002",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "20页",
+        "prompt_tokens": 60,
+        "completion_tokens": 4,
+        "latency_ms": 8362.587,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-003",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "A = 13\n\n理由：根据题目，我们有以下关系：\n1. A 比 B 大 3 岁，即",
+        "prompt_tokens": 78,
+        "completion_tokens": 32,
+        "latency_ms": 14078.674,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-004",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "最小的整数是10。\n\n理由：设三个连续整数分别为n-1, n, n+1。根据题意，这三个数",
+        "prompt_tokens": 55,
+        "completion_tokens": 32,
+        "latency_ms": 13939.667,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-005",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "16",
+        "prompt_tokens": 50,
+        "completion_tokens": 3,
+        "latency_ms": 11089.031,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-006",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "31.4",
+        "prompt_tokens": 56,
+        "completion_tokens": 5,
+        "latency_ms": 11906.825,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-007",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "55\n\n理由：这个问题可以通过数学公式来解决。1+2+3+...+10是一个等差数列的求和问题，",
+        "prompt_tokens": 56,
+        "completion_tokens": 32,
+        "latency_ms": 16682.579,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-008",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "32\n\n理由：2的5次方等于2乘以自己5次，即2^5 = 2 * 2 * 2 *",
+        "prompt_tokens": 50,
+        "completion_tokens": 32,
+        "latency_ms": 14945.5,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-009",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "x = 4\n\n理由：给定方程 x^2 = 16，要求 x 大于 0。这意味着 x 只能",
+        "prompt_tokens": 59,
+        "completion_tokens": 32,
+        "latency_ms": 15197.924,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-010",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "乙原来有 8 元。理由是，甲原本有 5 元，乙给甲 3 元后，甲乙两人总",
+        "prompt_tokens": 64,
+        "completion_tokens": 32,
+        "latency_ms": 16349.161,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-001",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "8",
+        "prompt_tokens": 50,
+        "completion_tokens": 2,
+        "latency_ms": 6834.396,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-002",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "20页",
+        "prompt_tokens": 60,
+        "completion_tokens": 4,
+        "latency_ms": 7730.777,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-003",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "A = 13\n\n理由：根据题目，我们有以下关系：\n1. A 比 B 大 3 岁，即",
+        "prompt_tokens": 78,
+        "completion_tokens": 32,
+        "latency_ms": 13984.751,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-004",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "最小的整数是10。\n\n理由：设三个连续整数分别为n-1, n, n+1。根据题意，这三个数",
+        "prompt_tokens": 55,
+        "completion_tokens": 32,
+        "latency_ms": 13716.757,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-005",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "16",
+        "prompt_tokens": 50,
+        "completion_tokens": 3,
+        "latency_ms": 6890.199,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-006",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "31.4",
+        "prompt_tokens": 56,
+        "completion_tokens": 5,
+        "latency_ms": 7583.177,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-007",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "55\n\n理由：这个问题可以通过数学公式来解决。1+2+3+...+10是一个等差数列的求和问题，",
+        "prompt_tokens": 56,
+        "completion_tokens": 32,
+        "latency_ms": 13801.361,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-008",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "32\n\n理由：2的5次方等于2乘以自己5次，即2^5 = 2 * 2 * 2 *",
+        "prompt_tokens": 50,
+        "completion_tokens": 32,
+        "latency_ms": 13333.78,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-009",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "x = 4\n\n理由：给定方程 x^2 = 16，要求 x 大于 0。这意味着 x 只能",
+        "prompt_tokens": 59,
+        "completion_tokens": 32,
+        "latency_ms": 14711.1,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      },
+      {
+        "arm": "B0",
+        "question_id": "q-010",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "乙原来有 8 元。理由是，甲原本有 5 元，乙给甲 3 元后，甲乙两人一共",
+        "prompt_tokens": 64,
+        "completion_tokens": 32,
+        "latency_ms": 14168.516,
+        "route": "full",
+        "u": null,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9"
+        }
+      }
+    ],
+    "B1": [
+      {
+        "arm": "B1",
+        "question_id": "q-001",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "88",
+        "prompt_tokens": 101,
+        "completion_tokens": 3,
+        "latency_ms": 9245.888,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "15"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-002",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页",
+        "prompt_tokens": 453,
+        "completion_tokens": 32,
+        "latency_ms": 27564.831,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "27"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-003",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "A = 13\n\n理由：根据题目，我们有以下关系：\n1. A 比 B 大 3 岁，即",
+        "prompt_tokens": 78,
+        "completion_tokens": 32,
+        "latency_ms": 17928.945,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-004",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "最小的整数是10。\n\n理由：设三个连续整数分别为n-1, n, n+1。根据题意，这三个数",
+        "prompt_tokens": 55,
+        "completion_tokens": 32,
+        "latency_ms": 14759.954,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-005",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "16161616161616161616161616161616161616161616161616161616161616161616161616161616161616161",
+        "prompt_tokens": 362,
+        "completion_tokens": 32,
+        "latency_ms": 22340.848,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "27"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-006",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "31.4",
+        "prompt_tokens": 56,
+        "completion_tokens": 5,
+        "latency_ms": 8686.844,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-007",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "55\n\n理由：这个问题可以通过数学公式来解决。1+2+3+...+10是一个等差数列的求和问题，",
+        "prompt_tokens": 56,
+        "completion_tokens": 32,
+        "latency_ms": 14980.865,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-008",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "32\n\n理由：2的5次方等于2乘以自己5次，即2^5 = 2 * 2 * 2 *",
+        "prompt_tokens": 50,
+        "completion_tokens": 32,
+        "latency_ms": 14296.191,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-009",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "x = 4\n\n理由：给定方程 x^2 = 16，要求 x 大于 0。这意味着 x 只能",
+        "prompt_tokens": 59,
+        "completion_tokens": 32,
+        "latency_ms": 14470.062,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-010",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "乙原来有 8 元。理由是，甲原本有 5 元，乙给甲 3 元后，甲乙两人总",
+        "prompt_tokens": 64,
+        "completion_tokens": 32,
+        "latency_ms": 16315.33,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-001",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "88",
+        "prompt_tokens": 101,
+        "completion_tokens": 3,
+        "latency_ms": 8720.986,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "15"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-002",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页",
+        "prompt_tokens": 453,
+        "completion_tokens": 32,
+        "latency_ms": 27729.158,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "27"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-003",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "A = 13\n\n理由：根据题目，我们有以下关系：\n1. A 比 B 大 3 岁，即",
+        "prompt_tokens": 78,
+        "completion_tokens": 32,
+        "latency_ms": 17342.213,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-004",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "最小的整数是10。\n\n理由：设三个连续整数分别为n-1, n, n+1。根据题意，这三个数",
+        "prompt_tokens": 55,
+        "completion_tokens": 32,
+        "latency_ms": 15193.213,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-005",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "16161616161616161616161616161616161616161616161616161616161616161616161616161616161616161",
+        "prompt_tokens": 362,
+        "completion_tokens": 32,
+        "latency_ms": 22868.982,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "27"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-006",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "31.4",
+        "prompt_tokens": 56,
+        "completion_tokens": 5,
+        "latency_ms": 10610.85,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-007",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "55\n\n理由：这个问题可以通过数学公式来解决。1+2+3+...+10是一个等差数列的求和问题，",
+        "prompt_tokens": 56,
+        "completion_tokens": 32,
+        "latency_ms": 16428.428,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-008",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "32\n\n理由：2的5次方等于2乘以自己5次，即2^5 = 2 * 2 * 2 *",
+        "prompt_tokens": 50,
+        "completion_tokens": 32,
+        "latency_ms": 13995.048,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-009",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "x = 4\n\n理由：给定方程 x^2 = 16，要求 x 大于 0。这意味着 x 只能",
+        "prompt_tokens": 59,
+        "completion_tokens": 32,
+        "latency_ms": 14604.663,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "q-010",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "乙原来有 8 元。理由是，甲原本有 5 元，乙给甲 3 元后，甲乙两人总",
+        "prompt_tokens": 64,
+        "completion_tokens": 32,
+        "latency_ms": 16159.312,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12"
+        }
+      }
+    ],
+    "B2": [
+      {
+        "arm": "B2",
+        "question_id": "q-001",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "88",
+        "prompt_tokens": 101,
+        "completion_tokens": 3,
+        "latency_ms": 12685.004,
+        "route": "light",
+        "u": 0.369,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "15",
+          "x-jev-u": "0.369",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-002",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页",
+        "prompt_tokens": 453,
+        "completion_tokens": 32,
+        "latency_ms": 27344.406,
+        "route": "light",
+        "u": 0.347,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "27",
+          "x-jev-u": "0.347",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-003",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "A = 13\n\n理由：根据题目，我们有以下关系：\n1. A 比 B 大 3 岁，即",
+        "prompt_tokens": 78,
+        "completion_tokens": 32,
+        "latency_ms": 16992.352,
+        "route": "light",
+        "u": 0.296,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.296",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-004",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "最小的整数是10。\n\n理由：设三个连续整数分别为n-1, n, n+1。根据题意，这三个数",
+        "prompt_tokens": 55,
+        "completion_tokens": 32,
+        "latency_ms": 18598.378,
+        "route": "light",
+        "u": 0.369,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.369",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-005",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "最小的整数是10。\n\n理由：设三个连续整数分别为n-1, n, n+1。根据题意，这三个数",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 217.672,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-semantic",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-006",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "31.4",
+        "prompt_tokens": 56,
+        "completion_tokens": 5,
+        "latency_ms": 12406.409,
+        "route": "light",
+        "u": 0.364,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.364",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-007",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "88",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 270.97,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-semantic",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-008",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "32\n\n理由：2的5次方等于2乘以自己5次，即2^5 = 2 * 2 * 2 *",
+        "prompt_tokens": 50,
+        "completion_tokens": 32,
+        "latency_ms": 17344.435,
+        "route": "light",
+        "u": 0.396,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.396",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-009",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "x = 4\n\n理由：给定方程 x^2 = 16，要求 x 大于 0。这意味着 x 只能",
+        "prompt_tokens": 59,
+        "completion_tokens": 32,
+        "latency_ms": 18878.422,
+        "route": "light",
+        "u": 0.385,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.385",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-010",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "乙原来有 8 元。理由是，甲原本有 5 元，乙给甲 3 元后，甲乙两人总",
+        "prompt_tokens": 64,
+        "completion_tokens": 32,
+        "latency_ms": 19937.183,
+        "route": "light",
+        "u": 0.411,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.411",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-001",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "88",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 6.502,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-002",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 7.902,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-003",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "A = 13\n\n理由：根据题目，我们有以下关系：\n1. A 比 B 大 3 岁，即",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 6.711,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-004",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "最小的整数是10。\n\n理由：设三个连续整数分别为n-1, n, n+1。根据题意，这三个数",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 4.931,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-005",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "16161616161616161616161616161616161616161616161616161616161616161616161616161616161616161",
+        "prompt_tokens": 362,
+        "completion_tokens": 32,
+        "latency_ms": 22352.064,
+        "route": "light",
+        "u": 0.272,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "27",
+          "x-jev-u": "0.272",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-006",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "31.4",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 13.125,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-007",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "55\n\n理由：这个问题可以通过数学公式来解决。1+2+3+...+10是一个等差数列的求和问题，",
+        "prompt_tokens": 56,
+        "completion_tokens": 32,
+        "latency_ms": 18205.148,
+        "route": "light",
+        "u": 0.377,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.377",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-008",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "32\n\n理由：2的5次方等于2乘以自己5次，即2^5 = 2 * 2 * 2 *",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 6.098,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-009",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "x = 4\n\n理由：给定方程 x^2 = 16，要求 x 大于 0。这意味着 x 只能",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 5.974,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "B2",
+        "question_id": "q-010",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "乙原来有 8 元。理由是，甲原本有 5 元，乙给甲 3 元后，甲乙两人总",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 6.221,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "B2",
+          "x-jev-prefill": "off"
+        }
+      }
+    ],
+    "AR005": [
+      {
+        "arm": "AR005",
+        "question_id": "q-001",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "88",
+        "prompt_tokens": 101,
+        "completion_tokens": 3,
+        "latency_ms": 13351.727,
+        "route": "light",
+        "u": 0.369,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "15",
+          "x-jev-u": "0.369",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-002",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页",
+        "prompt_tokens": 453,
+        "completion_tokens": 32,
+        "latency_ms": 26182.164,
+        "route": "light",
+        "u": 0.347,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "27",
+          "x-jev-u": "0.347",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-003",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "A = 13\n\n理由：根据题目，我们有以下关系：\n1. A 比 B 大 3 岁，即",
+        "prompt_tokens": 78,
+        "completion_tokens": 32,
+        "latency_ms": 16336.349,
+        "route": "light",
+        "u": 0.296,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.296",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-004",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "最小的整数是10。\n\n理由：设三个连续整数分别为n-1, n, n+1。根据题意，这三个数",
+        "prompt_tokens": 55,
+        "completion_tokens": 32,
+        "latency_ms": 18758.662,
+        "route": "light",
+        "u": 0.369,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.369",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-005",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "最小的整数是10。\n\n理由：设三个连续整数分别为n-1, n, n+1。根据题意，这三个数",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 193.483,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-semantic",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-006",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "31.4",
+        "prompt_tokens": 56,
+        "completion_tokens": 5,
+        "latency_ms": 12179.993,
+        "route": "light",
+        "u": 0.364,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.364",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-007",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "88",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 252.39,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-semantic",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-008",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "32\n\n理由：2的5次方等于2乘以自己5次，即2^5 = 2 * 2 * 2 *",
+        "prompt_tokens": 50,
+        "completion_tokens": 32,
+        "latency_ms": 18094.005,
+        "route": "light",
+        "u": 0.396,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.396",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-009",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "x = 4\n\n理由：给定方程 x^2 = 16，要求 x 大于 0。这意味着 x 只能",
+        "prompt_tokens": 59,
+        "completion_tokens": 32,
+        "latency_ms": 19221.351,
+        "route": "light",
+        "u": 0.385,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.385",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-010",
+        "pass": 0,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "乙原来有 8 元。理由是，甲原本有 5 元，乙给甲 3 元后，甲乙两人总",
+        "prompt_tokens": 64,
+        "completion_tokens": 32,
+        "latency_ms": 18843.417,
+        "route": "light",
+        "u": 0.411,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.411",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-001",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "88",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 6.097,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-002",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页20页",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 8.213,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-003",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "A = 13\n\n理由：根据题目，我们有以下关系：\n1. A 比 B 大 3 岁，即",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 6.377,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-004",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "最小的整数是10。\n\n理由：设三个连续整数分别为n-1, n, n+1。根据题意，这三个数",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 7.933,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-005",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "16161616161616161616161616161616161616161616161616161616161616161616161616161616161616161",
+        "prompt_tokens": 362,
+        "completion_tokens": 32,
+        "latency_ms": 24252.272,
+        "route": "light",
+        "u": 0.272,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "27",
+          "x-jev-u": "0.272",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-006",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "31.4",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 16.83,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-007",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "55\n\n理由：这个问题可以通过数学公式来解决。1+2+3+...+10是一个等差数列的求和问题，",
+        "prompt_tokens": 56,
+        "completion_tokens": 32,
+        "latency_ms": 15097.261,
+        "route": "light",
+        "u": 0.377,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "12",
+          "x-jev-u": "0.377",
+          "x-jev-verified": "accept",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "skipped:short"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-008",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "32\n\n理由：2的5次方等于2乘以自己5次，即2^5 = 2 * 2 * 2 *",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 6.2,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-009",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "x = 4\n\n理由：给定方程 x^2 = 16，要求 x 大于 0。这意味着 x 只能",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 7.468,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "off"
+        }
+      },
+      {
+        "arm": "AR005",
+        "question_id": "q-010",
+        "pass": 1,
+        "category": "math",
+        "lang": "zh",
+        "quality": 0.0,
+        "answer": "乙原来有 8 元。理由是，甲原本有 5 元，乙给甲 3 元后，甲乙两人总",
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "latency_ms": 6.394,
+        "route": "light",
+        "u": null,
+        "headers": {
+          "x-jev-route": "light",
+          "x-jev-decisions": "0",
+          "x-jev-verified": "off",
+          "x-jev-cache": "hit-exact",
+          "x-jev-plan": "AR005",
+          "x-jev-prefill": "off"
+        }
+      }
+    ]
+  },
+  "metrics": {
+    "B0": {
+      "count": 20,
+      "quality": 0.6,
+      "mean_completion_tokens": 20.6,
+      "mean_prompt_tokens": 57.8,
+      "mean_latency_ms": 12216.128,
+      "p50_latency_ms": 13801.361,
+      "routes": {
+        "full": 20
+      },
+      "cache_hits": 0,
+      "risk_denies": 0
+    },
+    "B1": {
+      "count": 20,
+      "quality": 0.4,
+      "mean_completion_tokens": 26.4,
+      "mean_prompt_tokens": 133.4,
+      "mean_latency_ms": 16212.131,
+      "p50_latency_ms": 15193.213,
+      "routes": {
+        "light": 20
+      },
+      "cache_hits": 0,
+      "risk_denies": 0
+    },
+    "B2": {
+      "count": 20,
+      "quality": 0.35,
+      "mean_completion_tokens": 13.2,
+      "mean_prompt_tokens": 66.7,
+      "mean_latency_ms": 9264.495,
+      "p50_latency_ms": 12406.409,
+      "routes": {
+        "light": 20
+      },
+      "cache_hits": 10,
+      "risk_denies": 0
+    },
+    "AR005": {
+      "count": 20,
+      "quality": 0.35,
+      "mean_completion_tokens": 13.2,
+      "mean_prompt_tokens": 66.7,
+      "mean_latency_ms": 9141.429,
+      "p50_latency_ms": 12179.993,
+      "routes": {
+        "light": 20
+      },
+      "cache_hits": 10,
+      "risk_denies": 0
+    }
+  },
+  "selection": {
+    "decision": "rollback",
+    "chosen_arm": "B2",
+    "baseline_arm": "B2",
+    "utility": {
+      "B0": 0.5264080100125156,
+      "B1": 0.25,
+      "B2": 0.27499999999999997,
+      "AR005": 0.27499999999999997
+    },
+    "delta_ci": null,
+    "policy": {},
+    "reason": "候选无显著正下界，回退基线"
+  }
+}

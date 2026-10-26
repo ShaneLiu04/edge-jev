@@ -1,0 +1,22 @@
+# 由 jev matrix 生成；人工可编辑，未知节会被拒绝。
+
+[portfolio]
+name = "AR005"
+
+[runtime]
+enabled = true
+verifier_enabled = true
+self_verify_mode = "gate"
+risk_control = false
+risk_calibration = ""
+allocator_enabled = true
+memory_enabled = true
+keep_turns = 2
+
+[cache]
+enabled = true
+conformal_admission = false
+admission_calibration = ""
+
+[prefill]
+enabled = true
