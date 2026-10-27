@@ -76,6 +76,30 @@ AR005 与 B2 相同：本次运行中 Conformal 风险门找到的可行阈值�
 
 短 prompt 不触发压缩，四组合完全一致；选择器 `rollback B1`，符合“无增益即回退”。
 
+## 实验 6：AR007 前缀 KV 复用（shared-prefix 12 题，真实后端）
+
+命令：`jev matrix --config configs/experiments/prefix-cache.toml`
+
+| arm | quality | prompt tok | mean prefill | mean latency | cache 命中 |
+| --- | --- | --- | --- | --- | --- |
+| B1（无缓存） | 1.000 | 5354 | **8848 ms** | **70.6s** | 0/12 |
+| **CACHE（稳定前缀+KV）** | **1.000** | 5354 | **319 ms** | **54.0s** | **12/12** |
+
+- 前缀 KV 复用使 prefill **27.7×** 加速（8848ms → 319ms），端到端延迟 ↓23.5%（生成与 Laya 决策仍占主要时间）。
+- 质量完全一致；选择器在加入延迟惩罚（`lambda_latency=0.5`）后 `adopt CACHE`。
+- 注：`usage.prompt_tokens` 仍按逻辑 token 计数，缓存收益体现在 `prefill_ms` 与 `cache_n`。
+
+### 实验 7：AEB 与缓存的冲突（同一 shared-prefix 负载）
+
+| arm | quality | prompt tok | mean latency | cache 命中 |
+| --- | --- | --- | --- | --- |
+| AEB（12 题） | 1.000 | 3998（−25%） | 153.4s | 0/12 |
+| AEB_CACHE（4 题） | 1.000 | 3998 | 141.6s | **0/4** |
+
+- 每个问题选块不同 → 前缀不稳定 → KV 命中为 0，压缩收益无法叠加缓存。
+- 仅按 token 选择会误选 AEB_CACHE（token 更少）；加入延迟惩罚后正确选择 CACHE。
+- 结论：**会话/同文档场景用 CACHE；一次性长文用 AEB**；二者不要盲目叠加。
+
 ## 关键发现（诚实记录）
 
 1. **缓存价值已验证**：重复请求命中后 token/延迟显著下降，且不改变答案。
@@ -90,6 +114,10 @@ AR005 与 B2 相同：本次运行中 Conformal 风险门找到的可行阈值�
 6. **AR006 AEB 已达标**：证据锚点 + 自适应预算在 needles 上将 prompt 词元从 2457 降至 1204
    （−51%），质量不变；但 embedding 选块带来约 10s 额外延迟。生产建议：
    长文档/内存受限场景用 AEB，低延迟短问答保持 B1（选择器已自动回退）。
+7. **AR007 前缀复用在会话负载上收益更大**：prefill 8848ms → 319ms（27.7×），端到端 ↓23.5%，
+   质量不变；但 AEB 的按问题选块会破坏前缀，AEB_CACHE 命中为 0。
+8. **选择器必须计入延迟**：token-only 效用会误选慢但省 token 的 AEB_CACHE；
+   新增 `lambda_latency` 后正确 `adopt CACHE`，这是组合冲突的可执行解法。
 
 ## 下一步（正式复现）
 

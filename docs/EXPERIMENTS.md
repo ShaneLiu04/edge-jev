@@ -74,6 +74,18 @@
 判定：选择器仍按配对 bootstrap + LOO；若 AEB 质量下降 >2pt 或无正下界 → rollback；
 若通过，`docs/RESULTS.md` 记录实际运行数字与延迟代价（embedding 选块开销）。
 
+## 5.2 AR007 前缀 KV 复用
+
+- 数据：`jev.bench.prefixset.build_shared_prefix`（同文档、不同编号问题，前缀逐字一致）；
+- 配置：`configs/experiments/prefix-cache.toml`（B1/CACHE/AEB/AEB_CACHE）；
+- 关键指标：`X-Jev-Prefix-Cache` 的 `cache_n`、`X-Jev-Prefill-Ms`、端到端延迟；
+- 选择效用：`quality - λ_tokens·tokens - λ_latency·latency`（默认 λ_latency=0，AR007 配置 0.5）；
+- 服务器：`server-7b-prefix.toml` / `server-14b-prefix.toml`（external，30 题）。
+
+判定：CACHE 的质量不得下降，且同前缀请求 prefill 显著下降（本机 ≥10× 目标）；
+若 AEB_CACHE 的命中率低且延迟高，则不得把 AEB 与缓存盲目叠加。
+
+
 
 ## 6. 选择与回退
 

@@ -85,6 +85,9 @@ uv run jev matrix --config configs/experiments/combos.toml
 
 # AR006 短问答回归（验证不在短 prompt 上引入变化）
 uv run jev matrix --config configs/experiments/quality-combos.toml
+
+# AR007 前缀 KV 复用（同文档多问；真实 cache_n/prefill_ms）
+uv run jev matrix --config configs/experiments/prefix-cache.toml
 ```
 
 产物目录 `benchmarks/results/<run>/`：
@@ -177,6 +180,7 @@ specs/              SDD 需求/设计/任务与归档
 - **AR004** 学习与复现：飞轮 / 多基线 / LoRA / 大模型矩阵
 - **AR005** 风险可控自适应编排：Conformal + JCBA + 选择/回退 + 可复现矩阵
 - **AR006** 证据驱动自适应上下文（AEB）+ 大脑/embedding 自愈 + 组合最优与回退
+- **AR007** 前缀 KV 复用 + 会话亲和稳定前缀 + AEB/缓存冲突分析与延迟感知选择
 
 ## 许可
 

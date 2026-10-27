@@ -150,5 +150,20 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
   无正效用下界 → `rollback`；profile 依据实际 chosen arm 生成。
 - **响应头**：增 `X-Jev-Prefill-Mode: <selector>;r=<ratio>`；`/health` 增 `supervisor` 子对象（启用时）。
 
+## 12 AR007 前缀 KV 复用（增量契约）
+
+- **配置**：`RuntimeConfig.prefix_cache` / `session_affinity`（默认 false）。
+- **稳定前缀**：`use_stable_prefix(prefix_cache, session_affinity, session_id)` 为纯函数；
+  为真时服务端跳过 AEB/记忆/草稿/分配，发送原始 messages，保证前缀逐字一致。
+- **会话键**：OpenAI 兼容 `user` 字段；未传则回退 AEB。
+- **客户端**：`LlamaServerClient(cache_prompt=bool)` 显式开关；矩阵按 arm 覆盖。
+- **观测**：`X-Jev-Prefix-Cache: hit:<cache_n>|miss|off`、`X-Jev-Prefill-Ms`、`X-Jev-Prompt-N`；
+  `last_runtime.compute = {prompt_ms, prompt_n, cache_n}`；`usage` 不变。
+- **选择器**：`select(..., lambda_latency=0.0)`，效用 = quality − λ_t·tokens − λ_l·latency；
+  `jev matrix` 支持 `lambda_latency` 配置与报告列。
+- **数据/配置**：`bench.prefixset.build_shared_prefix`；`prefix-cache.toml`、
+  `server-7b-prefix.toml`、`server-14b-prefix.toml`。
+
+
 
 

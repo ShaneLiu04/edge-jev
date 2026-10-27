@@ -109,3 +109,23 @@ bench/matrix.py      任意组合 arm（overlays 定义即合法）+ 组合选�
 - `last_runtime.prefill` 增 `selector/budget_ratio/entropy/top_gap/fallback`；
 - `/health` 在启用监督器时返回 `supervisor` 统计（restarts/retries/last_recovery_ms）。
 
+## 8. AR007 前缀 KV 复用（增量）
+
+```text
+kernel/runtime/prefixcache.py     稳定前缀纯策略
+bench/prefixset.py                shared-prefix 数据集
+server/chat.py                    session(user) → 稳定原文；cache_n/prefill_ms 观测
+matrix                            prompt_cache + 缓存命中指标 + λ_latency
+```
+
+- **稳定前缀**：`prefix_cache && session_affinity && user` 时跳过 AEB/记忆/草稿/分配，
+  直接发送原文；保证同 session 前缀逐字一致。
+- **客户端**：`LlamaServerClient(cache_prompt=...)` 显式开关，避免服务器默认值污染基线。
+- **观测**：`timings.cache_n/prompt_ms/prompt_n` → `X-Jev-Prefix-Cache`、`X-Jev-Prefill-Ms`、
+  `X-Jev-Prompt-N` 与 `last_runtime.compute`；`usage` 结构不变。
+- **选择器**：新增 `lambda_latency`，效用 = `q − λ_t·tokens − λ_l·latency`，避免“省 token 但更慢”被误采纳。
+- **冲突**：AEB 按问题选块会破坏前缀；AEB_CACHE 实测 0 命中。会话用 CACHE，单次长文用 AEB。
+- **服务器建议**：`--parallel 1` 最大化同前缀命中；多槽需 sticky slot/固定前缀，
+  否则跨槽无法复用 KV（大模型配置见 REPRODUCTION.md）。
+
+

@@ -101,6 +101,23 @@ uv run jev matrix --config configs/experiments/server-14b-combos.toml
 - 若服务端长时间运行后假死，在 `configs/jev.toml` 打开 `[cerebrum] supervisor_enabled = true`
   并使用 `build_serve_app` 路径；矩阵每 arm 独立重启大脑，天然隔离。
 
+### 2.5 AR007 前缀 KV 复用（7B/14B）
+
+```bash
+uv run jev matrix --config configs/experiments/server-7b-prefix.toml
+uv run jev matrix --config configs/experiments/server-14b-prefix.toml
+```
+
+- 服务启动建议：`--parallel 1`（或固定槽）以最大化同前缀 KV 命中；
+  `--ctx-size 16384` 覆盖 30 题共享文档；`timeout_s=600`。
+- 客户端需传稳定 `user`（矩阵已按 `jev-<arm>-session` 注入），Jev 才会走稳定前缀；
+  不传 `user` 时回退 AEB（安全默认）。
+- 观测：响应头 `X-Jev-Prefix-Cache`（hit:n/miss/off）与 `X-Jev-Prefill-Ms`；
+  报告中 `pref ms`、`prefix hits`、`mean cache_n` 为关键列。
+- 判定：CACHE 质量不得下降；同前缀 prefill 需显著下降。若 AEB_CACHE 命中低且更慢，
+  不得把 AEB 与缓存叠加；选择器已引入 `lambda_latency`，会优先低延迟组合。
+- 服务器显存：KV 缓存随 ctx、并发线性增长；14B + 16k + 多槽需重新核算显存。
+
 ## 3. 实验口径
 
 | 方案 | 定义 |
