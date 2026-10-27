@@ -28,6 +28,8 @@ class RuntimeConfig:
     allocator_budget_ratio: float = 0.6
     allocator_min_prompt_tokens: int = 512
     profile_name: str = ""
+    prefix_cache: bool = False
+    session_affinity: bool = False
 
     def __post_init__(self) -> None:
         if self.verifier_max_tokens < 1:

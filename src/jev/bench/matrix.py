@@ -114,6 +114,8 @@ class MatrixConfig:
     repeat: int
     dataset: str
     overlays: dict
+    prompt_cache: bool = False
+    lambda_latency: float = 0.0
 
 
 def load_matrix_config(path: Path | str) -> MatrixConfig:
@@ -149,6 +151,8 @@ def load_matrix_config(path: Path | str) -> MatrixConfig:
         dataset=str(data.get("dataset", "quality")),
         timeout_s=float(data.get("timeout_s", 180.0)),
         overlays=overlays,
+        prompt_cache=bool(data.get("prompt_cache", False)),
+        lambda_latency=float(data.get("lambda_latency", 0.0)),
     )
 
 
@@ -157,6 +161,10 @@ def _load_questions(config: MatrixConfig):
         from jev.bench.needles import build_needles
 
         return build_needles(30)
+    if config.dataset == "shared_prefix":
+        from jev.bench.prefixset import build_shared_prefix
+
+        return build_shared_prefix(max(12, config.limit or 12))
     if config.dataset != "quality":
         raise JevError(f"未知 dataset: {config.dataset}")
     return load_quality_set(DEFAULT_QUALITY_SET)
@@ -276,6 +284,7 @@ def _run_questions(
     max_tokens: int = 64,
     prompt_prefix: str = "",
     repeat: int = 1,
+    prompt_cache: bool = False,
 ) -> list[dict]:
     rows: list[dict] = []
     for pass_index in range(max(1, repeat)):
@@ -289,6 +298,8 @@ def _run_questions(
                 "max_tokens": max_tokens,
                 "seed": seed,
             }
+            if prompt_cache:
+                payload["user"] = f"jev-{arm}-session"
             started = time.perf_counter()
             response = client.post("/v1/chat/completions", json=payload)
             latency_ms = (time.perf_counter() - started) * 1000.0
@@ -319,10 +330,29 @@ def _run_questions(
                     "latency_ms": round(latency_ms, 3),
                     "route": headers.get("x-jev-route"),
                     "u": _float_or_none(headers.get("x-jev-u")),
+                    "cache_n": _cache_n(headers.get("x-jev-prefix-cache")),
+                    "prefill_ms": _float_or_none(headers.get("x-jev-prefill-ms")) or 0.0,
+                    "prompt_n": _int_or_zero(headers.get("x-jev-prompt-n")),
                     "headers": headers,
                 }
             )
     return rows
+
+
+def _cache_n(value: str | None) -> int:
+    if not value or not value.startswith("hit:"):
+        return 0
+    try:
+        return int(value.split(":", 1)[1])
+    except (IndexError, ValueError):
+        return 0
+
+
+def _int_or_zero(value: str | None) -> int:
+    try:
+        return int(value) if value is not None else 0
+    except (TypeError, ValueError):
+        return 0
 
 
 def _float_or_none(value: str | None) -> float | None:
@@ -421,7 +451,7 @@ def run_matrix(
             brain = LlamaServerClient(
                 config.brain_base_url,
                 timeout_s=config.timeout_s,
-                cache_prompt=False,
+                cache_prompt=config.prompt_cache,
             )
             if not brain.health():
                 raise JevError(f"外部大脑不可用: {config.brain_base_url}")
@@ -454,7 +484,9 @@ def run_matrix(
                 arm_brain = LlamaServerClient(
                     arm_manager.base_url,
                     timeout_s=config.timeout_s,
-                    cache_prompt=False,
+                    cache_prompt=bool(
+                        (arm_cfg.get("runtime") or {}).get("prefix_cache", False)
+                    ),
                 )
             try:
                 arm_prefill = arm_cfg.get("prefill", {}) or {}
@@ -488,6 +520,7 @@ def run_matrix(
                     max_tokens=config.max_tokens,
                     prompt_prefix=config.prompt_prefix,
                     repeat=config.repeat,
+                    prompt_cache=config.prompt_cache,
                 )
             finally:
                 if arm_manager is not None:
@@ -530,7 +563,9 @@ def run_matrix(
                 arm_brain = LlamaServerClient(
                     arm_manager.base_url,
                     timeout_s=config.timeout_s,
-                    cache_prompt=False,
+                    cache_prompt=bool(
+                        (ar_cfg.get("runtime") or {}).get("prefix_cache", False)
+                    ),
                 )
             try:
                 ar_prefill = ar_cfg.get("prefill", {}) or {}
@@ -557,6 +592,7 @@ def run_matrix(
                     max_tokens=config.max_tokens,
                     prompt_prefix=config.prompt_prefix,
                     repeat=config.repeat,
+                    prompt_cache=config.prompt_cache,
                 )
             finally:
                 if arm_manager is not None:
@@ -596,6 +632,7 @@ def run_matrix(
         selection = select(
             outcomes,
             lambda_cost=config.lambda_cost,
+            lambda_latency=config.lambda_latency,
             baseline_arm=baseline_arm,
             seed=config.seed,
             min_samples=min(20, len(questions)),
@@ -617,6 +654,7 @@ def run_matrix(
                 "finished": time.time(),
                 "seed": config.seed,
                 "lambda_cost": config.lambda_cost,
+                "lambda_latency": config.lambda_latency,
                 "limit": limit,
                 "fingerprint": fingerprint,
             },
@@ -714,6 +752,15 @@ def _summarize(raw: dict[str, list[dict]]) -> dict:
                 for row in rows
                 if row["headers"].get("x-jev-risk") == "deny"
             ),
+            "cache_prompt_hits": sum(
+                1 for row in rows if int(row.get("cache_n", 0)) > 0
+            ),
+            "mean_cache_n": round(
+                sum(int(row.get("cache_n", 0)) for row in rows) / count, 3
+            ),
+            "mean_prefill_ms": round(
+                sum(float(row.get("prefill_ms", 0.0)) for row in rows) / count, 3
+            ),
         }
     return metrics
 
@@ -732,19 +779,23 @@ def _render_report(payload: dict) -> str:
         "",
         f"- run: {payload['run']['name']}",
         f"- lambda_cost: {payload['run']['lambda_cost']}",
+        f"- lambda_latency: {payload['run'].get('lambda_latency', 0.0)}",
         f"- seed: {payload['run']['seed']}",
         f"- limit: {payload['run']['limit'] or 'all'}",
         "",
         "## 指标",
         "",
-        "| arm | quality | completion tok | prompt tok | P50 ms | cache hits | risk denies |",
-        "|---|---|---|---|---|---|---|",
+        "| arm | quality | completion tok | prompt tok | P50 ms | pref ms "
+        "| cache hits | prefix hits | mean cache_n | risk denies |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for arm, item in payload["metrics"].items():
         lines.append(
             f"| {arm} | {item['quality']:.3f} | {item['mean_completion_tokens']:.1f} "
             f"| {item['mean_prompt_tokens']:.1f} | {item['p50_latency_ms']:.0f} "
-            f"| {item['cache_hits']} | {item['risk_denies']} |"
+            f"| {item.get('mean_prefill_ms', 0):.0f} "
+            f"| {item['cache_hits']} | {item.get('cache_prompt_hits', 0)} "
+            f"| {item.get('mean_cache_n', 0):.0f} | {item['risk_denies']} |"
         )
     selection = payload["selection"]
     lines.extend(

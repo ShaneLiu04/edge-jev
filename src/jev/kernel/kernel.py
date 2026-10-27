@@ -499,6 +499,8 @@ def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
         allocator_min_prompt_tokens=int(
             runtime_cfg.get("allocator_min_prompt_tokens", 512)
         ),
+        prefix_cache=bool(runtime_cfg.get("prefix_cache", False)),
+        session_affinity=bool(runtime_cfg.get("session_affinity", False)),
     )
     cache = SemanticCache(cache_config) if cache_config.enabled else None
     return runtime_config, cache
@@ -605,6 +607,7 @@ def _build_supervisor(config: dict, brain: LlamaServerManager | None) -> BrainSu
         health_timeout_s=float(cerebrum_cfg.get("health_timeout_s", 3.0)),
         max_recoveries=int(cerebrum_cfg.get("max_recoveries", 5)),
         recovery_cooldown_s=float(cerebrum_cfg.get("recovery_cooldown_s", 5.0)),
+        cache_prompt=bool((config.get("runtime") or {}).get("prefix_cache", False)),
     )
 
 

@@ -1,0 +1,52 @@
+# AR007 前缀 KV 复用实验（同一文档、12 个不同问题）。
+# B1 基线 / CACHE 稳定前缀+KV / AEB 单次压缩 / AEB_CACHE 冲突对照。
+name = "ar007-prefix-cache"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 12
+dataset = "shared_prefix"
+brain = "spawn"
+embedding = "auto"
+gpu_layers = 99
+ctx_size = 8192
+max_tokens = 32
+timeout_s = 240.0
+prompt_prefix = ""
+prompt_cache = true
+arms = ["B1", "CACHE", "AEB", "AEB_CACHE"]
+
+[overlays.CACHE.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+
+[overlays.AEB.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = false
+session_affinity = false
+
+[overlays.AEB.prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = true
+evidence = true
+anchor = true
+
+[overlays.AEB_CACHE.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = false
+
+[overlays.AEB_CACHE.prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = true
+evidence = true
+anchor = true

@@ -62,12 +62,21 @@ def _arm_metrics(outcomes: Sequence[ArmOutcome]) -> dict[str, ArmMetrics]:
     return metrics
 
 
-def _utilities(metrics: dict[str, ArmMetrics], lambda_cost: float) -> dict[str, float]:
+def _utilities(
+    metrics: dict[str, ArmMetrics],
+    lambda_cost: float,
+    lambda_latency: float = 0.0,
+) -> dict[str, float]:
     max_tokens = max((item.mean_tokens for item in metrics.values()), default=0.0)
     if max_tokens <= 0:
         max_tokens = 1.0
+    max_latency = max((item.mean_latency_ms for item in metrics.values()), default=0.0)
+    if max_latency <= 0:
+        max_latency = 1.0
     return {
-        arm: item.quality - lambda_cost * (item.mean_tokens / max_tokens)
+        arm: item.quality
+        - lambda_cost * (item.mean_tokens / max_tokens)
+        - lambda_latency * (item.mean_latency_ms / max_latency)
         for arm, item in metrics.items()
     }
 
@@ -91,10 +100,17 @@ def _paired_delta(
 
 
 def _per_question_utility(
-    outcomes: Sequence[ArmOutcome], arm: str, lambda_cost: float, max_tokens: float
+    outcomes: Sequence[ArmOutcome],
+    arm: str,
+    lambda_cost: float,
+    max_tokens: float,
+    lambda_latency: float = 0.0,
+    max_latency: float = 1.0,
 ) -> dict[str, float]:
     return {
-        row.question_id: row.quality - lambda_cost * (row.tokens / max_tokens)
+        row.question_id: row.quality
+        - lambda_cost * (row.tokens / max_tokens)
+        - lambda_latency * (row.latency_ms / max_latency)
         for row in outcomes
         if row.arm == arm
     }
@@ -105,12 +121,16 @@ def _band_policy(
     arms: Sequence[str],
     lambda_cost: float,
     max_tokens: float,
+    lambda_latency: float = 0.0,
+    max_latency: float = 1.0,
 ) -> dict[str, str]:
     scores: dict[tuple[str, str], list[float]] = defaultdict(list)
     for row in outcomes:
         band = row.band or "unknown"
         scores[(band, row.arm)].append(
-            row.quality - lambda_cost * (row.tokens / max_tokens)
+            row.quality
+            - lambda_cost * (row.tokens / max_tokens)
+            - lambda_latency * (row.latency_ms / max_latency)
         )
     policy: dict[str, str] = {}
     for band in sorted({band for band, _ in scores}):
@@ -140,6 +160,8 @@ def _loo_policy(
     arms: Sequence[str],
     lambda_cost: float,
     max_tokens: float,
+    lambda_latency: float = 0.0,
+    max_latency: float = 1.0,
 ) -> tuple[dict[str, float], dict[str, float], dict[str, str]]:
     """留一评估 band→arm 策略；返回逐题效用/质量与全量策略（仅用于导出）。"""
     questions = sorted({row.question_id for row in outcomes})
@@ -148,7 +170,9 @@ def _loo_policy(
     quality: dict[str, float] = {}
     for held_out in questions:
         train = [row for row in outcomes if row.question_id != held_out]
-        policy = _band_policy(train, arms, lambda_cost, max_tokens)
+        policy = _band_policy(
+            train, arms, lambda_cost, max_tokens, lambda_latency, max_latency
+        )
         bands = sorted(
             {
                 row.band or "unknown"
@@ -159,12 +183,18 @@ def _loo_policy(
         arm = policy.get(bands[0]) if bands else None
         row = by_question.get((held_out, arm)) if arm else None
         if row is not None:
-            utility[held_out] = row.quality - lambda_cost * (row.tokens / max_tokens)
+            utility[held_out] = (
+                row.quality
+                - lambda_cost * (row.tokens / max_tokens)
+                - lambda_latency * (row.latency_ms / max_latency)
+            )
             quality[held_out] = row.quality
     return (
         utility,
         quality,
-        _band_policy(outcomes, arms, lambda_cost, max_tokens),
+        _band_policy(
+            outcomes, arms, lambda_cost, max_tokens, lambda_latency, max_latency
+        ),
     )
 
 
@@ -172,6 +202,7 @@ def select(
     outcomes: Sequence[ArmOutcome],
     *,
     lambda_cost: float = 0.15,
+    lambda_latency: float = 0.0,
     alpha: float = 0.05,
     baseline_arm: str = "B2",
     seed: int = 20261026,
@@ -183,6 +214,8 @@ def select(
         )
     if lambda_cost < 0:
         raise ValueError(f"lambda_cost 不得为负: {lambda_cost}")
+    if lambda_latency < 0:
+        raise ValueError(f"lambda_latency 不得为负: {lambda_latency}")
     metrics = _arm_metrics(outcomes)
     questions = sorted({row.question_id for row in outcomes})
     if len(questions) < min_samples:
@@ -190,17 +223,27 @@ def select(
             "rollback",
             baseline_arm,
             baseline_arm,
-            _utilities(metrics, lambda_cost),
+            _utilities(metrics, lambda_cost, lambda_latency),
             None,
             {},
             f"样本不足（{len(questions)} < {min_samples}）",
         )
 
-    utility = _utilities(metrics, lambda_cost)
+    utility = _utilities(metrics, lambda_cost, lambda_latency)
     if baseline_arm not in metrics:
         baseline_arm = max(utility, key=utility.get)
     max_tokens = max((item.mean_tokens for item in metrics.values()), default=1.0) or 1.0
-    base_per_q = _per_question_utility(outcomes, baseline_arm, lambda_cost, max_tokens)
+    max_latency = (
+        max((item.mean_latency_ms for item in metrics.values()), default=1.0) or 1.0
+    )
+    base_per_q = _per_question_utility(
+        outcomes,
+        baseline_arm,
+        lambda_cost,
+        max_tokens,
+        lambda_latency,
+        max_latency,
+    )
     quality_map = _quality_by_question(outcomes)
 
     candidates: dict[str, tuple[dict[str, float], dict[str, str]]] = {}
@@ -208,11 +251,23 @@ def select(
         if arm == baseline_arm:
             continue
         candidates[arm] = (
-            _per_question_utility(outcomes, arm, lambda_cost, max_tokens),
+            _per_question_utility(
+                outcomes,
+                arm,
+                lambda_cost,
+                max_tokens,
+                lambda_latency,
+                max_latency,
+            ),
             {},
         )
     loo_utility, loo_quality, full_policy = _loo_policy(
-        outcomes, sorted(metrics), lambda_cost, max_tokens
+        outcomes,
+        sorted(metrics),
+        lambda_cost,
+        max_tokens,
+        lambda_latency,
+        max_latency,
     )
     candidates["POLICY"] = (loo_utility, full_policy)
 

@@ -89,3 +89,21 @@ def test_select_is_deterministic():
     first = select(_outcomes(), baseline_arm="B2")
     second = select(_outcomes(), baseline_arm="B2")
     assert first == second
+
+
+def test_latency_penalty_prefers_fast_arm_with_more_tokens():
+    rows = []
+    for index in range(24):
+        qid = f"q{index}"
+        rows.append(ArmOutcome("B2", qid, 1.0, 100, 1000.0, "confident"))
+        rows.append(ArmOutcome("CACHE", qid, 1.0, 200, 100.0, "confident"))
+    token_only = select(rows, baseline_arm="B2", min_samples=20)
+    assert token_only.chosen_arm == "B2"
+    latency_aware = select(
+        rows,
+        baseline_arm="B2",
+        lambda_latency=0.5,
+        min_samples=20,
+    )
+    assert latency_aware.decision == "adopt"
+    assert latency_aware.chosen_arm == "CACHE"

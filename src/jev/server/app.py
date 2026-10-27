@@ -31,7 +31,10 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
         kernel.supervisor
         if kernel.supervisor is not None
         else (
-            LlamaServerClient(kernel.brain.base_url)
+            LlamaServerClient(
+                kernel.brain.base_url,
+                cache_prompt=kernel.runtime_config.prefix_cache,
+            )
             if kernel.brain is not None
             else None
         )

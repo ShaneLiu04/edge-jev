@@ -74,6 +74,8 @@ risk_alpha = 0.10
 allocator_enabled = false
 allocator_budget_ratio = 0.6
 allocator_min_prompt_tokens = 512
+prefix_cache = false             # AR007 服务器前缀 KV 复用（默认关闭）
+session_affinity = false         # AR007 有 user 会话键时用稳定前缀
 
 [cache]
 enabled = false

@@ -38,11 +38,12 @@ class BrainSupervisor:
         health_timeout_s: float = 3.0,
         max_recoveries: int = 5,
         recovery_cooldown_s: float = 5.0,
+        cache_prompt: bool | None = None,
     ) -> None:
         if client is None:
             if manager is None:
                 raise ValueError("BrainSupervisor 需要 manager 或 client 至少一个")
-            client = LlamaServerClient(manager.base_url)
+            client = LlamaServerClient(manager.base_url, cache_prompt=cache_prompt)
         self._manager = manager
         self._client = client
         self._health_interval_s = max(0.0, float(health_interval_s))

@@ -1,0 +1,53 @@
+# 服务器 7B 前缀 KV 复用（external 大脑/embedding）。
+# 建议 llama-server --parallel 1 以最大化同前缀命中；多槽需固定槽或接受命中下降。
+name = "ar007-server-7b-prefix"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 30
+dataset = "shared_prefix"
+brain = "external"
+brain_base_url = "http://127.0.0.1:8388"
+embedding = "external"
+embedding_base_url = "http://127.0.0.1:8389"
+ctx_size = 16384
+max_tokens = 128
+timeout_s = 600.0
+prompt_prefix = ""
+prompt_cache = true
+arms = ["B1", "CACHE", "AEB", "AEB_CACHE"]
+
+[overlays.CACHE.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+
+[overlays.AEB.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = false
+session_affinity = false
+
+[overlays.AEB.prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = true
+evidence = true
+anchor = true
+
+[overlays.AEB_CACHE.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = false
+
+[overlays.AEB_CACHE.prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = true
+evidence = true
+anchor = true

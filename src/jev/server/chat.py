@@ -66,6 +66,7 @@ from jev.kernel.prefill.evidence import EvidenceSelector
 from jev.kernel.runtime.bands import apply_self_verify_gate, classify_band
 from jev.kernel.runtime.config import RuntimeConfig
 from jev.kernel.runtime.conformal import AdmissionPolicy, RiskController
+from jev.kernel.runtime.prefixcache import use_stable_prefix
 from jev.kernel.runtime.prompt import build_prompt
 from jev.kernel.runtime.uncertainty import estimate_uncertainty
 from jev.kernel.runtime.verifier import BrainVerifier, VerifyResult
@@ -112,7 +113,7 @@ class _InvalidRequest(Exception):
 
 def _validate_chat_request(
     payload: object,
-) -> tuple[list[dict], float, int, list[str] | None, bool]:
+) -> tuple[list[dict], float, int, list[str] | None, bool, str]:
     """OpenAI 规范校验；返回 (messages, temperature, max_tokens, stop, stream)。"""
     if not isinstance(payload, dict):
         raise _InvalidRequest("body", "请求体须为 JSON 对象")
@@ -155,12 +156,19 @@ def _validate_chat_request(
     if not isinstance(stream, bool):
         raise _InvalidRequest("stream", "stream 须为布尔值")
 
+    user = payload.get("user", "")
+    if user is None:
+        user = ""
+    if not isinstance(user, str):
+        raise _InvalidRequest("user", "user 须为字符串")
+
     return (
         messages,
         float(temperature),
         max_tokens,
         stop if isinstance(stop, list) else stop,
         stream,
+        user,
     )
 
 
@@ -300,6 +308,7 @@ class _CascadeContext:
         admission_policy: AdmissionPolicy | None = None,
         profile_name: str = "",
         evidence: EvidenceSelector | None = None,
+        session_id: str = "",
     ) -> None:
         self.cerebellum = cerebellum
         self.brain = brain
@@ -325,6 +334,9 @@ class _CascadeContext:
         self.admission_policy = admission_policy
         self.profile_name = profile_name
         self.evidence = evidence
+        self.session_id = session_id
+        self.prefix_cache_active = False
+        self.prefix_cache_hits = 0
         self.last_fused: dict = {}
         self.last_runtime: dict = {
             "uncertainty": {"u": None, "band": "off", "self_agree": 1.0,
@@ -334,6 +346,8 @@ class _CascadeContext:
                          "skipped_reason": None, "unavailable": False},
             "prefix": {"fingerprint": None, "reused": False, "evidence": None,
                        "ttft_ms": 0.0, "prompt_tokens": 0, "prompt_n": 0},
+            "prefix_cache": {"active": False, "cached_tokens": 0},
+            "compute": {"prompt_ms": 0.0, "prompt_n": 0, "cache_n": 0},
             "prefill": {"selected": 0, "total": 0, "before_tokens": 0,
                         "after_tokens": 0, "skipped": None,
                         "selector": "salience", "budget_ratio": 0.0,
@@ -565,6 +579,28 @@ class _CascadeContext:
         if not self.runtime_enabled or self.runtime_config is None:
             return _draft_messages(self, pre) if full_route else self.messages
         config = self.runtime_config
+        if use_stable_prefix(
+            config.prefix_cache, config.session_affinity, self.session_id
+        ):
+            self.prefix_cache_active = True
+            before = sum(
+                len(str(message.get("content", ""))) // 4
+                for message in self.messages
+            )
+            self.last_runtime["prefill"] = {
+                "selected": 0,
+                "total": 0,
+                "before_tokens": before,
+                "after_tokens": before,
+                "skipped": "prefix_cache",
+                "selector": "prefix-cache",
+                "budget_ratio": 1.0,
+                "entropy": 0.0,
+                "top_gap": 0.0,
+                "fallback": None,
+            }
+            self.last_runtime["prefix_cache"] = {"active": True, "cached_tokens": 0}
+            return [dict(message) for message in self.messages]
         prompt_config = config.prompt
         if not full_route:
             import dataclasses as _dc
@@ -611,6 +647,22 @@ class _CascadeContext:
                 "fallback": build.allocation.fallback,
             }
         return build.messages
+
+    def record_server_timings(self, timings: dict) -> None:
+        cache_n = max(0, int(timings.get("cache_n", 0)))
+        prompt_n = max(0, int(timings.get("prompt_n", 0)))
+        prompt_ms = max(0.0, float(timings.get("prompt_ms", 0.0)))
+        self.last_runtime["compute"] = {
+            "prompt_ms": prompt_ms,
+            "prompt_n": prompt_n,
+            "cache_n": cache_n,
+        }
+        if self.prefix_cache_active:
+            self.prefix_cache_hits = cache_n
+            self.last_runtime["prefix_cache"] = {
+                "active": True,
+                "cached_tokens": cache_n,
+            }
 
     def verify_draft(
         self, pre: list[Decision], draft: str
@@ -776,7 +828,9 @@ def create_chat_router(
             return _error(400, "请求体不是合法 JSON", type_="invalid_request_error")
 
         try:
-            messages, temperature, max_tokens, stop, stream = _validate_chat_request(payload)
+            messages, temperature, max_tokens, stop, stream, user = (
+                _validate_chat_request(payload)
+            )
         except _InvalidRequest as exc:
             return _error(
                 400, exc.message, type_="invalid_request_error", param=exc.param
@@ -827,6 +881,7 @@ def create_chat_router(
                 admission_policy=admission_policy,
                 profile_name=profile_name,
                 evidence=evidence,
+                session_id=user,
             )
             if stream:
                 return _stream_response(context)
@@ -1014,8 +1069,8 @@ def _generate_full(
         temperature=context.temperature,
         stop=context.stop,
         timeout_s=context.remaining_s(),
-        extra_body={"cache_prompt": True},
     )
+    context.record_server_timings(response.get("timings") or {})
     return _content_of(response), _usage_of(response)
 
 
@@ -1062,6 +1117,7 @@ def _generate_light(
                 break
             raise
         segment_usage = _usage_of(response)
+        context.record_server_timings(response.get("timings") or {})
         _accumulate(usage, segment_usage)
         text = _content_of(response)
         if not text:
@@ -1113,6 +1169,7 @@ def _post_review(
         timeout_s=context.remaining_s(),
     )
     _accumulate(usage, _usage_of(response))
+    context.record_server_timings(response.get("timings") or {})
     retried_content = _content_of(response)
 
     second_post = context.evaluate(Stage.POST, context.state_json(retried_content))
@@ -1168,6 +1225,14 @@ def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
         ratio = prefill.get("budget_ratio") or 0.0
         if prefill["selected"]:
             headers["X-Jev-Prefill-Mode"] = f"{mode};r={ratio:.2f}"
+        prefix_cache = runtime.get("prefix_cache") or {}
+        if prefix_cache.get("active"):
+            cached = int(prefix_cache.get("cached_tokens", 0))
+            headers["X-Jev-Prefix-Cache"] = f"hit:{cached}" if cached > 0 else "miss"
+    compute = context.last_runtime.get("compute") or {}
+    if compute.get("prompt_ms"):
+        headers["X-Jev-Prefill-Ms"] = f"{float(compute['prompt_ms']):.0f}"
+        headers["X-Jev-Prompt-N"] = str(int(compute.get("prompt_n", 0)))
     return headers
 
 
