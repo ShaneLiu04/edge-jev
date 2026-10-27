@@ -1,0 +1,484 @@
+{
+  "schema": "jev.matrix/1",
+  "run": {
+    "name": "ar007-quick-20261027-125556",
+    "started": 1793076956.127506,
+    "finished": 1793078046.7648466,
+    "seed": 20261026,
+    "lambda_cost": 0.15,
+    "lambda_latency": 0.5,
+    "limit": 4,
+    "fingerprint": {
+      "python": "3.11.9",
+      "versions": {
+        "onnxruntime": "1.31.0",
+        "httpx": "0.28.1",
+        "numpy": "2.4.6",
+        "yaml": "6.0.3"
+      },
+      "platform": "Windows-10-10.0.26200-SP0",
+      "machine": "AMD64",
+      "extra": {
+        "arms": [
+          "B1",
+          "CACHE",
+          "AEB_CACHE"
+        ],
+        "commands": [
+          "jev matrix --config C:\\Users\\L30086~1\\AppData\\Local\\Temp\\opencode\\ar007-quick.toml"
+        ],
+        "run": "ar007-quick-20261027-125556"
+      }
+    }
+  },
+  "config": {
+    "name": "ar007-quick",
+    "seed": 20261026,
+    "lambda_cost": 0.15,
+    "limit": 4,
+    "arms": [
+      "B1",
+      "CACHE",
+      "AEB_CACHE"
+    ],
+    "brain": "spawn",
+    "brain_base_url": "",
+    "embedding": "auto",
+    "embedding_base_url": "",
+    "gpu_layers": 99,
+    "ctx_size": 8192,
+    "max_tokens": 32,
+    "timeout_s": 240.0,
+    "prompt_prefix": "",
+    "repeat": 1,
+    "dataset": "shared_prefix",
+    "overlays": {
+      "CACHE": {
+        "runtime": {
+          "enabled": true,
+          "verifier_enabled": false,
+          "memory_enabled": false,
+          "prefix_cache": true,
+          "session_affinity": true
+        }
+      },
+      "AEB_CACHE": {
+        "runtime": {
+          "enabled": true,
+          "verifier_enabled": false,
+          "memory_enabled": false,
+          "prefix_cache": true,
+          "session_affinity": false
+        },
+        "prefill": {
+          "enabled": true,
+          "budget_ratio": 0.6,
+          "adaptive": true,
+          "evidence": true,
+          "anchor": true
+        }
+      }
+    },
+    "prompt_cache": true,
+    "lambda_latency": 0.5
+  },
+  "calibrations": {},
+  "arms": {
+    "B1": [
+      {
+        "arm": "B1",
+        "question_id": "shared-01",
+        "pass": 0,
+        "category": "shared_prefix",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "编号 K-1000 的校验码是 4815。",
+        "prompt_tokens": 5354,
+        "completion_tokens": 24,
+        "latency_ms": 70545.573,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 8472.0,
+        "prompt_n": 2692,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "13",
+          "x-jev-prefill-ms": "8472",
+          "x-jev-prompt-n": "2692"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "shared-02",
+        "pass": 0,
+        "category": "shared_prefix",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "编号 K-1001 的校验码是 4852。",
+        "prompt_tokens": 5354,
+        "completion_tokens": 24,
+        "latency_ms": 69381.147,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 8138.0,
+        "prompt_n": 2692,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "13",
+          "x-jev-prefill-ms": "8138",
+          "x-jev-prompt-n": "2692"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "shared-03",
+        "pass": 0,
+        "category": "shared_prefix",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "编号 K-1002 的校验码是 4889。",
+        "prompt_tokens": 5354,
+        "completion_tokens": 24,
+        "latency_ms": 71042.188,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 8863.0,
+        "prompt_n": 2692,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "13",
+          "x-jev-prefill-ms": "8863",
+          "x-jev-prompt-n": "2692"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "shared-04",
+        "pass": 0,
+        "category": "shared_prefix",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "编号 K-1003 的校验码是 4926。",
+        "prompt_tokens": 5354,
+        "completion_tokens": 24,
+        "latency_ms": 71688.883,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 8205.0,
+        "prompt_n": 2692,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "13",
+          "x-jev-prefill-ms": "8205",
+          "x-jev-prompt-n": "2692"
+        }
+      }
+    ],
+    "CACHE": [
+      {
+        "arm": "CACHE",
+        "question_id": "shared-01",
+        "pass": 0,
+        "category": "shared_prefix",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "编号 K-1000 的校验码是 4815。",
+        "prompt_tokens": 5354,
+        "completion_tokens": 24,
+        "latency_ms": 62632.573,
+        "route": "full",
+        "u": 0.408,
+        "cache_n": 2660,
+        "prefill_ms": 307.0,
+        "prompt_n": 32,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "13",
+          "x-jev-u": "0.408",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "CACHE",
+          "x-jev-prefill": "skipped:prefix_cache",
+          "x-jev-prefix-cache": "hit:2660",
+          "x-jev-prefill-ms": "307",
+          "x-jev-prompt-n": "32"
+        }
+      },
+      {
+        "arm": "CACHE",
+        "question_id": "shared-02",
+        "pass": 0,
+        "category": "shared_prefix",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "编号 K-1001 的校验码是 4852。",
+        "prompt_tokens": 5354,
+        "completion_tokens": 24,
+        "latency_ms": 52991.813,
+        "route": "full",
+        "u": 0.408,
+        "cache_n": 2660,
+        "prefill_ms": 344.0,
+        "prompt_n": 32,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "13",
+          "x-jev-u": "0.408",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "CACHE",
+          "x-jev-prefill": "skipped:prefix_cache",
+          "x-jev-prefix-cache": "hit:2660",
+          "x-jev-prefill-ms": "344",
+          "x-jev-prompt-n": "32"
+        }
+      },
+      {
+        "arm": "CACHE",
+        "question_id": "shared-03",
+        "pass": 0,
+        "category": "shared_prefix",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "编号 K-1002 的校验码是 4889。",
+        "prompt_tokens": 5354,
+        "completion_tokens": 24,
+        "latency_ms": 53276.549,
+        "route": "full",
+        "u": 0.408,
+        "cache_n": 2660,
+        "prefill_ms": 345.0,
+        "prompt_n": 32,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "13",
+          "x-jev-u": "0.408",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "CACHE",
+          "x-jev-prefill": "skipped:prefix_cache",
+          "x-jev-prefix-cache": "hit:2660",
+          "x-jev-prefill-ms": "345",
+          "x-jev-prompt-n": "32"
+        }
+      },
+      {
+        "arm": "CACHE",
+        "question_id": "shared-04",
+        "pass": 0,
+        "category": "shared_prefix",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "编号 K-1003 的校验码是 4926。",
+        "prompt_tokens": 5354,
+        "completion_tokens": 24,
+        "latency_ms": 53627.236,
+        "route": "full",
+        "u": 0.408,
+        "cache_n": 2660,
+        "prefill_ms": 340.0,
+        "prompt_n": 32,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "13",
+          "x-jev-u": "0.408",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "CACHE",
+          "x-jev-prefill": "skipped:prefix_cache",
+          "x-jev-prefix-cache": "hit:2660",
+          "x-jev-prefill-ms": "340",
+          "x-jev-prompt-n": "32"
+        }
+      }
+    ],
+    "AEB_CACHE": [
+      {
+        "arm": "AEB_CACHE",
+        "question_id": "shared-01",
+        "pass": 0,
+        "category": "shared_prefix",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "编号 K-1000 的校验码是 4815。",
+        "prompt_tokens": 3998,
+        "completion_tokens": 24,
+        "latency_ms": 135727.161,
+        "route": "full",
+        "u": 0.408,
+        "cache_n": 0,
+        "prefill_ms": 8580.0,
+        "prompt_n": 2692,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "13",
+          "x-jev-u": "0.408",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AEB_CACHE",
+          "x-jev-prefill": "31/62",
+          "x-jev-prefill-mode": "evidence;r=0.49",
+          "x-jev-prefill-ms": "8580",
+          "x-jev-prompt-n": "2692"
+        }
+      },
+      {
+        "arm": "AEB_CACHE",
+        "question_id": "shared-02",
+        "pass": 0,
+        "category": "shared_prefix",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "编号 K-1001 的校验码是 4852。",
+        "prompt_tokens": 3998,
+        "completion_tokens": 24,
+        "latency_ms": 151646.288,
+        "route": "full",
+        "u": 0.408,
+        "cache_n": 0,
+        "prefill_ms": 474.0,
+        "prompt_n": 46,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "13",
+          "x-jev-u": "0.408",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AEB_CACHE",
+          "x-jev-prefill": "31/62",
+          "x-jev-prefill-mode": "evidence;r=0.49",
+          "x-jev-prefill-ms": "474",
+          "x-jev-prompt-n": "46"
+        }
+      },
+      {
+        "arm": "AEB_CACHE",
+        "question_id": "shared-03",
+        "pass": 0,
+        "category": "shared_prefix",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "编号 K-1002 的校验码是 4889。",
+        "prompt_tokens": 3998,
+        "completion_tokens": 24,
+        "latency_ms": 152974.638,
+        "route": "full",
+        "u": 0.408,
+        "cache_n": 0,
+        "prefill_ms": 440.0,
+        "prompt_n": 46,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "13",
+          "x-jev-u": "0.408",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AEB_CACHE",
+          "x-jev-prefill": "31/62",
+          "x-jev-prefill-mode": "evidence;r=0.49",
+          "x-jev-prefill-ms": "440",
+          "x-jev-prompt-n": "46"
+        }
+      },
+      {
+        "arm": "AEB_CACHE",
+        "question_id": "shared-04",
+        "pass": 0,
+        "category": "shared_prefix",
+        "lang": "zh",
+        "quality": 1.0,
+        "answer": "编号 K-1003 的校验码是 4926。",
+        "prompt_tokens": 3998,
+        "completion_tokens": 24,
+        "latency_ms": 122777.823,
+        "route": "full",
+        "u": 0.408,
+        "cache_n": 0,
+        "prefill_ms": 352.0,
+        "prompt_n": 46,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "13",
+          "x-jev-u": "0.408",
+          "x-jev-verified": "off",
+          "x-jev-cache": "miss",
+          "x-jev-plan": "AEB_CACHE",
+          "x-jev-prefill": "31/62",
+          "x-jev-prefill-mode": "evidence;r=0.49",
+          "x-jev-prefill-ms": "352",
+          "x-jev-prompt-n": "46"
+        }
+      }
+    ]
+  },
+  "metrics": {
+    "B1": {
+      "count": 4,
+      "quality": 1.0,
+      "mean_completion_tokens": 24.0,
+      "mean_prompt_tokens": 5354.0,
+      "mean_latency_ms": 70664.448,
+      "p50_latency_ms": 71042.188,
+      "routes": {
+        "full": 4
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 8419.5
+    },
+    "CACHE": {
+      "count": 4,
+      "quality": 1.0,
+      "mean_completion_tokens": 24.0,
+      "mean_prompt_tokens": 5354.0,
+      "mean_latency_ms": 55632.043,
+      "p50_latency_ms": 53627.236,
+      "routes": {
+        "full": 4
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 4,
+      "mean_cache_n": 2660.0,
+      "mean_prefill_ms": 334.0
+    },
+    "AEB_CACHE": {
+      "count": 4,
+      "quality": 1.0,
+      "mean_completion_tokens": 24.0,
+      "mean_prompt_tokens": 3998.0,
+      "mean_latency_ms": 140781.478,
+      "p50_latency_ms": 151646.288,
+      "routes": {
+        "full": 4
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 2461.5
+    }
+  },
+  "selection": {
+    "decision": "adopt",
+    "chosen_arm": "CACHE",
+    "baseline_arm": "B1",
+    "utility": {
+      "B1": 0.5990278941347238,
+      "CACHE": 0.6524170376035441,
+      "AEB_CACHE": 0.3878207512086278
+    },
+    "delta_ci": [
+      0.036852006152584965,
+      0.06362215867495774
+    ],
+    "policy": {},
+    "reason": "CACHE 效用下界 0.0369 > 0"
+  }
+}
