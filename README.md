@@ -100,6 +100,7 @@ uv run jev matrix --config configs/experiments/prefix-cache.toml
 > **自动回退**：若候选组合相对上一最优没有正效用下界（或质量下降），选择器输出 `rollback`，不覆盖默认 profile。
 
 详见 [REPRODUCTION.md](REPRODUCTION.md)、[docs/EXPERIMENTS.md](docs/EXPERIMENTS.md) 与真实结果 [docs/RESULTS.md](docs/RESULTS.md)。
+AR 组合与最优配置（避免盲目叠加）见 [docs/PORTFOLIO.md](docs/PORTFOLIO.md)。
 
 ## 服务器大模型实验（7B / 14B）
 

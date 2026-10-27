@@ -52,3 +52,24 @@ def test_cache_n_header_parsing():
     assert _cache_n("off") == 0
     assert _cache_n(None) == 0
     assert _cache_n("hit:bad") == 0
+
+
+def test_portfolio_profiles_parse():
+    import tomllib
+
+    from jev.kernel.runtime.portfolio import load_profile, merge_profile
+
+    base = tomllib.loads(
+        open("configs/jev.toml", encoding="utf-8").read()
+    )
+    aeb = merge_profile(base, load_profile("configs/profiles/aeb.toml"))
+    assert aeb["runtime"]["enabled"] is True
+    assert aeb["prefill"]["evidence"] is True
+    assert aeb["runtime"]["prefix_cache"] is False
+
+    cache = merge_profile(base, load_profile("configs/profiles/prefix-cache.toml"))
+    assert cache["runtime"]["prefix_cache"] is True
+    assert cache["runtime"]["session_affinity"] is True
+
+    short = merge_profile(base, load_profile("configs/profiles/short-qa.toml"))
+    assert short["runtime"]["enabled"] is False

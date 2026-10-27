@@ -1,0 +1,18 @@
+# AR006：一次性长文（证据 + 自适应预算）。
+[portfolio]
+name = "aeb"
+
+[runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+allocator_enabled = false
+prefix_cache = false
+session_affinity = false
+
+[prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = true
+evidence = true
+anchor = true

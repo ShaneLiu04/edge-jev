@@ -1,0 +1,16 @@
+# AR007：会话/共享前缀（稳定前缀 + KV 复用）。
+[portfolio]
+name = "prefix-cache"
+
+[runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+allocator_enabled = false
+prefix_cache = true
+session_affinity = true
+
+[prefill]
+enabled = false
+evidence = false
+adaptive = false

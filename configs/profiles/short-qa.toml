@@ -1,0 +1,14 @@
+# 短问答基线：只保留能力门控，关闭运行时增量。
+[portfolio]
+name = "short-qa"
+
+[runtime]
+enabled = false
+prefix_cache = false
+session_affinity = false
+
+[cache]
+enabled = false
+
+[prefill]
+enabled = false
