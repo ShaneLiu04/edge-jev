@@ -98,6 +98,7 @@ SOTA 启示：
 - 响应头新增：
   - `X-Jev-Stable-Compression: hit|miss|off;r=<ratio>;t=<compressed_tokens>`
   - `X-Jev-Stable-Cache: hit|miss|off`
+  - `X-Jev-Stable-Ms: <压缩耗时毫秒>`
 - `last_runtime.stable_compression = {active, cache, ratio, before_tokens, after_tokens, ms}`。
 
 ### 3.4 异构设备放置（FR9-4）

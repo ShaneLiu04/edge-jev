@@ -147,6 +147,7 @@ if config.stable.enabled and self.stable is not None:
 ```text
 X-Jev-Stable-Compression: hit|miss|off;r=0.60;t=<after_tokens>
 X-Jev-Stable-Cache: hit|miss|off
+X-Jev-Stable-Ms: <压缩/缓存查询耗时>
 ```
 
 ### 3.4 异构设备放置
