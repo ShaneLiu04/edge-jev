@@ -1,0 +1,23 @@
+# AR007 GPU comparison: prefix KV reuse, CUDA target (capped-clock RTX 5000).
+name = "ar007-prefix-cache-gpu"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 12
+dataset = "shared_prefix"
+brain = "spawn"
+embedding = "auto"
+gpu_layers = 99
+ctx_size = 8192
+max_tokens = 32
+timeout_s = 240.0
+prompt_prefix = ""
+prompt_cache = true
+arms = ["B1", "CACHE"]
+
+[overlays.CACHE.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true

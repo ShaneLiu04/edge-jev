@@ -164,6 +164,38 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 - **数据/配置**：`bench.prefixset.build_shared_prefix`；`prefix-cache.toml`、
   `server-7b-prefix.toml`、`server-14b-prefix.toml`。
 
+## 13 AR008 异构投机解码（增量契约）
+
+- **配置**：`[cerebrum.spec] enabled/draft_model/type/draft_n_max/draft_gpu_layers/draft_threads/sampling`；
+  默认 `enabled=false`；draft 资产缺失抛 `JevAssetError`。
+- **参数**：`spec_server_args(...)` 生成 `--spec-draft-model`、`--spec-type`、
+  `--spec-draft-n-max`、`--spec-draft-ngl`、`--spec-draft-threads`、`--spec-draft-sampling`。
+- **观测**：`X-Jev-Spec: <accepted>/<draft>`、`X-Jev-Decode-Tps`；
+  `last_runtime.spec = {draft_n, accepted, decode_tps}`。
+- **矩阵**：per-arm `[overlays.<ARM>.cerebrum.spec]`；指标 `mean_decode_tps`、
+  `spec_accept_rate`、`outputs_identical`；数据 `build_long_generation[_en]`。
+- **环境要求**：必须核对 `llama-server --list-devices`；CUDA 需 `cudart64_12.dll` /
+  `cublas64_12.dll` / `cublasLt64_12.dll`。本机 GPU 限频 645 MHz（tg 5.06 t/s < CPU 9.47 t/s），
+  历史 AR005–AR007 主表为 CPU-only。
+- **结论**：真实实验无稳定解码收益，`rollback B1`，默认关闭；配置/指标保留供正常 GPU 复现。
+- **数据/配置**：`spec-short.toml`、`spec-short-en.toml`、`spec-tuning-cpu.toml`、
+  `spec-confirm-cpu.toml`、`spec-decode.toml`、`server-7b-spec.toml`、`server-14b-spec.toml`。
+
+## 14 AR009 CASC + 异构放置（增量契约）
+
+- **配置**：`[runtime] stable_compression/ratio/block_tokens/min_tokens/min_blocks/mmr_lambda/
+  cache_entries/embed_batch`；默认关闭。
+- **压缩**：`StableCompressor.compress(messages) -> StableResult`；只压缩最后 user 消息的文档段，
+  查询无关（文档质心稀有度 + MMR + 首末块），确定性重建。
+- **缓存**：`StableCompressionCache` 以 `sha256(doc+config)` 为键的线程安全 LRU；命中不再 embedding。
+- **观测**：`X-Jev-Stable-Compression: <hit|miss|off>;r=<ratio>;t=<tokens>`、
+  `X-Jev-Stable-Cache`、`X-Jev-Stable-Ms`；`last_runtime.stable_compression`。
+- **异构**：`[embeddings] gpu_layers` 独立于 `[cerebrum] gpu_layers`；矩阵 `embedding_gpu_layers`。
+- **结论**：shared-prefix 5354→3771 tok（−29.6%）、12/12 命中、quality 1.0；
+  needles 1847→762 tok（−58.7%）、quality 1.0。默认延迟选 CACHE，λ_cost ≥0.5 选 CASC。
+- **数据/配置**：`casc-cpu.toml`、`casc-final-gpu.toml`、`casc-order.toml`、`casc-tune.toml`、
+  `casc-needles6.toml`、`server-7b-casc.toml`、`server-14b-casc.toml`、`profiles/casc.toml`。
+
 
 
 

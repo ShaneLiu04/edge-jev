@@ -1,0 +1,39 @@
+# AR009 服务器 7B：CACHE vs CASC（external 大脑/embedding）。
+# 先用 --parallel 1 最大化前缀命中；CASC 需要真实 embedding 服务。
+name = "ar009-server-7b-casc"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 30
+dataset = "shared_prefix"
+brain = "external"
+brain_base_url = "http://127.0.0.1:8388"
+embedding = "external"
+embedding_base_url = "http://127.0.0.1:8389"
+ctx_size = 16384
+max_tokens = 128
+timeout_s = 600.0
+prompt_prefix = ""
+prompt_cache = true
+force_full = true
+arms = ["B1", "CACHE", "CASC"]
+
+[overlays.CACHE.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+
+[overlays.CASC.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 128
+stable_compression_embed_batch = 32

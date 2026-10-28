@@ -1,7 +1,9 @@
 # AR005 真实实验结果（本机 1.5B / Laya / 真 llama-server）
 
 > 所有数字来自 `jev matrix` 真实后端运行；原始数据在 `benchmarks/results/<run>/results.json`。
-> 运行环境：Windows 11，Quadro RTX 5000 16GB，Qwen2.5-1.5B-Instruct-Q4_K_M，CPU/GPU 共用机器（存在外部负载）。
+> 运行环境：Windows 11，Intel Xeon Gold 6234（8C/16T），Quadro RTX 5000 16GB，
+> Qwen2.5-1.5B-Instruct-Q4_K_M。**重要更正：AR005–AR007 主表实际为 CPU-only**——
+> 当时 CUDA 运行库缺失，`--n-gpu-layers 99` 未生效；GPU 复测见文末「环境更正」。
 
 ## 实验 1：唯一问题（20 题 ×4 方案）
 
@@ -62,7 +64,7 @@ AR005 与 B2 相同：本次运行中 Conformal 风险门找到的可行阈值�
 
 - 相对 B1：prompt tokens **↓51.0%**，质量完全不变（12/12），达到 FR6-5 门（≥50%，Δq≤2pt）。
 - 相对固定 0.6：再降 **19.3%** 词元；选择器 `adopt AEB`（效用下界 > 0）。
-- 代价：embedding 选块增加约 10–12s（本机外部 GPU 负载下）；纯生成阶段并未变慢。
+- 代价：embedding 选块增加约 10–12s（本机 CPU 争用下）；纯生成阶段并未变慢。
 - AEB_ALLOC 与 AEB 同解，说明 JCBA 组合没有破坏收益（组合一致性成立）。
 
 ### 实验 5：短问答回归（quality 12 题 ×4 组合）
@@ -108,7 +110,7 @@ AR005 与 B2 相同：本次运行中 Conformal 风险门找到的可行阈值�
    质量低于 full；这**不利于** light/缓存组合。生产默认 light 为 128 tokens，需在正式实验中放开。
 4. **AR005 增量在长上下文上验证了预算收益**（prompt↓39%，质量不变），但在短问答上未超过 B2/B0；
    选择器正确 adopt B0 或 rollback B2，体现“无增益即回退”。
-5. **环境风险**：外部 GPU 负载与 llama-server 长时间运行后偶发假死；矩阵已改为**每 arm 重启大脑**
+5. **环境风险**：本机长跑与外部负载下 llama-server 偶发假死；矩阵已改为**每 arm 重启大脑**
    并写 `progress.json` 检查点，避免整轮丢失；AR006 另提供 `BrainSupervisor`（探针→重启→重试一次）
    与 embedding 子进程自愈，真实集成测试覆盖。
 6. **AR006 AEB 已达标**：证据锚点 + 自适应预算在 needles 上将 prompt 词元从 2457 降至 1204
@@ -122,8 +124,89 @@ AR005 与 B2 相同：本次运行中 Conformal 风险门找到的可行阈值�
 ## 下一步（正式复现）
 
 - 用 `max_tokens=128`（或按 light 设计）重跑 30 题，避免截断偏差；
-- 在 **GPU 空闲、embedding 就绪** 时运行，使 `risk.json` / `admission.json` 生成；
+- 在**正常未限频 GPU** 上运行（本机 GPU 仅 645 MHz，见下节），使 `risk.json` / `admission.json` 生成；
 - 增加长上下文 needles 40 题，验证 JCBA 的 prompt token ↓≥30% 且保留率下降 ≤2pt；
 - 服务器 7B/14B 按 `REPRODUCTION.md` 执行，结果单独补录。
 
-> 未达标即未达标：上述数字不支持「AR005 已显著优于 B2」的结论；选择/回退机制按设计工作。
+## 环境更正与 GPU 复测（2026-10-27）
+
+### 1. 历史结果实为 CPU-only
+
+- `llama-server --list-devices` 最初返回 `(none)`：`ggml-cuda.dll` 依赖的
+  `cudart64_12.dll` / `cublas64_12.dll` / `cublasLt64_12.dll` 缺失。
+- 因此上文 AR005–AR007 的所有数字（含 27.7× prefill）均为 **CPU-only**，
+  不是 GPU 结果；代码与配置未变，仅运行设备需更正。
+- 补齐 CUDA 12.4 redistributable 后设备可见，但 GPU 被硬限制在 **645 MHz / ~32 W**
+  （`nvidia-smi -lgc` 权限拒绝）；`llama-bench`：`tg64` GPU **5.06 t/s** vs CPU **9.47 t/s**。
+  本机 GPU 反而更慢，故 CPU 仍是默认。
+
+### 2. AR007 GPU 复测（`ar007-cache-gpu`）
+
+| arm | quality | prefill | mean latency | cache 命中 |
+| --- | --- | --- | --- | --- |
+| B1 | 1.000 | 5982 ms | 68.9s | 0/12 |
+| CACHE | 1.000 | **232 ms** | **58.5s** | 12/12 |
+
+prefill **25.8×**，端到端 ↓15.1%；缓存收益在 GPU 上仍成立，但绝对延迟受限于 GPU 低频。
+
+### 3. AR006 GPU 复测（`ar006-needles-combos-gpu`）
+
+| arm | quality | prompt tok | mean latency |
+| --- | --- | --- | --- |
+| B1 | 0.917 | 2457.3 | 56.3s |
+| P60 | 0.917 | 1493.2 | 51.4s |
+| AEB | 0.917 | **1204.2** | 74.7s |
+
+质量与 token 降幅（−51%）保持；AEB 在本机限频 GPU 上延迟更差（embedding 开销），
+选择器仍因 token 效用 adopt AEB。生产应在正常 GPU/CPU 上按延迟重新选择。
+
+### 4. AR008 投机解码（详细见 `specs/changes/AR008-heterogeneous-speculative/`）
+
+- 中文 12 题（n8/t8）：B1 8.51 tps / 21.0s；SPEC 9.07 tps / 21.9s，接受率 0.187 → rollback。
+- 英文 12 题（GPU target）：B1 5.36 tps / 56.2s；SPEC 4.78 tps / 61.0s，接受率 0.39 → rollback。
+- CPU 对照（4 题，draft 长度扫描）：B1 8.10 tps；S2 5.83（接受率 0.624）；
+  S4 5.03（0.470）→ 均慢于 B1，`rollback`。
+- 结论：0.5B CPU draft 在本机**不带来稳定解码收益**，默认 `spec.enabled=false`；
+  代码/配置/指标保留，供正常 GPU 主机复现。
+
+> 未达标即未达标：上述数字不支持「AR008 已超越 B1」；回退机制按设计工作。
+
+## AR009 CASC：稳定压缩 + 前缀缓存 + 异构放置
+
+### 1. shared-prefix 12 题（CPU 解码 + GPU embedding，ratio 0.4）
+
+| arm | quality | prompt tok | prefill | mean latency | cache 命中 |
+| --- | --- | --- | --- | --- | --- |
+| B1 | 1.000 | 5354 | 8455 ms | 53.1s | 0/12 |
+| CACHE | 1.000 | 5354 | **637 ms** | **37.2s** | **12/12** |
+| CASC | **1.000** | **3771（−29.6%）** | 1282 ms | 45.8s | **12/12** |
+
+- 质量完全一致；CASC 与 CACHE 均 12/12 命中，CASC 的首问额外成本来自真实 embedding（缓存后 `stable_ms≈0.1`）。
+- 反转 arm 顺序复测：CACHE 36.3s、CASC 49.2s，排名不变；CASC 的 `decode_tps` 在 7/25 间跳变，
+  属本机 CPU 调度噪声，不作为设备结论。
+- CPU embedding 版（ratio 0.6）：CASC 4298 tok、12/12 命中、quality 1.0，但首问 embedding 更慢。
+
+### 2. needles 6 题（单文档单问，无跨问缓存）
+
+| arm | quality | prompt tok | prefill | mean latency | cache |
+| --- | --- | --- | --- | --- | --- |
+| B1 | 1.000 | 1847 | 6124 ms | 46.2s | 0 |
+| CASC | **1.000** | **762（−58.7%）** | 4222 ms | 51.5s | 0 |
+
+查询无关压缩仍保留目标 needle；代价是 embedding 首问开销。选择器按 token 效用 `adopt CASC`。
+
+### 3. 组合权重扫描（同一份 12 题真实结果）
+
+| λ_cost | λ_latency | 选择 | 结论 |
+| --- | --- | --- | --- |
+| 0.15 | 0.50 | **CACHE** | 延迟优先（默认） |
+| 0.30 | 0.50 | **CACHE** | 仍延迟优先 |
+| 0.50 | 0.50 | **CASC** | 成本权重上升后翻转 |
+| 0.80 | 0.00 | **CASC** | 纯 token 成本最优 |
+
+**核心结论：**
+1. CASC 解决了 AR006/AR007 的“压缩破坏前缀”冲突：query-independent 压缩 + 压缩 LRU，12/12 命中且 quality 1.0。
+2. CASC 不是延迟最优；CACHE 仍是最低延迟组合。二者按目标函数分工，禁止盲目叠加。
+3. GPU 放置只放 prefill 密集的 embedding（实测 4.20s→3.09s，−26.5%）；brain 保持 CPU 解码，
+   避免本机 645 MHz GPU 的 decode 劣势。
+4. 本机所有结论按真实后端记录；7B/14B 仅提供配置，未运行不外推。

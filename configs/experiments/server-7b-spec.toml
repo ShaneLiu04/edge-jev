@@ -1,0 +1,52 @@
+# AR008 服务器 7B 异构投机解码：7B target 在 GPU，0.5B draft 在 CPU。
+# 资产放 /models 后直接运行；缺失会 JevAssetError（不出假指标）。
+# 显存：7B Q4 ~4.5GB + KV(8k) ~1-2GB；CPU 建议 >=8 核用于 draft。
+name = "ar008-server-7b-spec"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 30
+dataset = "shared_generation"
+brain = "spawn"
+brain_gguf = "/models/qwen2.5-7b-instruct-q4_k_m.gguf"
+embedding = "off"
+gpu_layers = 99
+ctx_size = 8192
+max_tokens = 128
+timeout_s = 600.0
+prompt_prefix = ""
+prompt_cache = true
+force_full = true
+arms = ["B1", "SPEC", "CACHE", "CACHE_SPEC"]
+
+[overlays.SPEC.cerebrum.spec]
+enabled = true
+draft_model = "/models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+type = "draft-simple"
+draft_n_max = 12
+draft_gpu_layers = 0
+draft_threads = 12
+sampling = "greedy"
+
+[overlays.CACHE.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+
+[overlays.CACHE_SPEC.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+
+[overlays.CACHE_SPEC.cerebrum.spec]
+enabled = true
+draft_model = "/models/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+type = "draft-simple"
+draft_n_max = 12
+draft_gpu_layers = 0
+draft_threads = 12
+sampling = "greedy"

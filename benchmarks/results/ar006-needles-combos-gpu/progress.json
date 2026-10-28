@@ -1,0 +1,71 @@
+{
+  "schema": "jev.matrix.progress/1",
+  "completed_arms": [
+    "AEB",
+    "B1",
+    "P60"
+  ],
+  "remaining": [],
+  "metrics": {
+    "B1": {
+      "count": 12,
+      "quality": 0.916667,
+      "mean_completion_tokens": 5.917,
+      "mean_prompt_tokens": 2457.333,
+      "mean_latency_ms": 56285.279,
+      "p50_latency_ms": 50723.05,
+      "routes": {
+        "full": 11,
+        "light": 1
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 6773.083,
+      "mean_decode_tps": 3.992,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "P60": {
+      "count": 12,
+      "quality": 0.916667,
+      "mean_completion_tokens": 5.917,
+      "mean_prompt_tokens": 1493.25,
+      "mean_latency_ms": 51414.896,
+      "p50_latency_ms": 47423.193,
+      "routes": {
+        "full": 11,
+        "light": 1
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 3425.167,
+      "mean_decode_tps": 5.183,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "AEB": {
+      "count": 12,
+      "quality": 0.916667,
+      "mean_completion_tokens": 5.917,
+      "mean_prompt_tokens": 1204.25,
+      "mean_latency_ms": 74729.728,
+      "p50_latency_ms": 65027.485,
+      "routes": {
+        "full": 11,
+        "light": 1
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 2558.083,
+      "mean_decode_tps": 5.242,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    }
+  }
+}

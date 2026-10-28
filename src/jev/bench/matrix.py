@@ -23,7 +23,11 @@ from jev.bench.metrics import environment_fingerprint
 from jev.bench.selector import ArmOutcome, select
 from jev.errors import JevAssetError, JevError
 from jev.kernel.cerebrum.embeddings import EmbeddingClient, EmbeddingService
-from jev.kernel.cerebrum.llama_server import LlamaServerClient, LlamaServerManager
+from jev.kernel.cerebrum.llama_server import (
+    LlamaServerClient,
+    LlamaServerManager,
+    spec_server_args,
+)
 from jev.kernel.kernel import (
     Kernel,
     _build_admission,
@@ -32,6 +36,7 @@ from jev.kernel.kernel import (
     _build_runtime,
 )
 from jev.kernel.prefill.evidence import EvidenceSelector
+from jev.kernel.prefill.stable import StableCompressor
 from jev.kernel.runtime.conformal import (
     calibrate_cache_admission,
     conformal_risk_threshold,
@@ -116,6 +121,9 @@ class MatrixConfig:
     overlays: dict
     prompt_cache: bool = False
     lambda_latency: float = 0.0
+    force_full: bool = False
+    brain_gguf: str = ""
+    embedding_gpu_layers: int = 0
 
 
 def load_matrix_config(path: Path | str) -> MatrixConfig:
@@ -142,6 +150,9 @@ def load_matrix_config(path: Path | str) -> MatrixConfig:
         embedding=str(data.get("embedding", "auto")),
         embedding_base_url=str(data.get("embedding_base_url", "")),
         gpu_layers=int(data.get("gpu_layers", 99)),
+        embedding_gpu_layers=int(
+            data.get("embedding_gpu_layers", data.get("gpu_layers", 99))
+        ),
         ctx_size=int(data.get("ctx_size", 2048)),
         max_tokens=int(data.get("max_tokens", 64)),
         prompt_prefix=str(
@@ -153,6 +164,8 @@ def load_matrix_config(path: Path | str) -> MatrixConfig:
         overlays=overlays,
         prompt_cache=bool(data.get("prompt_cache", False)),
         lambda_latency=float(data.get("lambda_latency", 0.0)),
+        force_full=bool(data.get("force_full", False)),
+        brain_gguf=str(data.get("brain_gguf", "")),
     )
 
 
@@ -165,6 +178,18 @@ def _load_questions(config: MatrixConfig):
         from jev.bench.prefixset import build_shared_prefix
 
         return build_shared_prefix(max(12, config.limit or 12))
+    if config.dataset == "shared_generation":
+        from jev.bench.generation import build_shared_generation
+
+        return build_shared_generation(max(8, min(config.limit or 8, 12)))
+    if config.dataset == "long_generation":
+        from jev.bench.generation import build_long_generation
+
+        return build_long_generation(max(12, config.limit or 12))
+    if config.dataset == "long_generation_en":
+        from jev.bench.generation import build_long_generation_en
+
+        return build_long_generation_en(max(12, config.limit or 12))
     if config.dataset != "quality":
         raise JevError(f"未知 dataset: {config.dataset}")
     return load_quality_set(DEFAULT_QUALITY_SET)
@@ -185,18 +210,43 @@ def _arm_config(base: dict, arm: str, extra: dict | None = None) -> dict:
     return _deep_merge(base, overlay)
 
 
-def _spawn_brain(config: MatrixConfig) -> LlamaServerManager:
+def _spawn_brain(
+    config: MatrixConfig, arm_cfg: dict | None = None
+) -> LlamaServerManager:
     cudart = DEFAULT_CUDART
     if cudart.is_dir():
         os.environ["PATH"] = str(cudart) + os.pathsep + os.environ["PATH"]
+    extra = ["--n-gpu-layers", str(config.gpu_layers)]
+    spec_cfg = ((arm_cfg or {}).get("cerebrum") or {}).get("spec") or {}
+    if spec_cfg.get("enabled", False):
+        draft = str(spec_cfg.get("draft_model", ""))
+        draft_path = Path(draft)
+        if not draft_path.is_absolute():
+            draft_path = REPO_ROOT / draft_path
+        extra += spec_server_args(
+            enabled=True,
+            draft_model=draft_path,
+            spec_type=str(spec_cfg.get("type", "draft-simple")),
+            draft_n_max=int(spec_cfg.get("draft_n_max", 8)),
+            draft_gpu_layers=int(spec_cfg.get("draft_gpu_layers", 0)),
+            draft_threads=spec_cfg.get("draft_threads"),
+            sampling=spec_cfg.get("sampling"),
+        )
+    gguf = (
+        Path(config.brain_gguf)
+        if config.brain_gguf and Path(config.brain_gguf).is_absolute()
+        else (REPO_ROOT / config.brain_gguf if config.brain_gguf else DEFAULT_BRAIN_GGUF)
+    )
+    if not gguf.is_file():
+        raise JevAssetError(f"大脑资产缺失: {gguf}")
     manager = LlamaServerManager(
         llama_server_bin=DEFAULT_LLAMA_BIN,
-        gguf_path=DEFAULT_BRAIN_GGUF,
+        gguf_path=gguf,
         port=_free_port(),
         ctx_size=config.ctx_size,
         probe_timeout_s=180.0,
         restart_max=0,
-        extra_args=["--n-gpu-layers", str(config.gpu_layers)],
+        extra_args=extra,
     )
     manager.start()
     return manager
@@ -224,7 +274,7 @@ def _spawn_embedding(config: MatrixConfig) -> EmbeddingService:
             "--ubatch-size",
             "1024",
             "--n-gpu-layers",
-            str(config.gpu_layers),
+            str(config.embedding_gpu_layers),
         ],
     )
     client = EmbeddingClient(f"http://127.0.0.1:{port}", timeout_s=25.0)
@@ -255,6 +305,11 @@ def _build_client(
 ) -> TestClient:
     runtime_config, cache = _build_runtime(config)
     embeddings = embedding_service
+    stable_compressor = (
+        StableCompressor(embedding_service.embed, runtime_config.stable)
+        if embedding_service is not None and runtime_config.stable.enabled
+        else None
+    )
     app = FastAPI()
     app.include_router(
         create_chat_router(
@@ -270,6 +325,7 @@ def _build_client(
             admission_policy=_build_admission(config, REPO_ROOT / "configs"),
             profile_name=profile_name,
             evidence=evidence,
+            stable_compressor=stable_compressor,
         )
     )
     return TestClient(app)
@@ -333,6 +389,9 @@ def _run_questions(
                     "cache_n": _cache_n(headers.get("x-jev-prefix-cache")),
                     "prefill_ms": _float_or_none(headers.get("x-jev-prefill-ms")) or 0.0,
                     "prompt_n": _int_or_zero(headers.get("x-jev-prompt-n")),
+                    "draft_n": _spec_n(headers.get("x-jev-spec"), 1),
+                    "draft_accepted": _spec_n(headers.get("x-jev-spec"), 0),
+                    "decode_tps": _float_or_none(headers.get("x-jev-decode-tps")) or 0.0,
                     "headers": headers,
                 }
             )
@@ -352,6 +411,17 @@ def _int_or_zero(value: str | None) -> int:
     try:
         return int(value) if value is not None else 0
     except (TypeError, ValueError):
+        return 0
+
+
+def _spec_n(value: str | None, index: int) -> int:
+    """解析 `accepted/draft` 头的指定分量。"""
+    if not value or "/" not in value:
+        return 0
+    parts = value.split("/", 1)
+    try:
+        return int(parts[index])
+    except (IndexError, ValueError):
         return 0
 
 
@@ -480,7 +550,7 @@ def run_matrix(
             arm_brain = brain
             arm_manager: LlamaServerManager | None = None
             if arm_brain is None:
-                arm_manager = _spawn_brain(config)
+                arm_manager = _spawn_brain(config, arm_cfg)
                 arm_brain = LlamaServerClient(
                     arm_manager.base_url,
                     timeout_s=config.timeout_s,
@@ -491,8 +561,11 @@ def run_matrix(
             try:
                 arm_prefill = arm_cfg.get("prefill", {}) or {}
                 arm_cache = arm_cfg.get("cache", {}) or {}
-                needs_embeddings = bool(arm_cache.get("enabled", False)) or bool(
-                    arm_prefill.get("evidence", False)
+                arm_runtime = arm_cfg.get("runtime", {}) or {}
+                needs_embeddings = (
+                    bool(arm_cache.get("enabled", False))
+                    or bool(arm_prefill.get("evidence", False))
+                    or bool(arm_runtime.get("stable_compression", False))
                 )
                 arm_evidence = (
                     EvidenceSelector(
@@ -500,7 +573,10 @@ def run_matrix(
                     )
                     if (
                         embedding_service is not None
-                        and bool(arm_prefill.get("evidence", False))
+                        and (
+                            bool(arm_prefill.get("evidence", False))
+                            or bool(arm_runtime.get("stable_compression", False))
+                        )
                     )
                     else None
                 )
@@ -512,7 +588,7 @@ def run_matrix(
                         embedding_service if needs_embeddings else None
                     ),
                     profile_name=arm,
-                    force_full=(arm == "B0"),
+                    force_full=(config.force_full or arm == "B0"),
                     evidence=arm_evidence,
                 )
                 raw[arm] = _run_questions(
@@ -559,7 +635,7 @@ def run_matrix(
             arm_brain = brain
             arm_manager = None
             if arm_brain is None:
-                arm_manager = _spawn_brain(config)
+                arm_manager = _spawn_brain(config, ar_cfg)
                 arm_brain = LlamaServerClient(
                     arm_manager.base_url,
                     timeout_s=config.timeout_s,
@@ -586,6 +662,7 @@ def run_matrix(
                     embedding_service=embedding_service,
                     profile_name="AR005",
                     evidence=ar_evidence,
+                    force_full=config.force_full,
                 )
                 raw["AR005"] = _run_questions(
                     client, questions, arm="AR005", seed=config.seed,
@@ -724,10 +801,22 @@ def run_matrix(
 
 def _summarize(raw: dict[str, list[dict]]) -> dict:
     metrics: dict[str, dict] = {}
+    baseline_answers = {
+        (row["question_id"], row.get("pass", 0)): row["answer"]
+        for row in raw.get("B1", [])
+    }
     for arm, rows in raw.items():
         count = len(rows)
         if not count:
             continue
+        draft_total = sum(int(row.get("draft_n", 0)) for row in rows)
+        draft_accepted = sum(int(row.get("draft_accepted", 0)) for row in rows)
+        identical = sum(
+            1
+            for row in rows
+            if baseline_answers.get((row["question_id"], row.get("pass", 0)))
+            == row["answer"]
+        )
         metrics[arm] = {
             "count": count,
             "quality": round(sum(row["quality"] for row in rows) / count, 6),
@@ -761,6 +850,15 @@ def _summarize(raw: dict[str, list[dict]]) -> dict:
             "mean_prefill_ms": round(
                 sum(float(row.get("prefill_ms", 0.0)) for row in rows) / count, 3
             ),
+            "mean_decode_tps": round(
+                sum(float(row.get("decode_tps", 0.0)) for row in rows) / count, 3
+            ),
+            "spec_accept_rate": (
+                round(draft_accepted / draft_total, 4) if draft_total else 0.0
+            ),
+            "outputs_identical": (
+                round(identical / count, 4) if baseline_answers else None
+            ),
         }
     return metrics
 
@@ -786,14 +884,20 @@ def _render_report(payload: dict) -> str:
         "## 指标",
         "",
         "| arm | quality | completion tok | prompt tok | P50 ms | pref ms "
-        "| cache hits | prefix hits | mean cache_n | risk denies |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "| decode tps | spec acc | identical | cache hits | prefix hits "
+        "| mean cache_n | risk denies |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for arm, item in payload["metrics"].items():
+        identical = item.get("outputs_identical")
+        identical_text = "-" if identical is None else str(identical)
         lines.append(
             f"| {arm} | {item['quality']:.3f} | {item['mean_completion_tokens']:.1f} "
             f"| {item['mean_prompt_tokens']:.1f} | {item['p50_latency_ms']:.0f} "
             f"| {item.get('mean_prefill_ms', 0):.0f} "
+            f"| {item.get('mean_decode_tps', 0):.1f} "
+            f"| {item.get('spec_accept_rate', 0):.2f} "
+            f"| {identical_text} "
             f"| {item['cache_hits']} | {item.get('cache_prompt_hits', 0)} "
             f"| {item.get('mean_cache_n', 0):.0f} | {item['risk_denies']} |"
         )

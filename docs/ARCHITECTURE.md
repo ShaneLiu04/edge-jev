@@ -128,4 +128,36 @@ matrix                            prompt_cache + 缓存命中指标 + λ_latency
 - **服务器建议**：`--parallel 1` 最大化同前缀命中；多槽需 sticky slot/固定前缀，
   否则跨槽无法复用 KV（大模型配置见 REPRODUCTION.md）。
 
+## 9. AR008 异构投机解码（增量）
+
+```text
+kernel/cerebrum/llama_server.py  spec_server_args（draft-simple）
+server/chat.py                   timings.draft_n/accepted → X-Jev-Spec/Decode-Tps
+bench/generation.py              长生成数据集（zh/en）
+matrix                           per-arm spec overlay + accept/tps/identical 指标
+```
+
+- **默认关闭**；`[cerebrum.spec] enabled=false` 时行为与 AR007 一致。
+- **参数**：draft 模型/线程/ngl/采样全部显式传入；缺资产抛 `JevAssetError`。
+- **观测**：`X-Jev-Spec: accepted/draft`、`X-Jev-Decode-Tps`；矩阵汇总接受率与输出一致性。
+- **结论**：本机 0.5B CPU draft 无稳定解码收益（S2 接受率 0.624 仍 5.83 tps < B1 8.10），
+  默认回退 B1；GPU 复测受 645 MHz 限频影响，历史 AR005–AR007 主表为 CPU-only。
+
+## 10. AR009 CASC + 异构放置（增量）
+
+```text
+kernel/prefill/stable.py        文档/问题切分 + 稀有度 + MMR + 压缩 LRU
+kernel/runtime/config.py        RuntimeConfig.stable
+kernel/kernel.py                StableCompressor 组装（raw embed 批量）
+server/chat.py                  稳定前缀路径内压缩；X-Jev-Stable-*
+bench/matrix.py                 per-arm 压缩 + embedding_gpu_layers
+```
+
+- **查询无关**：压缩只用文档块向量与文档质心，不使用当前问题 → 同文档前缀逐字稳定。
+- **二次收益**：压缩结果按 `sha256(doc+config)` LRU；同文档第二问不再 embedding。
+- **与 AR007 叠加**：压缩前缀 + 问题尾部，`cache_prompt=true`，12/12 命中。
+- **异构放置**：`[embeddings] gpu_layers` 独立；本机 brain CPU 解码、embedding GPU（4.20→3.09s）。
+- **组合结论**：默认延迟场景 CACHE 最优；λ_cost ≥0.5 时 CASC 最优（tokens −29.6%，quality 1.0）。
+  禁止把 AEB 的查询相关选块与缓存直接叠加；CASC 是冲突的可执行解法。
+
 

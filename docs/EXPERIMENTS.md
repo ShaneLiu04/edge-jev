@@ -85,7 +85,31 @@
 判定：CACHE 的质量不得下降，且同前缀请求 prefill 显著下降（本机 ≥10× 目标）；
 若 AEB_CACHE 的命中率低且延迟高，则不得把 AEB 与缓存盲目叠加。
 
+## 5.3 AR008 异构投机解码
 
+- 数据：`jev.bench.generation.build_long_generation`（中文）/`build_long_generation_en`（英文），
+  短 prompt + 长输出，隔离解码阶段；
+- 配置：`spec-short.toml`、`spec-short-en.toml`、`spec-tuning-cpu.toml`
+  （draft n_max 2/4/8）、`spec-confirm-cpu.toml`、`spec-decode.toml`；
+- 关键指标：`X-Jev-Spec: accepted/draft`、`X-Jev-Decode-Tps`、
+  `mean_decode_tps`、`spec_accept_rate`、`outputs_identical`；
+- 对照：CPU-only、CUDA target（本机 GPU 限频 645 MHz，需单独标注）。
+
+判定：质量不得下降，且 decode tps 的配对 bootstrap CI 下界 >0 才 adopt；
+本机真实结果为 **rollback B1**（CPU draft 开销抵消接受率收益），默认关闭。
+
+## 5.4 AR009 CASC：稳定压缩 + 缓存 + 异构放置
+
+- 数据：`shared_prefix`（同文档 12 问，可验证前缀复用）与 `needles`（单文档单问，验证质量）；
+- 配置：`casc-cpu.toml`（CPU embedding）、`casc-final-gpu.toml`（CPU 解码 + GPU embedding，
+  ratio 0.4）、`casc-order.toml`（反转 arm 顺序）、`casc-tune.toml`（ratio 0.4/0.5/0.6）、
+  `casc-needles6.toml`；
+- 关键指标：`X-Jev-Stable-Compression`、`X-Jev-Stable-Cache`、`X-Jev-Stable-Ms`、
+  `X-Jev-Prefix-Cache`、prompt tokens、prefill、端到端延迟；
+- 设备：`gpu_layers=0`（brain CPU）+ `embedding_gpu_layers=99`（embedding GPU）；
+- 判定：质量 ≥ baseline −2pt，tokens ≤0.75×CACHE，cache hit ≥11/12；默认延迟场景仍选 CACHE，
+  λ_cost ≥0.5 的成本敏感场景选 CASC；
+- 7B/14B：`server-7b-casc.toml` / `server-14b-casc.toml`（external，本机不运行）。
 
 ## 6. 选择与回退
 
@@ -114,5 +138,6 @@ benchmarks/results/<run>/
 
 - 本机 1.5B 无法代表 7B/14B 的质量临界点；服务器结果需单独补录。
 - 质量集是**小样本**（30 题），bootstrap CI 仅作工程参考，不作统计论文结论。
-- CPU 模式可跑通但长生成慢；实验默认 GPU。
+- CPU 模式可跑通但长生成慢；本机历史结果实为 CPU-only，GPU 复测被限频（645 MHz）。
+  正常 GPU 主机需先补齐 CUDA 运行库并核对 `llama-server --list-devices`。
 - 负例/复述集为人工构造，覆盖真实语义边界但不穷尽领域。

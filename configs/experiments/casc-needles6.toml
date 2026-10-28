@@ -1,0 +1,28 @@
+# AR009 needles 质量边界：单文档单问，CASC 无跨问缓存。
+name = "ar009-casc-needles6"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 6
+dataset = "needles"
+brain = "spawn"
+embedding = "auto"
+gpu_layers = 0
+embedding_gpu_layers = 99
+ctx_size = 4096
+max_tokens = 16
+timeout_s = 300.0
+prompt_cache = true
+force_full = true
+arms = ["B1", "CASC"]
+
+[overlays.CASC.runtime]
+enabled = true
+prefix_cache = true
+session_affinity = true
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64
+stable_compression_embed_batch = 16

@@ -202,6 +202,10 @@ class EvidenceSelector:
         size = self._config.embed_chunk_chars
         return [text[index:index + size] for index in range(0, len(text), size)] or [""]
 
+    def embed_texts(self, texts: Sequence[str]) -> list[list[float]]:
+        """公开的真实 embedding 入口（AR009 文档级压缩复用）。"""
+        return self._embed_texts(texts)
+
     def _embed_texts(self, texts: Sequence[str]) -> list[list[float]]:
         """长文本按字符切块后分批真实 embedding，再按 owner 均值聚合。"""
         owners: list[int] = []

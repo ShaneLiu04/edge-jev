@@ -1,0 +1,23 @@
+# AR009：成本/上下文受限的共享文档（稳定压缩 + 前缀 KV）。
+# 默认延迟场景请用 prefix-cache.toml；本 profile 以 token/上下文成本为先。
+[portfolio]
+name = "casc"
+
+[runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+allocator_enabled = false
+prefix_cache = true
+session_affinity = true
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64
+stable_compression_embed_batch = 16
+
+[prefill]
+enabled = false
+evidence = false
+adaptive = false

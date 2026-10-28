@@ -42,6 +42,7 @@ def test_summarize_and_report():
                 "prompt_tokens": 5,
                 "latency_ms": 100.0,
                 "route": "light",
+                "answer": "a1",
                 "headers": {"x-jev-cache": "miss", "x-jev-risk": "off"},
             },
             {
@@ -51,6 +52,7 @@ def test_summarize_and_report():
                 "prompt_tokens": 5,
                 "latency_ms": 200.0,
                 "route": "full",
+                "answer": "a2",
                 "headers": {"x-jev-cache": "hit-exact", "x-jev-risk": "deny"},
             },
         ]

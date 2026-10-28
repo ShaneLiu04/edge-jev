@@ -119,6 +119,7 @@ def test_load_real_assets_manifest_lists_expected_assets(configs_dir):
         "laya-tokenizer-config",
         "kev-repo",
         "qwen2.5-1.5b-gguf",
+        "qwen2.5-0.5b-gguf",
         "llama-server",
         "llama-cudart",
     ]

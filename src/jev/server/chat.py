@@ -63,6 +63,7 @@ from jev.kernel.decisions.framework import (
 )
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
 from jev.kernel.prefill.evidence import EvidenceSelector
+from jev.kernel.prefill.stable import StableCompressor, StableResult
 from jev.kernel.runtime.bands import apply_self_verify_gate, classify_band
 from jev.kernel.runtime.config import RuntimeConfig
 from jev.kernel.runtime.conformal import AdmissionPolicy, RiskController
@@ -309,6 +310,7 @@ class _CascadeContext:
         profile_name: str = "",
         evidence: EvidenceSelector | None = None,
         session_id: str = "",
+        stable_compressor: StableCompressor | None = None,
     ) -> None:
         self.cerebellum = cerebellum
         self.brain = brain
@@ -335,6 +337,8 @@ class _CascadeContext:
         self.profile_name = profile_name
         self.evidence = evidence
         self.session_id = session_id
+        self.stable_compressor = stable_compressor
+        self.stable_result: StableResult | None = None
         self.prefix_cache_active = False
         self.prefix_cache_hits = 0
         self.last_fused: dict = {}
@@ -600,6 +604,34 @@ class _CascadeContext:
                 "fallback": None,
             }
             self.last_runtime["prefix_cache"] = {"active": True, "cached_tokens": 0}
+            if config.stable.enabled and self.stable_compressor is not None:
+                result = self.stable_compressor.compress(self.messages)
+                self.stable_result = result
+                self.last_runtime["stable_compression"] = {
+                    "active": result.active,
+                    "cache": result.cache,
+                    "ratio": result.ratio,
+                    "before_tokens": result.before_tokens,
+                    "after_tokens": result.after_tokens,
+                    "doc_tokens": result.doc_tokens,
+                    "ms": result.ms,
+                    "skipped": result.skipped,
+                    "fallback": result.fallback,
+                }
+                if result.active:
+                    self.last_runtime["prefill"] = {
+                        "selected": 0,
+                        "total": 0,
+                        "before_tokens": result.before_tokens,
+                        "after_tokens": result.after_tokens,
+                        "skipped": "stable_compression",
+                        "selector": "stable-compression",
+                        "budget_ratio": result.ratio,
+                        "entropy": 0.0,
+                        "top_gap": 0.0,
+                        "fallback": result.fallback,
+                    }
+                return result.messages
             return [dict(message) for message in self.messages]
         prompt_config = config.prompt
         if not full_route:
@@ -656,6 +688,9 @@ class _CascadeContext:
             "prompt_ms": prompt_ms,
             "prompt_n": prompt_n,
             "cache_n": cache_n,
+            "draft_n": max(0, int(timings.get("draft_n", 0))),
+            "draft_accepted": max(0, int(timings.get("draft_n_accepted", 0))),
+            "decode_tps": max(0.0, float(timings.get("predicted_per_second", 0.0))),
         }
         if self.prefix_cache_active:
             self.prefix_cache_hits = cache_n
@@ -808,6 +843,7 @@ def create_chat_router(
     admission_policy: AdmissionPolicy | None = None,
     profile_name: str = "",
     evidence: EvidenceSelector | None = None,
+    stable_compressor: StableCompressor | None = None,
 ) -> APIRouter:
     """构建 /v1/chat/completions 路由。
 
@@ -882,6 +918,7 @@ def create_chat_router(
                 profile_name=profile_name,
                 evidence=evidence,
                 session_id=user,
+                stable_compressor=stable_compressor,
             )
             if stream:
                 return _stream_response(context)
@@ -1229,10 +1266,25 @@ def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
         if prefix_cache.get("active"):
             cached = int(prefix_cache.get("cached_tokens", 0))
             headers["X-Jev-Prefix-Cache"] = f"hit:{cached}" if cached > 0 else "miss"
+        stable = runtime.get("stable_compression") or {}
+        if stable.get("active"):
+            stable_ratio = float(stable.get("ratio", 0.0))
+            headers["X-Jev-Stable-Compression"] = (
+                f"{stable.get('cache', 'off')};r={stable_ratio:.2f};"
+                f"t={int(stable.get('after_tokens', 0))}"
+            )
+            headers["X-Jev-Stable-Cache"] = str(stable.get("cache", "off"))
+            headers["X-Jev-Stable-Ms"] = f"{float(stable.get('ms', 0.0)):.1f}"
     compute = context.last_runtime.get("compute") or {}
     if compute.get("prompt_ms"):
         headers["X-Jev-Prefill-Ms"] = f"{float(compute['prompt_ms']):.0f}"
         headers["X-Jev-Prompt-N"] = str(int(compute.get("prompt_n", 0)))
+    if int(compute.get("draft_n", 0)) > 0:
+        headers["X-Jev-Spec"] = (
+            f"{int(compute.get('draft_accepted', 0))}/{int(compute.get('draft_n', 0))}"
+        )
+    if float(compute.get("decode_tps", 0.0)) > 0:
+        headers["X-Jev-Decode-Tps"] = f"{float(compute['decode_tps']):.1f}"
     return headers
 
 

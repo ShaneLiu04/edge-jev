@@ -1,0 +1,37 @@
+# AR006 GPU comparison: needles, fixed vs evidence/adaptive prefill, CUDA target.
+name = "ar006-needles-combos-gpu"
+seed = 20261026
+lambda_cost = 0.15
+limit = 12
+dataset = "needles"
+brain = "spawn"
+embedding = "auto"
+gpu_layers = 99
+ctx_size = 4096
+max_tokens = 16
+timeout_s = 240.0
+prompt_prefix = ""
+arms = ["B1", "P60", "AEB"]
+
+[overlays.P60.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+
+[overlays.P60.prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = false
+evidence = false
+
+[overlays.AEB.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+
+[overlays.AEB.prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = true
+evidence = true
+anchor = true

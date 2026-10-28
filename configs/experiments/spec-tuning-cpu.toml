@@ -1,0 +1,45 @@
+# AR008 CPU-only tuning: draft length sweep for speculative decoding.
+# English long-generation prompts (higher acceptance than Chinese).
+name = "ar008-spec-tuning-cpu"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 8
+dataset = "long_generation_en"
+brain = "spawn"
+embedding = "off"
+gpu_layers = 0
+ctx_size = 4096
+max_tokens = 192
+timeout_s = 300.0
+prompt_prefix = ""
+prompt_cache = false
+force_full = true
+arms = ["B1", "S2", "S4", "S8"]
+
+[overlays.S2.cerebrum.spec]
+enabled = true
+draft_model = "models/qwen/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+type = "draft-simple"
+draft_n_max = 2
+draft_gpu_layers = 0
+draft_threads = 4
+sampling = "greedy"
+
+[overlays.S4.cerebrum.spec]
+enabled = true
+draft_model = "models/qwen/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+type = "draft-simple"
+draft_n_max = 4
+draft_gpu_layers = 0
+draft_threads = 4
+sampling = "greedy"
+
+[overlays.S8.cerebrum.spec]
+enabled = true
+draft_model = "models/qwen/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+type = "draft-simple"
+draft_n_max = 8
+draft_gpu_layers = 0
+draft_threads = 4
+sampling = "greedy"

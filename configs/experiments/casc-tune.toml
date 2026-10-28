@@ -1,0 +1,54 @@
+# AR009 ratio 扫描：CPU 解码 + GPU embedding，找 token/质量平衡点。
+name = "ar009-casc-tune"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 6
+dataset = "shared_prefix"
+brain = "spawn"
+embedding = "auto"
+gpu_layers = 0
+embedding_gpu_layers = 99
+ctx_size = 8192
+max_tokens = 32
+timeout_s = 300.0
+prompt_prefix = ""
+prompt_cache = true
+force_full = true
+arms = ["C40", "C50", "C60"]
+
+[overlays.C40.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64
+
+[overlays.C50.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+stable_compression = true
+stable_compression_ratio = 0.5
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64
+
+[overlays.C60.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+stable_compression = true
+stable_compression_ratio = 0.6
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64

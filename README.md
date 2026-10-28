@@ -71,7 +71,7 @@ uv run jev serve            # /v1/systemone + /v1/chat/completions + /health
 uv run pytest tests/unit -q
 uv run ruff check .
 
-# 真实后端快速冒烟（需要资产；GPU 可用时很快）
+# 真实后端快速冒烟（需要资产；CPU 可跑，先核对 CUDA 设备，见 REPRODUCTION §1.1）
 uv run jev matrix --config configs/experiments/ar005.toml --limit 6
 
 # 完整矩阵（30 题 × B0/B1/B2/AR005；真实 Laya + llama-server + embedding）
@@ -88,6 +88,12 @@ uv run jev matrix --config configs/experiments/quality-combos.toml
 
 # AR007 前缀 KV 复用（同文档多问；真实 cache_n/prefill_ms）
 uv run jev matrix --config configs/experiments/prefix-cache.toml
+
+# AR008 投机解码（需 0.5B draft；本机真实结论 rollback，默认关闭）
+uv run jev matrix --config configs/experiments/spec-confirm-cpu.toml
+
+# AR009 CASC：稳定压缩 + 前缀缓存（CPU 解码 + GPU embedding）
+uv run jev matrix --config configs/experiments/casc-final-gpu.toml
 ```
 
 产物目录 `benchmarks/results/<run>/`：
@@ -182,6 +188,8 @@ specs/              SDD 需求/设计/任务与归档
 - **AR005** 风险可控自适应编排：Conformal + JCBA + 选择/回退 + 可复现矩阵
 - **AR006** 证据驱动自适应上下文（AEB）+ 大脑/embedding 自愈 + 组合最优与回退
 - **AR007** 前缀 KV 复用 + 会话亲和稳定前缀 + AEB/缓存冲突分析与延迟感知选择
+- **AR008** 异构投机解码（0.5B draft）实验：真实测量后无稳定收益，默认关闭并回退 B1
+- **AR009** CASC：查询无关文档压缩 + 压缩 LRU + 前缀 KV + CPU/GPU 异构放置（token −29.6%~−58.7%，质量 1.0）
 
 ## 许可
 

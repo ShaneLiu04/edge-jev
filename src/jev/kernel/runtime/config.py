@@ -9,6 +9,7 @@ import dataclasses
 
 from jev.kernel.cache.semantic import CacheConfig
 from jev.kernel.prefill.planner import PrefillConfig
+from jev.kernel.prefill.stable import StableConfig
 from jev.kernel.runtime.bands import BandPolicy
 from jev.kernel.runtime.prompt import PromptConfig
 
@@ -30,6 +31,7 @@ class RuntimeConfig:
     profile_name: str = ""
     prefix_cache: bool = False
     session_affinity: bool = False
+    stable: StableConfig = dataclasses.field(default_factory=StableConfig)
 
     def __post_init__(self) -> None:
         if self.verifier_max_tokens < 1:

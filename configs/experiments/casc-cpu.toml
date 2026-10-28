@@ -1,0 +1,51 @@
+# AR009 CASC：文档级稳定压缩 + 前缀 KV（CPU 解码 / CPU embedding）。
+name = "ar009-casc-cpu"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 12
+dataset = "shared_prefix"
+brain = "spawn"
+embedding = "auto"
+gpu_layers = 0
+embedding_gpu_layers = 0
+ctx_size = 8192
+max_tokens = 32
+timeout_s = 300.0
+prompt_prefix = ""
+prompt_cache = true
+force_full = true
+arms = ["B1", "CACHE", "CASC"]
+
+[overlays.CACHE.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+
+[overlays.AEB.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = false
+session_affinity = false
+
+[overlays.AEB.prefill]
+enabled = true
+budget_ratio = 0.6
+adaptive = true
+evidence = true
+anchor = true
+
+[overlays.CASC.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+stable_compression = true
+stable_compression_ratio = 0.6
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64

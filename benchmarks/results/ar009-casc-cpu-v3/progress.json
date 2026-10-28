@@ -1,0 +1,68 @@
+{
+  "schema": "jev.matrix.progress/1",
+  "completed_arms": [
+    "B1",
+    "CACHE",
+    "CASC"
+  ],
+  "remaining": [],
+  "metrics": {
+    "B1": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 24.0,
+      "mean_prompt_tokens": 5354.0,
+      "mean_latency_ms": 72711.761,
+      "p50_latency_ms": 70190.79,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 10387.667,
+      "mean_decode_tps": 6.775,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "CACHE": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 24.0,
+      "mean_prompt_tokens": 5354.0,
+      "mean_latency_ms": 53429.291,
+      "p50_latency_ms": 52690.596,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 12,
+      "mean_cache_n": 2660.0,
+      "mean_prefill_ms": 704.833,
+      "mean_decode_tps": 6.767,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "CASC": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 24.0,
+      "mean_prompt_tokens": 4298.0,
+      "mean_latency_ms": 59148.833,
+      "p50_latency_ms": 52917.259,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 12,
+      "mean_cache_n": 2463.75,
+      "mean_prefill_ms": 1808.0,
+      "mean_decode_tps": 6.775,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    }
+  }
+}

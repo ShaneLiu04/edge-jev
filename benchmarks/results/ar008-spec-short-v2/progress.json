@@ -1,0 +1,48 @@
+{
+  "schema": "jev.matrix.progress/1",
+  "completed_arms": [
+    "B1",
+    "SPEC"
+  ],
+  "remaining": [],
+  "metrics": {
+    "B1": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 106.833,
+      "mean_prompt_tokens": 82.0,
+      "mean_latency_ms": 20994.583,
+      "p50_latency_ms": 21456.693,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 313.0,
+      "mean_decode_tps": 8.508,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "SPEC": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 114.25,
+      "mean_prompt_tokens": 82.0,
+      "mean_latency_ms": 21935.396,
+      "p50_latency_ms": 20472.73,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 601.333,
+      "mean_decode_tps": 9.067,
+      "spec_accept_rate": 0.187,
+      "outputs_identical": 0.3333
+    }
+  }
+}

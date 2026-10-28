@@ -1,0 +1,501 @@
+{
+  "schema": "jev.matrix/1",
+  "run": {
+    "name": "ar008-spec-confirm-cpu-20261027-235551",
+    "started": 1793116551.5684218,
+    "finished": 1793117067.273029,
+    "seed": 20261026,
+    "lambda_cost": 0.15,
+    "lambda_latency": 0.5,
+    "limit": 4,
+    "fingerprint": {
+      "python": "3.11.9",
+      "versions": {
+        "onnxruntime": "1.31.0",
+        "httpx": "0.28.1",
+        "numpy": "2.4.6",
+        "yaml": "6.0.3"
+      },
+      "platform": "Windows-10-10.0.26200-SP0",
+      "machine": "AMD64",
+      "extra": {
+        "arms": [
+          "B1",
+          "S2",
+          "S4"
+        ],
+        "commands": [
+          "jev matrix --config configs\\experiments\\spec-confirm-cpu.toml"
+        ],
+        "run": "ar008-spec-confirm-cpu-20261027-235551"
+      }
+    }
+  },
+  "config": {
+    "name": "ar008-spec-confirm-cpu",
+    "seed": 20261026,
+    "lambda_cost": 0.15,
+    "limit": 4,
+    "arms": [
+      "B1",
+      "S2",
+      "S4"
+    ],
+    "brain": "spawn",
+    "brain_base_url": "",
+    "embedding": "off",
+    "embedding_base_url": "",
+    "gpu_layers": 0,
+    "ctx_size": 4096,
+    "max_tokens": 192,
+    "timeout_s": 180.0,
+    "prompt_prefix": "",
+    "repeat": 1,
+    "dataset": "long_generation_en",
+    "overlays": {
+      "S2": {
+        "cerebrum": {
+          "spec": {
+            "enabled": true,
+            "draft_model": "models/qwen/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+            "type": "draft-simple",
+            "draft_n_max": 2,
+            "draft_gpu_layers": 0,
+            "draft_threads": 4,
+            "sampling": "greedy"
+          }
+        }
+      },
+      "S4": {
+        "cerebrum": {
+          "spec": {
+            "enabled": true,
+            "draft_model": "models/qwen/qwen2.5-0.5b-instruct-q4_k_m.gguf",
+            "type": "draft-simple",
+            "draft_n_max": 4,
+            "draft_gpu_layers": 0,
+            "draft_threads": 4,
+            "sampling": "greedy"
+          }
+        }
+      }
+    },
+    "prompt_cache": false,
+    "lambda_latency": 0.5,
+    "force_full": true,
+    "brain_gguf": ""
+  },
+  "calibrations": {},
+  "arms": {
+    "B1": [
+      {
+        "arm": "B1",
+        "question_id": "longen-01",
+        "pass": 0,
+        "category": "long_generation_en",
+        "lang": "en",
+        "quality": 1.0,
+        "answer": "Caching is a technique used to reduce web latency by storing frequently accessed data in a local cache. When a user requests a resource, the cache first checks if the requested data is already available. If it is, the cache returns the data quickly, reducing the time it takes to load the page. This is known as a \"hit\" and can be as fast as a few milliseconds.\nIf the requested data is not in the cache, the cache will retrieve it from the server and store it in the cache for future requests. This is known as a \"miss\" and can take a few seconds to complete. However, the cache will reuse the data from the server for future requests, reducing the time it takes to load the page.\nBy caching frequently accessed data, web developers can significantly reduce the time it takes to load pages, which can improve the user experience and increase the website's performance. Additionally, caching can help to reduce the load on the server",
+        "prompt_tokens": 50,
+        "completion_tokens": 192,
+        "latency_ms": 33432.842,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 1072.0,
+        "prompt_n": 50,
+        "draft_n": 0,
+        "draft_accepted": 0,
+        "decode_tps": 8.0,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9",
+          "x-jev-prefill-ms": "1072",
+          "x-jev-prompt-n": "50",
+          "x-jev-decode-tps": "8.0"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "longen-02",
+        "pass": 0,
+        "category": "long_generation_en",
+        "lang": "en",
+        "quality": 1.0,
+        "answer": "Caching is a technique used to reduce web latency by storing frequently accessed data in a local cache. When a user requests a resource, the cache first checks if the requested data is already available. If it is, the cache returns the data quickly, reducing the time it takes to load the page. This is known as a \"hit\" and can be as fast as a few milliseconds.\nIf the requested data is not in the cache, the cache will retrieve it from the server and store it in the cache for future requests. This is known as a \"miss\" and can take a few seconds to complete. However, the cache will reuse the data from the server for future requests, reducing the time it takes to load the page.\nBy caching frequently accessed data, web developers can significantly reduce the time it takes to load pages, which can improve the user experience and increase the website's performance. Additionally, caching can help to reduce the load on the server",
+        "prompt_tokens": 50,
+        "completion_tokens": 192,
+        "latency_ms": 34297.415,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 998.0,
+        "prompt_n": 50,
+        "draft_n": 0,
+        "draft_accepted": 0,
+        "decode_tps": 7.9,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9",
+          "x-jev-prefill-ms": "998",
+          "x-jev-prompt-n": "50",
+          "x-jev-decode-tps": "7.9"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "longen-03",
+        "pass": 0,
+        "category": "long_generation_en",
+        "lang": "en",
+        "quality": 1.0,
+        "answer": "Caching is a technique used to reduce web latency by storing frequently accessed data in a local cache. When a user requests a resource, the cache first checks if the requested data is already available. If it is, the cache returns the data quickly, reducing the time it takes to load the page. This is known as a \"hit\" and can be as fast as a few milliseconds.\nIf the requested data is not in the cache, the cache will retrieve it from the server and store it in the cache for future requests. This is known as a \"miss\" and can take a few seconds to complete. However, the cache will reuse the data from the server for future requests, reducing the time it takes to load the page.\nBy caching frequently accessed data, web developers can significantly reduce the time it takes to load pages, which can improve the user experience and increase the website's performance. Additionally, caching can help to reduce the load on the server",
+        "prompt_tokens": 50,
+        "completion_tokens": 192,
+        "latency_ms": 32158.167,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 951.0,
+        "prompt_n": 50,
+        "draft_n": 0,
+        "draft_accepted": 0,
+        "decode_tps": 8.3,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9",
+          "x-jev-prefill-ms": "951",
+          "x-jev-prompt-n": "50",
+          "x-jev-decode-tps": "8.3"
+        }
+      },
+      {
+        "arm": "B1",
+        "question_id": "longen-04",
+        "pass": 0,
+        "category": "long_generation_en",
+        "lang": "en",
+        "quality": 1.0,
+        "answer": "Caching is a technique used to reduce web latency by storing frequently accessed data in a local cache. When a user requests a resource, the cache first checks if the requested data is already available. If it is, the cache returns the data quickly, reducing the time it takes to load the page. This is known as a \"hit\" and can be as fast as a few milliseconds.\nIf the requested data is not in the cache, the cache will retrieve it from the server and store it in the cache for future requests. This is known as a \"miss\" and can take a few seconds to complete. However, the cache will reuse the data from the server for future requests, reducing the time it takes to load the page.\nBy caching frequently accessed data, web developers can significantly reduce the time it takes to load pages, which can improve the user experience and increase the website's performance. Additionally, caching can help to reduce the load on the server",
+        "prompt_tokens": 50,
+        "completion_tokens": 192,
+        "latency_ms": 32186.19,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 938.0,
+        "prompt_n": 50,
+        "draft_n": 0,
+        "draft_accepted": 0,
+        "decode_tps": 8.2,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9",
+          "x-jev-prefill-ms": "938",
+          "x-jev-prompt-n": "50",
+          "x-jev-decode-tps": "8.2"
+        }
+      }
+    ],
+    "S2": [
+      {
+        "arm": "S2",
+        "question_id": "longen-01",
+        "pass": 0,
+        "category": "long_generation_en",
+        "lang": "en",
+        "quality": 1.0,
+        "answer": "Caching is a technique used to reduce web latency by storing frequently accessed data in a local cache. When a user requests a resource, the cache first checks if the requested data is already available. If it is, the cache returns the data quickly, reducing the time it takes to load the page. This is known as a \"hit\" and can be as fast as a few milliseconds.\nIf the requested data is not in the cache, the cache will retrieve it from the server and store it in the cache for future requests. This is known as a \"miss\" and can take a few seconds to complete. However, the cache will reuse the data from the server for future requests, reducing the time it takes to load the page.\nBy caching frequently accessed data, web developers can significantly reduce the time it takes to load pages, which can improve the user experience and increase the website's performance. Additionally, caching can help to reduce the load on the server",
+        "prompt_tokens": 50,
+        "completion_tokens": 192,
+        "latency_ms": 43655.177,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 1696.0,
+        "prompt_n": 50,
+        "draft_n": 170,
+        "draft_accepted": 106,
+        "decode_tps": 5.7,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9",
+          "x-jev-prefill-ms": "1696",
+          "x-jev-prompt-n": "50",
+          "x-jev-spec": "106/170",
+          "x-jev-decode-tps": "5.7"
+        }
+      },
+      {
+        "arm": "S2",
+        "question_id": "longen-02",
+        "pass": 0,
+        "category": "long_generation_en",
+        "lang": "en",
+        "quality": 1.0,
+        "answer": "Caching is a technique used to reduce web latency by storing frequently accessed data in a local cache. When a user requests a resource, the cache first checks if the requested data is already available. If it is, the cache returns the data quickly, reducing the time it takes to load the page. This is known as a \"hit\" and can be as fast as a few milliseconds.\nIf the requested data is not in the cache, the cache will retrieve it from the server and store it in the cache for future requests. This is known as a \"miss\" and can take a few seconds to complete. However, the cache will reuse the data from the server for future requests, reducing the time it takes to load the page.\nBy caching frequently accessed data, web developers can significantly reduce the time it takes to load pages, which can improve the user experience and increase the website's performance. Additionally, caching can help to reduce the load on the server",
+        "prompt_tokens": 50,
+        "completion_tokens": 192,
+        "latency_ms": 43858.849,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 1430.0,
+        "prompt_n": 50,
+        "draft_n": 170,
+        "draft_accepted": 106,
+        "decode_tps": 5.7,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9",
+          "x-jev-prefill-ms": "1430",
+          "x-jev-prompt-n": "50",
+          "x-jev-spec": "106/170",
+          "x-jev-decode-tps": "5.7"
+        }
+      },
+      {
+        "arm": "S2",
+        "question_id": "longen-03",
+        "pass": 0,
+        "category": "long_generation_en",
+        "lang": "en",
+        "quality": 1.0,
+        "answer": "Caching is a technique used to reduce web latency by storing frequently accessed data in a local cache. When a user requests a resource, the cache first checks if the requested data is already available. If it is, the cache returns the data quickly, reducing the time it takes to load the page. This is known as a \"hit\" and can be as fast as a few milliseconds.\nIf the requested data is not in the cache, the cache will retrieve it from the server and store it in the cache for future requests. This is known as a \"miss\" and can take a few seconds to complete. However, the cache will reuse the data from the server for future requests, reducing the time it takes to load the page.\nBy caching frequently accessed data, web developers can significantly reduce the time it takes to load pages, which can improve the user experience and increase the website's performance. Additionally, caching can help to reduce the load on the server",
+        "prompt_tokens": 50,
+        "completion_tokens": 192,
+        "latency_ms": 41905.651,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 1442.0,
+        "prompt_n": 50,
+        "draft_n": 170,
+        "draft_accepted": 106,
+        "decode_tps": 6.0,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9",
+          "x-jev-prefill-ms": "1442",
+          "x-jev-prompt-n": "50",
+          "x-jev-spec": "106/170",
+          "x-jev-decode-tps": "6.0"
+        }
+      },
+      {
+        "arm": "S2",
+        "question_id": "longen-04",
+        "pass": 0,
+        "category": "long_generation_en",
+        "lang": "en",
+        "quality": 1.0,
+        "answer": "Caching is a technique used to reduce web latency by storing frequently accessed data in a local cache. When a user requests a resource, the cache first checks if the requested data is already available. If it is, the cache returns the data quickly, reducing the time it takes to load the page. This is known as a \"hit\" and can be as fast as a few milliseconds.\nIf the requested data is not in the cache, the cache will retrieve it from the server and store it in the cache for future requests. This is known as a \"miss\" and can take a few seconds to complete. However, the cache will reuse the data from the server for future requests, reducing the time it takes to load the page.\nBy caching frequently accessed data, web developers can significantly reduce the time it takes to load pages, which can improve the user experience and increase the website's performance. Additionally, caching can help to reduce the load on the server",
+        "prompt_tokens": 50,
+        "completion_tokens": 192,
+        "latency_ms": 42719.687,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 1422.0,
+        "prompt_n": 50,
+        "draft_n": 170,
+        "draft_accepted": 106,
+        "decode_tps": 5.9,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9",
+          "x-jev-prefill-ms": "1422",
+          "x-jev-prompt-n": "50",
+          "x-jev-spec": "106/170",
+          "x-jev-decode-tps": "5.9"
+        }
+      }
+    ],
+    "S4": [
+      {
+        "arm": "S4",
+        "question_id": "longen-01",
+        "pass": 0,
+        "category": "long_generation_en",
+        "lang": "en",
+        "quality": 1.0,
+        "answer": "Caching is a technique used to reduce web latency by storing frequently accessed data in a local cache. When a user requests a resource, the cache first checks if the requested data is already available. If it is, the cache returns the data quickly, reducing the time it takes to load the page. This is known as a \"hit\" and can be as fast as a few milliseconds.\nIf the requested data is not in the cache, the cache will retrieve it from the server and store it in the cache for future requests. This is known as a \"miss\" and can take a few seconds to complete. However, the cache will reuse the data from the server for future requests, reducing the time it takes to load the page.\nBy caching frequently accessed data, web developers can significantly reduce the time it takes to load pages, which can improve the user experience and increase the website's performance. Additionally, caching can help to reduce the load on the server",
+        "prompt_tokens": 50,
+        "completion_tokens": 192,
+        "latency_ms": 48986.224,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 1559.0,
+        "prompt_n": 50,
+        "draft_n": 264,
+        "draft_accepted": 124,
+        "decode_tps": 4.9,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9",
+          "x-jev-prefill-ms": "1559",
+          "x-jev-prompt-n": "50",
+          "x-jev-spec": "124/264",
+          "x-jev-decode-tps": "4.9"
+        }
+      },
+      {
+        "arm": "S4",
+        "question_id": "longen-02",
+        "pass": 0,
+        "category": "long_generation_en",
+        "lang": "en",
+        "quality": 1.0,
+        "answer": "Caching is a technique used to reduce web latency by storing frequently accessed data in a local cache. When a user requests a resource, the cache first checks if the requested data is already available. If it is, the cache returns the data quickly, reducing the time it takes to load the page. This is known as a \"hit\" and can be as fast as a few milliseconds.\nIf the requested data is not in the cache, the cache will retrieve it from the server and store it in the cache for future requests. This is known as a \"miss\" and can take a few seconds to complete. However, the cache will reuse the data from the server for future requests, reducing the time it takes to load the page.\nBy caching frequently accessed data, web developers can significantly reduce the time it takes to load pages, which can improve the user experience and increase the website's performance. Additionally, caching can help to reduce the load on the server",
+        "prompt_tokens": 50,
+        "completion_tokens": 192,
+        "latency_ms": 47705.651,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 1300.0,
+        "prompt_n": 50,
+        "draft_n": 264,
+        "draft_accepted": 124,
+        "decode_tps": 5.1,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9",
+          "x-jev-prefill-ms": "1300",
+          "x-jev-prompt-n": "50",
+          "x-jev-spec": "124/264",
+          "x-jev-decode-tps": "5.1"
+        }
+      },
+      {
+        "arm": "S4",
+        "question_id": "longen-03",
+        "pass": 0,
+        "category": "long_generation_en",
+        "lang": "en",
+        "quality": 1.0,
+        "answer": "Caching is a technique used to reduce web latency by storing frequently accessed data in a local cache. When a user requests a resource, the cache first checks if the requested data is already available. If it is, the cache returns the data quickly, reducing the time it takes to load the page. This is known as a \"hit\" and can be as fast as a few milliseconds.\nIf the requested data is not in the cache, the cache will retrieve it from the server and store it in the cache for future requests. This is known as a \"miss\" and can take a few seconds to complete. However, the cache will reuse the data from the server for future requests, reducing the time it takes to load the page.\nBy caching frequently accessed data, web developers can significantly reduce the time it takes to load pages, which can improve the user experience and increase the website's performance. Additionally, caching can help to reduce the load on the server",
+        "prompt_tokens": 50,
+        "completion_tokens": 192,
+        "latency_ms": 47531.085,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 1462.0,
+        "prompt_n": 50,
+        "draft_n": 264,
+        "draft_accepted": 124,
+        "decode_tps": 5.1,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9",
+          "x-jev-prefill-ms": "1462",
+          "x-jev-prompt-n": "50",
+          "x-jev-spec": "124/264",
+          "x-jev-decode-tps": "5.1"
+        }
+      },
+      {
+        "arm": "S4",
+        "question_id": "longen-04",
+        "pass": 0,
+        "category": "long_generation_en",
+        "lang": "en",
+        "quality": 1.0,
+        "answer": "Caching is a technique used to reduce web latency by storing frequently accessed data in a local cache. When a user requests a resource, the cache first checks if the requested data is already available. If it is, the cache returns the data quickly, reducing the time it takes to load the page. This is known as a \"hit\" and can be as fast as a few milliseconds.\nIf the requested data is not in the cache, the cache will retrieve it from the server and store it in the cache for future requests. This is known as a \"miss\" and can take a few seconds to complete. However, the cache will reuse the data from the server for future requests, reducing the time it takes to load the page.\nBy caching frequently accessed data, web developers can significantly reduce the time it takes to load pages, which can improve the user experience and increase the website's performance. Additionally, caching can help to reduce the load on the server",
+        "prompt_tokens": 50,
+        "completion_tokens": 192,
+        "latency_ms": 47975.984,
+        "route": "full",
+        "u": null,
+        "cache_n": 0,
+        "prefill_ms": 1296.0,
+        "prompt_n": 50,
+        "draft_n": 264,
+        "draft_accepted": 124,
+        "decode_tps": 5.0,
+        "headers": {
+          "x-jev-route": "full",
+          "x-jev-decisions": "9",
+          "x-jev-prefill-ms": "1296",
+          "x-jev-prompt-n": "50",
+          "x-jev-spec": "124/264",
+          "x-jev-decode-tps": "5.0"
+        }
+      }
+    ]
+  },
+  "metrics": {
+    "B1": {
+      "count": 4,
+      "quality": 1.0,
+      "mean_completion_tokens": 192.0,
+      "mean_prompt_tokens": 50.0,
+      "mean_latency_ms": 33018.654,
+      "p50_latency_ms": 33432.842,
+      "routes": {
+        "full": 4
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 989.75,
+      "mean_decode_tps": 8.1,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "S2": {
+      "count": 4,
+      "quality": 1.0,
+      "mean_completion_tokens": 192.0,
+      "mean_prompt_tokens": 50.0,
+      "mean_latency_ms": 43034.841,
+      "p50_latency_ms": 43655.177,
+      "routes": {
+        "full": 4
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 1497.5,
+      "mean_decode_tps": 5.825,
+      "spec_accept_rate": 0.6235,
+      "outputs_identical": 1.0
+    },
+    "S4": {
+      "count": 4,
+      "quality": 1.0,
+      "mean_completion_tokens": 192.0,
+      "mean_prompt_tokens": 50.0,
+      "mean_latency_ms": 48049.736,
+      "p50_latency_ms": 47975.984,
+      "routes": {
+        "full": 4
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 1404.25,
+      "mean_decode_tps": 5.025,
+      "spec_accept_rate": 0.4697,
+      "outputs_identical": 1.0
+    }
+  },
+  "selection": {
+    "decision": "rollback",
+    "chosen_arm": "B1",
+    "baseline_arm": "B1",
+    "utility": {
+      "B1": 0.5064117074441365,
+      "S2": 0.4021844178290594,
+      "S4": 0.35
+    },
+    "delta_ci": null,
+    "policy": {},
+    "reason": "候选无显著正下界，回退基线"
+  }
+}

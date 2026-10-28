@@ -9,7 +9,7 @@
 | OS | Windows 10/11 或 Linux |
 | Python | ≥3.11（`uv` 管理） |
 | 磁盘 | ≥8GB（1.5B 实验）/ ≥40GB（7B/14B） |
-| GPU | 可选；CPU 也可跑通，但长生成可能超时（调大 `timeout_s`） |
+| GPU | 可选；CPU 也可跑通，但长生成可能超时（调大 `timeout_s`）。本机历史结果实为 CPU-only（见 §1.1） |
 | 网络 | 企业代理需配置；资产可由 `jev fetch` 下载 |
 
 ## 1. 本机（1.5B）一键复现
@@ -29,6 +29,14 @@ uv run jev matrix --config configs/experiments/ar005.toml --limit 6
 
 # 全量 30 题 × 4 方案
 uv run jev matrix --config configs/experiments/ar005.toml
+
+# AR008 投机解码（需 0.5B draft；本机结论 rollback）
+uv run jev matrix --config configs/experiments/spec-confirm-cpu.toml
+uv run jev matrix --config configs/experiments/spec-tuning-cpu.toml
+
+# AR009 CASC（CPU 解码 + GPU embedding；GPU 不可用时改 embedding_gpu_layers=0）
+uv run jev matrix --config configs/experiments/casc-final-gpu.toml
+uv run jev matrix --config configs/experiments/casc-needles6.toml
 ```
 
 ### 判定复现成功
@@ -43,6 +51,20 @@ uv run jev matrix --config configs/experiments/ar005.toml
 - **大脑启动探测超时**：GPU 被其他进程占用（`nvidia-smi` 查看）。释放 GPU，或在实验配置设置 `gpu_layers = 0` 走 CPU 并调大 `timeout_s`。
 - **`models/laya/calibration.json` 缺失**：属于未校准状态，运行继续，但决策 margin 不启用。可用 `jev distill --calibrate` 生成。
 - **embedding 启动失败**：语义缓存自动降级为精确层；矩阵若 `embedding="auto"` 会明确失败（不伪造向量）。
+
+### 1.1 CUDA 设备核验（重要）
+
+```powershell
+models\llama-server\bin\llama-server.exe --list-devices
+```
+
+- 若输出 `(none)`：`ggml-cuda.dll` 缺少运行库。需将 CUDA 12 的
+  `cudart64_12.dll` / `cublas64_12.dll` / `cublasLt64_12.dll` 放入
+  `models\llama-server\bin\` 或 `models\llama-server\cudart\`（后者已在矩阵 PATH 中）。
+- 若可见 `CUDA0`，再核对实际吞吐与时钟：
+  `nvidia-smi --query-gpu=clocks.sm,power.draw --format=csv`。
+  本机 Quadro RTX 5000 被限频 **645 MHz / ~32 W**，`llama-bench tg64` GPU 5.06 t/s < CPU 9.47 t/s。
+- **在设备未核实前，不得把运行标为 GPU**；本项目 AR005–AR007 历史主表均为 CPU-only。
 
 ## 2. GPU 服务器（7B / 14B）
 
@@ -117,6 +139,31 @@ uv run jev matrix --config configs/experiments/server-14b-prefix.toml
 - 判定：CACHE 质量不得下降；同前缀 prefill 需显著下降。若 AEB_CACHE 命中低且更慢，
   不得把 AEB 与缓存叠加；选择器已引入 `lambda_latency`，会优先低延迟组合。
 - 服务器显存：KV 缓存随 ctx、并发线性增长；14B + 16k + 多槽需重新核算显存。
+
+### 2.6 AR008 投机解码（7B/14B 配置）
+
+```bash
+uv run jev matrix --config configs/experiments/server-7b-spec.toml
+uv run jev matrix --config configs/experiments/server-14b-spec.toml
+```
+
+- 需 0.5B draft 资产（`configs/assets.toml` 的 `qwen2.5-0.5b-gguf`）；
+- 本机 1.5B 实测无收益，**默认关闭**；服务器仅在 target 解码明显慢于 draft 复核成本时才有意义；
+- 结论必须来自真实 `X-Jev-Spec`/`X-Jev-Decode-Tps`，不得以本机 1.5B 外推 7B/14B。
+
+### 2.7 AR009 CASC（7B/14B）
+
+```bash
+uv run jev matrix --config configs/experiments/server-7b-casc.toml
+uv run jev matrix --config configs/experiments/server-14b-casc.toml
+```
+
+- 需真实 embedding 服务；CASC 只压缩文档、不压缩问题，保证同一文档多问前缀稳定；
+- 服务器建议：brain 与 embedding 可分别放置，embedding 适合放 GPU（prefill 密集），
+  CASC 首次请求会调用 embedding，之后命中 `StableCompressionCache`；
+- 判定：quality 不降、tokens 明显下降、`X-Jev-Prefix-Cache` 命中；默认延迟场景仍用 CACHE，
+  λ_cost ≥0.5 的成本敏感场景用 CASC；
+- 7B/14B 未实际运行前不得宣称其 CASC 收益。
 
 ## 3. 实验口径
 

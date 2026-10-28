@@ -30,6 +30,14 @@ max_recoveries = 5                       # 一小时最大重启次数
 recovery_cooldown_s = 5.0                # 两次重启最小间隔
 # slot_prompt_similarity = 0.5          # AR003 槽位前缀相似度阈值（留空=llama 默认）                          # 崩溃自动重启上限（指数退避 2s/4s/8s）
 
+[cerebrum.spec]
+enabled = false                          # AR008 投机解码（本机实测无增益，默认关闭）
+draft_model = "models/qwen/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+type = "draft-simple"
+draft_n_max = 8
+draft_gpu_layers = 0
+draft_threads = 8
+
 [cascade]
 generation_timeout_s = 120               # 路径②/③ 生成总时长上限（EX-04：超时截断降级）
 capability_gate = true                   # AR002 能力门控路由（false 恢复 AR001 行为）
@@ -76,6 +84,14 @@ allocator_budget_ratio = 0.6
 allocator_min_prompt_tokens = 512
 prefix_cache = false             # AR007 服务器前缀 KV 复用（默认关闭）
 session_affinity = false         # AR007 有 user 会话键时用稳定前缀
+stable_compression = false       # AR009 文档级稳定压缩（与前缀缓存叠加）
+stable_compression_ratio = 0.6
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_min_blocks = 4
+stable_compression_mmr_lambda = 0.75
+stable_compression_cache_entries = 64
+stable_compression_embed_batch = 16
 
 [cache]
 enabled = false
@@ -111,6 +127,7 @@ base_url = ""
 model = "local"
 port = 8389
 timeout_s = 10.0
+gpu_layers = 0                   # AR009：embedding 独立放置（CPU 解码 + GPU 编码）
 
 [portfolio]
 profile = ""

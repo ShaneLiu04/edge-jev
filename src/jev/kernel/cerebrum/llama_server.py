@@ -20,7 +20,13 @@ from typing import Any
 
 import httpx
 
-from jev.errors import BrainStartupError, JevProtocolError, JevTimeoutError, JevUnavailableError
+from jev.errors import (
+    BrainStartupError,
+    JevAssetError,
+    JevProtocolError,
+    JevTimeoutError,
+    JevUnavailableError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -429,4 +435,49 @@ def slot_server_args(
             )
         if value > 0.0:
             args.extend(["--slot-prompt-similarity", str(value)])
+    return args
+
+
+def spec_server_args(
+    *,
+    enabled: bool = False,
+    draft_model: str | Path | None = None,
+    spec_type: str = "draft-simple",
+    draft_n_max: int = 8,
+    draft_gpu_layers: int = 0,
+    draft_threads: int | None = None,
+    sampling: str | None = None,
+) -> list[str]:
+    """AR008：投机解码参数（draft 默认放 CPU）。
+
+    启用时 draft 资产缺失必须显式失败（JevAssetError），不静默降级。
+    本机实测无稳定收益，默认关闭；详见 specs/changes/AR008-heterogeneous-speculative/。
+    """
+    if not enabled:
+        return []
+    if draft_model is None or not str(draft_model):
+        raise ValueError("投机解码启用但未配置 draft_model")
+    path = Path(draft_model)
+    if isinstance(draft_n_max, bool) or draft_n_max < 1:
+        raise ValueError(f"draft_n_max 须 >=1: {draft_n_max!r}")
+    if isinstance(draft_gpu_layers, bool) or draft_gpu_layers < 0:
+        raise ValueError(f"draft_gpu_layers 须 >=0: {draft_gpu_layers!r}")
+    if not path.is_file():
+        raise JevAssetError(f"draft 模型资产缺失: {path}")
+    args = [
+        "--spec-draft-model",
+        str(path),
+        "--spec-type",
+        str(spec_type),
+        "--spec-draft-n-max",
+        str(draft_n_max),
+        "--spec-draft-ngl",
+        str(draft_gpu_layers),
+    ]
+    if draft_threads is not None:
+        if draft_threads < 1:
+            raise ValueError(f"draft_threads 须 >=1: {draft_threads!r}")
+        args.extend(["--spec-draft-threads", str(draft_threads)])
+    if sampling:
+        args.extend(["--spec-draft-sampling", str(sampling)])
     return args

@@ -26,13 +26,18 @@ from jev.kernel.cascade.engine import CascadeEngine, RoutePolicy
 from jev.kernel.cerebellum.base import CerebellumBackend, Question, SystemOneResponse
 from jev.kernel.cerebellum.registry import create_backend, repo_root
 from jev.kernel.cerebrum.embeddings import EmbeddingClient, EmbeddingService
-from jev.kernel.cerebrum.llama_server import LlamaServerManager, slot_server_args
+from jev.kernel.cerebrum.llama_server import (
+    LlamaServerManager,
+    slot_server_args,
+    spec_server_args,
+)
 from jev.kernel.cerebrum.supervisor import BrainSupervisor
 from jev.kernel.decisions.calibration import Calibration, load_calibration
 from jev.kernel.decisions.framework import DecisionPoint, DecisionRegistry
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
 from jev.kernel.prefill.evidence import EvidenceConfig, EvidenceSelector
 from jev.kernel.prefill.planner import PrefillConfig
+from jev.kernel.prefill.stable import StableCompressor, StableConfig
 from jev.kernel.runtime.bands import BandPolicy
 from jev.kernel.runtime.config import RuntimeConfig
 from jev.kernel.runtime.conformal import (
@@ -76,6 +81,7 @@ class Kernel(CerebellumBackend):
         profile: RuntimeProfile | None = None,
         evidence_selector: EvidenceSelector | None = None,
         supervisor: BrainSupervisor | None = None,
+        stable_compressor: StableCompressor | None = None,
     ) -> None:
         self._cerebellum = cerebellum
         self._registry = registry
@@ -99,6 +105,7 @@ class Kernel(CerebellumBackend):
         self._profile = profile
         self._evidence_selector = evidence_selector
         self._supervisor = supervisor
+        self._stable_compressor = stable_compressor
 
     # ------------------------------------------------------------------
     # 组合根：configs/jev.toml 单源装配
@@ -185,10 +192,15 @@ class Kernel(CerebellumBackend):
         evidence_config = _build_evidence_config(config)
         evidence_selector = (
             EvidenceSelector(embeddings.embed, evidence_config)
-            if (
-                embeddings is not None
-                and bool((config.get("prefill") or {}).get("evidence", False))
+            if embeddings is not None
+            else None
+        )
+        stable_compressor = (
+            StableCompressor(
+                embeddings.embed,
+                runtime_config.stable,
             )
+            if embeddings is not None and runtime_config.stable.enabled
             else None
         )
         supervisor = _build_supervisor(config, brain)
@@ -217,6 +229,7 @@ class Kernel(CerebellumBackend):
             profile=profile,
             evidence_selector=evidence_selector,
             supervisor=supervisor,
+            stable_compressor=stable_compressor,
         )
 
     # ------------------------------------------------------------------
@@ -305,6 +318,11 @@ class Kernel(CerebellumBackend):
     def supervisor(self) -> BrainSupervisor | None:
         """AR006：大脑自愈监督器（未启用时为 None）。"""
         return self._supervisor
+
+    @property
+    def stable_compressor(self) -> StableCompressor | None:
+        """AR009：文档级稳定压缩器（未启用/无 embedding 时为 None）。"""
+        return self._stable_compressor
 
     @property
     def generation_timeout_s(self) -> float:
@@ -422,6 +440,22 @@ def _build_brain_manager(config: dict) -> LlamaServerManager | None:
 
     default_bin = "models/llama-server/bin/llama-server.exe"
     default_gguf = "models/qwen/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+    extra_args = slot_server_args(
+        parallel=int(cerebrum_cfg.get("parallel", 1)),
+        slot_prompt_similarity=cerebrum_cfg.get("slot_prompt_similarity"),
+    )
+    spec_cfg = cerebrum_cfg.get("spec") or {}
+    if spec_cfg.get("enabled", False):
+        draft = spec_cfg.get("draft_model", "")
+        extra_args += spec_server_args(
+            enabled=True,
+            draft_model=_resolve(str(draft)) if draft else None,
+            spec_type=str(spec_cfg.get("type", "draft-simple")),
+            draft_n_max=int(spec_cfg.get("draft_n_max", 8)),
+            draft_gpu_layers=int(spec_cfg.get("draft_gpu_layers", 0)),
+            draft_threads=spec_cfg.get("draft_threads"),
+            sampling=spec_cfg.get("sampling"),
+        )
     return LlamaServerManager(
         llama_server_bin=_resolve(cerebrum_cfg.get("llama_server_bin", default_bin)),
         gguf_path=_resolve(cerebrum_cfg.get("gguf_path", default_gguf)),
@@ -430,10 +464,7 @@ def _build_brain_manager(config: dict) -> LlamaServerManager | None:
         ctx_size=int(cerebrum_cfg.get("ctx_size", 4096)),
         startup_probe=cerebrum_cfg.get("startup_probe", "/health"),
         restart_max=int(cerebrum_cfg.get("restart_max", 3)),
-        extra_args=slot_server_args(
-            parallel=int(cerebrum_cfg.get("parallel", 1)),
-            slot_prompt_similarity=cerebrum_cfg.get("slot_prompt_similarity"),
-        ),
+        extra_args=extra_args,
     )
 
 
@@ -484,6 +515,16 @@ def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
         anchor=prefill.anchor,
         evidence_config=prefill.evidence_config,
     )
+    stable = StableConfig(
+        enabled=bool(runtime_cfg.get("stable_compression", False)),
+        ratio=float(runtime_cfg.get("stable_compression_ratio", 0.6)),
+        block_tokens=int(runtime_cfg.get("stable_compression_block_tokens", 128)),
+        min_tokens=int(runtime_cfg.get("stable_compression_min_tokens", 512)),
+        min_blocks=int(runtime_cfg.get("stable_compression_min_blocks", 4)),
+        mmr_lambda=float(runtime_cfg.get("stable_compression_mmr_lambda", 0.75)),
+        cache_entries=int(runtime_cfg.get("stable_compression_cache_entries", 64)),
+        embed_batch=int(runtime_cfg.get("stable_compression_embed_batch", 16)),
+    )
     runtime_config = RuntimeConfig(
         enabled=bool(runtime_cfg.get("enabled", False)),
         bands=bands,
@@ -501,6 +542,7 @@ def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
         ),
         prefix_cache=bool(runtime_cfg.get("prefix_cache", False)),
         session_affinity=bool(runtime_cfg.get("session_affinity", False)),
+        stable=stable,
     )
     cache = SemanticCache(cache_config) if cache_config.enabled else None
     return runtime_config, cache
@@ -546,6 +588,8 @@ def _build_embeddings(config: dict) -> EmbeddingService | None:
             "2048",
             "--ubatch-size",
             "1024",
+            "--n-gpu-layers",
+            str(int(embeddings_cfg.get("gpu_layers", 0))),
         ],
     )
     client = EmbeddingClient(

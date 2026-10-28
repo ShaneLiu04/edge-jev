@@ -1,0 +1,50 @@
+# AR008 异构投机解码：0.5B draft 在 CPU，1.5B target 在 GPU。
+# 同一长文档 + 长生成，组合前缀 KV 复用验证“prefill + decode”联合收益。
+name = "ar008-spec-decode"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 8
+dataset = "shared_generation"
+brain = "spawn"
+embedding = "off"
+gpu_layers = 99
+ctx_size = 8192
+max_tokens = 128
+timeout_s = 300.0
+prompt_prefix = ""
+prompt_cache = true
+force_full = true
+arms = ["B1", "SPEC", "CACHE", "CACHE_SPEC"]
+
+[overlays.SPEC.cerebrum.spec]
+enabled = true
+draft_model = "models/qwen/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+type = "draft-simple"
+draft_n_max = 12
+draft_gpu_layers = 0
+draft_threads = 12
+sampling = "greedy"
+
+[overlays.CACHE.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+
+[overlays.CACHE_SPEC.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+
+[overlays.CACHE_SPEC.cerebrum.spec]
+enabled = true
+draft_model = "models/qwen/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+type = "draft-simple"
+draft_n_max = 12
+draft_gpu_layers = 0
+draft_threads = 12
+sampling = "greedy"
