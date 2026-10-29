@@ -45,6 +45,10 @@ uv run jev matrix --config configs/experiments/lads.toml
 uv run jev matrix --config configs/experiments/adb.toml
 uv run jev matrix --config configs/experiments/adb-route.toml
 uv run jev matrix --config configs/experiments/adb-casc.toml
+
+# AR012 CADP（消费者感知 + 路由分阶段；当前最优）
+uv run jev matrix --config configs/experiments/cadp.toml
+uv run jev matrix --config configs/experiments/cadp-casc.toml
 ```
 
 > **POST 复核窗口**：2026-10-29 起 Laya 超长 state 保留**尾部**（原保头部）。
@@ -197,6 +201,19 @@ uv run jev matrix --config configs/experiments/server-14b-adb-casc.toml
 - 服务器实验统一 30 题、`max_tokens=128`、`timeout_s=600/900`；
   7B/14B 必须在目标服务器真实运行后才能写入结果，禁止本机外推；
 - 判定：质量 ≥ baseline、路由/输出一致、配对 bootstrap CI 下界 > 0 才 adopt。
+
+### 2.9 AR012 CADP（端侧 / 7B / 14B）
+
+```bash
+uv run jev matrix --config configs/experiments/cadp-casc.toml
+uv run jev matrix --config configs/experiments/server-7b-cadp-casc.toml
+uv run jev matrix --config configs/experiments/server-14b-cadp-casc.toml
+```
+
+- 端侧实测（shared-prefix 12 题）：B1 51.6s → CADP_CACHE_FAST **10.0s** →
+  CADP_CASC_FAST **10.6s（P50 8.8s）**；quality 1.0、输出一致；tokens 2662→1079（CASC 档）；
+- 服务器配置 30 题、external、超时 600/900s；未在目标机运行前不得宣称收益；
+- `configs/profiles/latency-best.toml` 已含 `decision_staged=true`，可直接作为部署档。
 
 ## 3. 实验口径
 

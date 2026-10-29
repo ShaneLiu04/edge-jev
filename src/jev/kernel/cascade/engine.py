@@ -121,6 +121,25 @@ class CascadeEngine:
             return Route.LIGHT
         return Route.FULL
 
+    def route_short_circuit(self, pre: Sequence[Decision], *, budget=None) -> Route | None:
+        """AR012：仅凭 safety/intent/needs_reasoning 判定是否已可确定路由。
+
+        返回 None 表示必须继续计算 needs_generation/complexity；调用方须保证
+        这三个点已在本轮评估中（缺失点由调用方回退完整评估）。
+        """
+        active = [d for d in pre if d.mode is Mode.ACTIVE]
+        if any(d.from_fallback for d in active):
+            return Route.FULL
+        if self._applied(pre, "safety") == "unsafe":
+            return Route.FULL
+        if self._applied(pre, "intent") == "decision":
+            return Route.DIRECT
+        if self._applied(pre, "needs_reasoning") != "no_reasoning":
+            return Route.FULL
+        if budget is not None and hasattr(budget, "allows_full") and not budget.allows_full():
+            return Route.LIGHT
+        return None
+
     def route_chat_v2(
         self,
         pre: Sequence[Decision],

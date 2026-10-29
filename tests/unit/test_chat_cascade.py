@@ -452,6 +452,31 @@ class TestFullRoutePost:
         assert resp.headers["x-jev-decision-permutations"] == "1"
         assert int(resp.headers["x-jev-decision-escalated"]) >= 1
 
+    def test_staged_skips_pre_when_route_forced(self, cerebellum, brain, brain_server):
+        """AR012???????????????PRE ?????"""
+        registry = _full_registry(post_retry=False)
+        brain_server.canned = [_completion("??", completion_tokens=16)]
+        runtime = RuntimeConfig(
+            enabled=True,
+            decision_permutations=1,
+            decision_staged=True,
+        )
+        client = TestClient(
+            _app(
+                cerebellum,
+                brain,
+                registry,
+                runtime_config=runtime,
+                route_policy=lambda pre: "full",
+            )
+        )
+        resp = client.post("/v1/chat/completions", json=_body(max_tokens=64))
+        assert resp.status_code == 200
+        assert resp.headers["x-jev-decision-staged"] == "skipped"
+        # ? POST 3 ? active ??PRE 4 ???????????? 7?
+        assert resp.headers["x-jev-decisions"] == "3"
+        assert resp.json()["choices"][0]["message"]["content"] == "??"
+
     def test_builtin_registry_full_route_accepts(self, cerebellum, brain, brain_server):
         """内置 18 点真实配置 + toy：intent=complex → full；POST needs_retry=no_retry
         → 首轮采纳（真实 builtin 决策链路，PRE5+POST4）。"""

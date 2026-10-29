@@ -549,6 +549,7 @@ def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
         decision_escalate_margin=float(
             runtime_cfg.get("decision_escalate_margin", 0.0)
         ),
+        decision_staged=bool(runtime_cfg.get("decision_staged", False)),
     )
     cache = SemanticCache(cache_config) if cache_config.enabled else None
     return runtime_config, cache

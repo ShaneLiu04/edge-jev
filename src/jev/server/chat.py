@@ -372,6 +372,7 @@ class _CascadeContext:
                 "escalate_margin": 0.0
                 if runtime_config is None
                 else runtime_config.decision_escalate_margin,
+                "staged": False,
             },
         }
         self.prompt_build = None
@@ -562,6 +563,79 @@ class _CascadeContext:
         if stage is Stage.PRE:
             self.last_fused = result.fused
         return result
+
+    def _needs_full_pre(self) -> bool:
+        """存在除路由外的 PRE 消费者时，必须完整评估。"""
+        runtime = self.runtime_config
+        if runtime is None or not runtime.enabled:
+            return True
+        if self.verifier is not None or self.margin_tau > 0:
+            return True
+        if runtime.bands.verifier_enabled or runtime.risk_control:
+            return True
+        prompt = runtime.prompt
+        if prompt.draft_enabled or prompt.memory_enabled:
+            return True
+        if runtime.prefill.enabled or runtime.allocator_enabled:
+            return True
+        return False
+
+    def _log_points(self, result: StageEvaluation, used: list[DecisionPoint]) -> None:
+        for decision, point in zip(result.decisions, used, strict=True):
+            self._log_decision(
+                decision, point, result.answers.get(decision.point_id), result.latency_ms
+            )
+
+    def evaluate_pre(self) -> list[Decision]:
+        """AR012：按消费者与路由短路分阶段评估 PRE。"""
+        state = self.state_json()
+        runtime = self.runtime_config
+        staged = (
+            runtime is not None
+            and runtime.enabled
+            and runtime.decision_staged
+            and not self._needs_full_pre()
+        )
+        if not staged:
+            return self.evaluate_detailed(Stage.PRE, state).decisions
+
+        if self.route_policy is not None:
+            self.last_runtime["decision"]["staged"] = "skipped"
+            return []
+
+        active = {point.id: point for point in self.registry.active(Stage.PRE)}
+        wave1_ids = ("safety", "intent", "needs_reasoning")
+        if any(point_id not in active for point_id in wave1_ids):
+            return self.evaluate_detailed(Stage.PRE, state).decisions
+
+        wave1_points = [active[point_id] for point_id in wave1_ids]
+        first, used_first = self._evaluate_points(state, wave1_points)
+        self.decision_count += len(wave1_points)
+        self._log_points(first, used_first)
+        self.last_fused = dict(first.fused)
+
+        short = self.engine.route_short_circuit(
+            first.decisions, budget=self.budget()
+        )
+        if short is None:
+            wave2_ids = ("needs_generation", "complexity")
+            if any(point_id not in active for point_id in wave2_ids):
+                return self.evaluate_detailed(Stage.PRE, state).decisions
+            wave2_points = [active[point_id] for point_id in wave2_ids]
+            second, used_second = self._evaluate_points(state, wave2_points)
+            self.decision_count += len(wave2_points)
+            self._log_points(second, used_second)
+            self.last_fused.update(second.fused)
+            merged = {decision.point_id: decision for decision in first.decisions}
+            merged.update({decision.point_id: decision for decision in second.decisions})
+            return [
+                merged[point.id]
+                for point in self.registry.active(Stage.PRE)
+                if point.id in merged
+            ]
+
+        self.last_runtime["decision"]["staged"] = "on"
+        return first.decisions
 
     def route_decision(self, pre: list[Decision]) -> RouteDecision:
 
@@ -1052,8 +1126,7 @@ def _handle_chat_cascade(context: _CascadeContext) -> JSONResponse:
         response.headers["X-Jev-Route"] = hit.route
         return response
 
-    evaluated = context.evaluate_detailed(Stage.PRE, context.state_json())
-    pre = evaluated.decisions
+    pre = context.evaluate_pre()
     decision = context.route_decision(pre)
     route = decision.route.wire
     if decision.skipped_reason:
@@ -1342,6 +1415,9 @@ def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
             headers["X-Jev-Decision-Permutations"] = str(permutations)
             if context.decision_escalated:
                 headers["X-Jev-Decision-Escalated"] = str(context.decision_escalated)
+        staged = decision.get("staged")
+        if staged:
+            headers["X-Jev-Decision-Staged"] = str(staged)
         prefill = runtime["prefill"]
         if prefill["skipped"]:
             headers["X-Jev-Prefill"] = f"skipped:{prefill['skipped']}"
