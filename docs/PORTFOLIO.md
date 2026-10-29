@@ -11,20 +11,22 @@
 | AR002 | 能力门控/验证器/草稿 | 质量与路由 | 额外小脑/大脑调用 | 门控开 |
 | AR003 | 不确定性/缓存/记忆/prefill | 复用、成本 | 语义缓存需 embedding | 关 |
 | AR005 | Conformal/JCBA/选择回退 | 风险可控、预算统一 | 需校准数据 | 关 |
-| AR006 | AEB 证据自适应 + 自愈 | 长文 token ↓51% | 选块延迟 +10s | 关 |
-| AR007 | 前缀 KV 复用 + 会话亲和 | prefill 27.7×、端到端 ↓23.5%（CPU） | 需稳定前缀/`user` | 关 |
+| AR006 | AEB 证据自适应 + 自愈 | 长文 token ↓45.6%（POST 修复后） | 选块延迟 +10s | 关 |
+| AR007 | 前缀 KV 复用 + 会话亲和 | prefill 8.8×、端到端 ↓16.3%（GPU） | 需稳定前缀/`user` | 关 |
 | AR008 | 异构投机解码（0.5B draft） | 理论降 target 前向次数 | 本机实测 tps 反降，rollback | 关 |
-| AR009 | CASC 稳定压缩 + 缓存 + 异构放置 | token ↓29.6%（shared）/↓58.7%（needles），质量 1.0 | 首问 embedding；延迟不优于 CACHE | 关 |
+| AR009 | CASC 稳定压缩 + 缓存 + 异构放置 | token ↓59.5%（shared）/↓58.7%（needles），质量 1.0 | 首问 embedding | 关 |
+| AR010 | LADS 决策调度 + POST 窗口修复 | 端到端 ↓54.4%（CACHE_FAST） | fast 模式禁用 shadow/POST 复核 | 关 |
 
 ## 2. 负载 → 最优组合
 
 | 负载 | 推荐组合 | 证据 |
 | --- | --- | --- |
 | 短问答、低延迟 | **B1**（能力门控，无额外运行时） | quality-combos：四组合一致，选择器 rollback B1 |
-| 一次性长文 / 内存受限 | **AEB**（AR006：证据+自适应预算，必要时 +JCBA） | needles：2457→1204 tokens（−51%），质量不变 |
-| 多轮/同文档多问/会话 | **CACHE**（AR007：稳定前缀 + KV 复用，`user` 会话键） | shared-prefix：prefill 8848→319ms（27.7×），端到端 −23.5% |
-| 成本/上下文受限的共享文档 | **CASC**（AR009：文档级稳定压缩 + 压缩 LRU + KV） | shared-prefix：5354→3771 tok（−29.6%），12/12 命中，quality 1.0 |
+| 一次性长文 / 内存受限 | **AEB**（AR006：证据+自适应预算，必要时 +JCBA） | needles：2921→1590 tokens（−45.6%），质量不变 |
+| 多轮/同文档多问/会话 | **CACHE**（AR007：稳定前缀 + KV 复用，`user` 会话键） | shared-prefix：prefill 8202→927ms（8.8×），端到端 −16.3% |
+| 成本/上下文受限的共享文档 | **CASC**（AR009：文档级稳定压缩 + 压缩 LRU + KV） | shared-prefix：2662→1079 tok（−59.5%），11/12 命中，quality 1.0 |
 | 单文档长文、token 成本优先 | **CASC**（无跨问缓存也保留证据） | needles：1847→762 tok（−58.7%），quality 1.0 |
+| 极低延迟（可放弃 Laya 复核） | **CACHE_FAST / FAST**（AR010：跳过 shadow+POST，叠加前缀 KV） | shared-prefix：54.0s→24.6s（−54.4%），输出一致 |
 | 重复/近义请求 | **语义缓存**（AR003/AR005 准入） | repeat 10×2：completion token ↓36%，延迟 ↓25% |
 | 高风险降级 | **Conformal 风险门**（AR005） | 无可行阈值时自动 disabled，失败安全 |
 | 长输出解码 | **B1（不启用投机）** | 中文 B1 8.51 vs SPEC 9.07（接受率 0.187）；英文 B1 5.36 vs SPEC 4.78；选择器 rollback |
@@ -34,8 +36,9 @@
 | 组合 | 结果 | 结论 |
 | --- | --- | --- |
 | AEB + 前缀缓存 | AEB_CACHE 命中 **0/4**，延迟 141.6s | **不要盲目叠加**；会话用 CACHE，单次长文用 AEB |
-| AEB + CACHE（CASC 之前） | 查询相关选块使前缀不稳定 | **CASC 用 query-independent 压缩修复**；12/12 命中 |
-| CACHE + CASC 同时追求低延迟 | CASC 首问 embedding 开销，延迟不优于 CACHE | 默认延迟选 CACHE；λ_cost ≥0.5 选 CASC |
+| AEB + CACHE（CASC 之前） | 查询相关选块使前缀不稳定 | **CASC 用 query-independent 压缩修复**；11/12 命中 |
+| CACHE + CASC 同时追求低延迟 | POST 修复后 CASC 首次低于 CACHE（38.1s vs 42.2s） | shared-prefix 选 CASC；needles 延迟略差但 token 大降 |
+| 长 state + POST 复核 | 旧 Laya 窗口保头部 → 答案被截掉 → 恒定重试 | 已改保尾部；退化重复另加确定性重试 |
 | 长 prompt + verifier/memory（本环境） | 偶发 llama-server 假死 | 长上下文实验显式关闭；生产用 Supervisor 自愈 |
 | token-only 选择 | 误选省 token 但慢的 AEB_CACHE | 必须启用 `lambda_latency`（AR007） |
 | 投机解码 + 本机 CPU draft | S2 接受率 0.624 仍只有 5.83 tps（B1 8.10） | draft/验证开销 > 收益；默认关闭 |

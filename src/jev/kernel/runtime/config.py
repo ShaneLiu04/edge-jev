@@ -32,6 +32,8 @@ class RuntimeConfig:
     prefix_cache: bool = False
     session_affinity: bool = False
     stable: StableConfig = dataclasses.field(default_factory=StableConfig)
+    decision_shadow: bool = True
+    decision_post: bool = True
 
     def __post_init__(self) -> None:
         if self.verifier_max_tokens < 1:

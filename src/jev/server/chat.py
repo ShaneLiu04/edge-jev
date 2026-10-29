@@ -361,6 +361,10 @@ class _CascadeContext:
             "risk": {"mode": "off", "score": None, "threshold": None, "decision": "off"},
             "plan": profile_name,
             "admission": {"mode": "similarity", "threshold": None},
+            "decision": {
+                "shadow": True if runtime_config is None else runtime_config.decision_shadow,
+                "post": True if runtime_config is None else runtime_config.decision_post,
+            },
         }
         self.prompt_build = None
         self.budget_capped = False
@@ -395,7 +399,10 @@ class _CascadeContext:
         if self.registry is None:
             return []
         active_points = self.registry.active(stage)
-        shadow_points = self.registry.shadow(stage)
+        include_shadow = (
+            self.runtime_config is None or self.runtime_config.decision_shadow
+        )
+        shadow_points = self.registry.shadow(stage) if include_shadow else []
         points = active_points + shadow_points
         if not points:
             return []
@@ -486,7 +493,10 @@ class _CascadeContext:
         if self.registry is None:
             return StageEvaluation([], {}, 0.0, {})
         active_points = self.registry.active(stage)
-        shadow_points = self.registry.shadow(stage)
+        include_shadow = (
+            self.runtime_config is None or self.runtime_config.decision_shadow
+        )
+        shadow_points = self.registry.shadow(stage) if include_shadow else []
         points = active_points + shadow_points
         if not points:
             return StageEvaluation([], {}, 0.0, {})
@@ -1173,6 +1183,17 @@ def _generate_light(
     return "".join(segments), usage, timed_out
 
 
+def _is_degenerate_repetition(text: str) -> bool:
+    """检测短周期全串重复（如 50745074...）：这类输出必然错误，值得一次重试。"""
+    content = text.strip()
+    if len(content) < 8:
+        return False
+    return any(
+        all(content[index] == content[index % period] for index in range(len(content)))
+        for period in range(1, len(content) // 3 + 1)
+    )
+
+
 def _post_review(
     context: _CascadeContext,
     content: str,
@@ -1185,10 +1206,18 @@ def _post_review(
     allow_retry=False（EX-04 超时截断）跳过重试直接降级；时限已到同样不再
     发起重试调用（截断语义优先）。
     """
-    post = context.evaluate(Stage.POST, context.state_json(content))
-    verdict = context.engine.handle_post(content, post, retried=False)
-    if verdict is not PostVerdict.RETRY:
-        return verdict, False, content, usage
+    if (
+        context.runtime_config is not None
+        and not context.runtime_config.decision_post
+    ):
+        return PostVerdict.ACCEPT, False, content, usage
+    if _is_degenerate_repetition(content):
+        verdict = PostVerdict.RETRY
+    else:
+        post = context.evaluate(Stage.POST, context.state_json(content))
+        verdict = context.engine.handle_post(content, post, retried=False)
+        if verdict is not PostVerdict.RETRY:
+            return verdict, False, content, usage
     if not allow_retry or context.timed_out():
         logger.warning(
             "POST 复核需重试但生成时限已到，降级交付（request_id=%s）",
@@ -1209,8 +1238,13 @@ def _post_review(
     context.record_server_timings(response.get("timings") or {})
     retried_content = _content_of(response)
 
-    second_post = context.evaluate(Stage.POST, context.state_json(retried_content))
-    second_verdict = context.engine.handle_post(retried_content, second_post, retried=True)
+    if _is_degenerate_repetition(retried_content):
+        second_verdict = PostVerdict.DOWNGRADE
+    else:
+        second_post = context.evaluate(Stage.POST, context.state_json(retried_content))
+        second_verdict = context.engine.handle_post(
+            retried_content, second_post, retried=True
+        )
     degraded = second_verdict is PostVerdict.DOWNGRADE
     if degraded:
         logger.warning(
@@ -1251,6 +1285,9 @@ def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
             headers["X-Jev-Risk"] = str(risk.get("decision", "allow"))
         if context.profile_name:
             headers["X-Jev-Plan"] = context.profile_name
+        decision = runtime.get("decision") or {}
+        if not decision.get("shadow", True) or not decision.get("post", True):
+            headers["X-Jev-Decision-Mode"] = "fast"
         prefill = runtime["prefill"]
         if prefill["skipped"]:
             headers["X-Jev-Prefill"] = f"skipped:{prefill['skipped']}"
@@ -1394,8 +1431,14 @@ def _stream_generate(
 
     content = "".join(collected)
     # 流式 POST 只记录不重试（重试需整流重发，M2 口径）；按已重试口径裁决
-    post = context.evaluate(Stage.POST, context.state_json(content))
-    verdict = context.engine.handle_post(content, post, retried=True)
+    if (
+        context.runtime_config is not None
+        and not context.runtime_config.decision_post
+    ):
+        verdict = PostVerdict.ACCEPT
+    else:
+        post = context.evaluate(Stage.POST, context.state_json(content))
+        verdict = context.engine.handle_post(content, post, retried=True)
     context.log_answer(content, verdict.value, 0)
     yield _sse_finish(context.chat_id, created)
     yield "data: [DONE]\n\n"

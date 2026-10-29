@@ -92,6 +92,8 @@ stable_compression_min_blocks = 4
 stable_compression_mmr_lambda = 0.75
 stable_compression_cache_entries = 64
 stable_compression_embed_batch = 16
+decision_shadow = true            # AR010：chat 路径评估 shadow 决策点（false=fast）
+decision_post = true              # AR010：chat 路径执行 POST 复核/重试（false=fast）
 
 [cache]
 enabled = false

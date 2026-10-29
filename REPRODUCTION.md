@@ -37,7 +37,14 @@ uv run jev matrix --config configs/experiments/spec-tuning-cpu.toml
 # AR009 CASC（CPU 解码 + GPU embedding；GPU 不可用时改 embedding_gpu_layers=0）
 uv run jev matrix --config configs/experiments/casc-final-gpu.toml
 uv run jev matrix --config configs/experiments/casc-needles6.toml
+
+# AR010 LADS（完整决策 / 快速决策 × 有无前缀缓存）
+uv run jev matrix --config configs/experiments/lads.toml
 ```
+
+> **POST 复核窗口**：2026-10-29 起 Laya 超长 state 保留**尾部**（原保头部）。
+> 旧版在 prompt >512 tokens 时会把 assistant 答案截掉，导致 POST 恒定 `needs_retry`、
+> 每次请求多跑一次生成。复现历史表时请以带「POST 修复后」标记的结果为准。
 
 ### 判定复现成功
 
@@ -161,8 +168,8 @@ uv run jev matrix --config configs/experiments/server-14b-casc.toml
 - 需真实 embedding 服务；CASC 只压缩文档、不压缩问题，保证同一文档多问前缀稳定；
 - 服务器建议：brain 与 embedding 可分别放置，embedding 适合放 GPU（prefill 密集），
   CASC 首次请求会调用 embedding，之后命中 `StableCompressionCache`；
-- 判定：quality 不降、tokens 明显下降、`X-Jev-Prefix-Cache` 命中；默认延迟场景仍用 CACHE，
-  λ_cost ≥0.5 的成本敏感场景用 CASC；
+- 判定：quality 不降、tokens 明显下降、`X-Jev-Prefix-Cache` 命中；POST 修复后
+  shared-prefix 上 CASC 同时赢 token 与延迟（38.1s vs CACHE 42.2s），默认与成本敏感场景均可用；
 - 7B/14B 未实际运行前不得宣称其 CASC 收益。
 
 ## 3. 实验口径

@@ -1,0 +1,18 @@
+# AR010：最低延迟组合（CACHE + fast decisions）。
+[portfolio]
+name = "latency-fast"
+
+[runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+allocator_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+
+[prefill]
+enabled = false
+evidence = false
+adaptive = false

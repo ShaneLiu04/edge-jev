@@ -176,7 +176,7 @@ def build_sequence(
     room = max(0, max_len - len(seq) - 1)
     if state_ids is None:
         state_ids = encode(scrub(state, ids.mask_token))
-    kept = state_ids[:room]  # string state 保前部
+    kept = state_ids[-room:] if room else []  # string state 保尾部（答案/最新问题在末尾）
     seq.extend(kept)
     seq.append(ids.sep)
 

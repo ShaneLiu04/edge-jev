@@ -94,6 +94,9 @@ uv run jev matrix --config configs/experiments/spec-confirm-cpu.toml
 
 # AR009 CASC：稳定压缩 + 前缀缓存（CPU 解码 + GPU embedding）
 uv run jev matrix --config configs/experiments/casc-final-gpu.toml
+
+# AR010 LADS：完整决策 / 快速决策 / 前缀缓存组合
+uv run jev matrix --config configs/experiments/lads.toml
 ```
 
 产物目录 `benchmarks/results/<run>/`：
@@ -189,7 +192,8 @@ specs/              SDD 需求/设计/任务与归档
 - **AR006** 证据驱动自适应上下文（AEB）+ 大脑/embedding 自愈 + 组合最优与回退
 - **AR007** 前缀 KV 复用 + 会话亲和稳定前缀 + AEB/缓存冲突分析与延迟感知选择
 - **AR008** 异构投机解码（0.5B draft）实验：真实测量后无稳定收益，默认关闭并回退 B1
-- **AR009** CASC：查询无关文档压缩 + 压缩 LRU + 前缀 KV + CPU/GPU 异构放置（token −29.6%~−58.7%，质量 1.0）
+- **AR009** CASC：查询无关文档压缩 + 压缩 LRU + 前缀 KV + CPU/GPU 异构放置（token −59.5%~−58.7%，质量 1.0）
+- **AR010** LADS：修复 Laya 长 state POST 盲区（保尾部）+ 可配跳过 shadow/POST（CACHE_FAST 端到端 −54.4%）
 
 ## 许可
 

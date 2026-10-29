@@ -411,6 +411,23 @@ class TestFullRoutePost:
         # PRE4 + POST3
         assert resp.headers["x-jev-decisions"] == "7"
 
+    def test_degenerate_repetition_triggers_one_retry(
+        self, cerebellum, brain, brain_server
+    ):
+        """退化重复输出（如 50745074...）即使 POST 判 no_retry 也重试一次。"""
+        registry = _full_registry(post_retry=False)
+        brain_server.canned = [
+            _completion("5074507450745074", completion_tokens=16),
+            _completion("正确回答", completion_tokens=64),
+        ]
+        client = TestClient(_app(cerebellum, brain, registry))
+        resp = client.post("/v1/chat/completions", json=_body(max_tokens=128))
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["choices"][0]["message"]["content"] == "正确回答"
+        assert body["usage"]["completion_tokens"] == 80
+        assert len(brain_server.requests) == 2
+
     def test_builtin_registry_full_route_accepts(self, cerebellum, brain, brain_server):
         """内置 18 点真实配置 + toy：intent=complex → full；POST needs_retry=no_retry
         → 首轮采纳（真实 builtin 决策链路，PRE5+POST4）。"""

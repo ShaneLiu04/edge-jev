@@ -107,9 +107,24 @@
 - 关键指标：`X-Jev-Stable-Compression`、`X-Jev-Stable-Cache`、`X-Jev-Stable-Ms`、
   `X-Jev-Prefix-Cache`、prompt tokens、prefill、端到端延迟；
 - 设备：`gpu_layers=0`（brain CPU）+ `embedding_gpu_layers=99`（embedding GPU）；
-- 判定：质量 ≥ baseline −2pt，tokens ≤0.75×CACHE，cache hit ≥11/12；默认延迟场景仍选 CACHE，
-  λ_cost ≥0.5 的成本敏感场景选 CASC；
+- 判定：质量 ≥ baseline −2pt，tokens ≤0.75×CACHE，cache hit ≥11/12；
+- POST 修复后真实结果：shared-prefix B1 52.9s / CACHE 42.2s / CASC **38.1s**，
+  tokens 2662→**1079（−59.5%）**，quality 1.0，输出一致；needles B1 47.6s / CASC 50.0s，
+  tokens 1847→762（−58.7%），quality 1.0；两场景均 `adopt CASC`；
 - 7B/14B：`server-7b-casc.toml` / `server-14b-casc.toml`（external，本机不运行）。
+
+## 5.5 AR010 LADS：决策调度 + POST 窗口修复
+
+- 缺陷：Laya 超长 state 原保留头部（`max_len=512`），assistant 答案被截掉，
+  POST 恒定 `needs_retry`，B1/CACHE 每次重试一次；历史长 prompt 表被放大。
+- 修复：`laya_sequence.build_sequence` 与 `laya_onnx.system_one` 均改为保尾部；
+  新增退化重复守卫（短周期全串重复 → 重试一次）。
+- 配置：`lads.toml`（B1 / FAST / CACHE / CACHE_FAST），`profiles/latency-fast.toml`；
+- 关键指标：`X-Jev-Decision-Mode`、`X-Jev-Decisions`、`X-Jev-Prefix-Cache`、端到端延迟、
+  `outputs_identical`；
+- 真实结果（shared-prefix 12 题）：B1 54.0s / FAST 34.2s（−36.7%）/ CACHE 42.0s /
+  **CACHE_FAST 24.6s（−54.4%）**；四臂 quality 1.0、输出完全一致；选择器 adopt CACHE_FAST；
+- 回归：`tests/integration/test_laya_post_window_real.py`（长 state 下 POST 可区分正确/空答）。
 
 ## 6. 选择与回退
 

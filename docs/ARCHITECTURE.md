@@ -155,9 +155,27 @@ bench/matrix.py                 per-arm 压缩 + embedding_gpu_layers
 
 - **查询无关**：压缩只用文档块向量与文档质心，不使用当前问题 → 同文档前缀逐字稳定。
 - **二次收益**：压缩结果按 `sha256(doc+config)` LRU；同文档第二问不再 embedding。
-- **与 AR007 叠加**：压缩前缀 + 问题尾部，`cache_prompt=true`，12/12 命中。
+- **与 AR007 叠加**：压缩前缀 + 问题尾部，`cache_prompt=true`，11/12 命中。
 - **异构放置**：`[embeddings] gpu_layers` 独立；本机 brain CPU 解码、embedding GPU（4.20→3.09s）。
-- **组合结论**：默认延迟场景 CACHE 最优；λ_cost ≥0.5 时 CASC 最优（tokens −29.6%，quality 1.0）。
+- **组合结论**（POST 修复后）：shared-prefix 上 CASC 38.1s < CACHE 42.2s < B1 52.9s，
+  tokens 2662→1079（−59.5%），quality 1.0；needles 上 token −58.7%、quality 1.0、延迟略差。
   禁止把 AEB 的查询相关选块与缓存直接叠加；CASC 是冲突的可执行解法。
+
+## 11. AR010 LADS + POST 窗口修复（增量）
+
+```text
+kernel/cerebellum/laya_sequence.py  超长 state 保留尾部（原保头部）
+kernel/cerebellum/laya_onnx.py      批处理预截断同样保尾部
+server/chat.py                      decision_shadow/decision_post；退化重复守卫
+bench/matrix.py                     per-arm 决策开关
+```
+
+- **根因**：旧窗口保头部，`max_len=512` 下 assistant 答案被截掉，POST 对任何答案恒定
+  `needs_retry`，B1/CACHE 每次白跑第二次生成；历史长 prompt 延迟/ token 被放大。
+- **修复**：批处理与序列构造均保尾部；尾部的“最新问题/答案”始终可见。
+- **退化守卫**：短周期全串重复（如 `50745074...`）触发一次重试，重试后仍退化则标记降级。
+- **LADS**：`decision_shadow=false` 跳过 Laya shadow，`decision_post=false` 跳过 POST 复核；
+  `/v1/systemone` 不受影响，chat 头 `X-Jev-Decision-Mode: fast`。
+- **结果**：12 题输出完全一致；CACHE_FAST 54.0s→24.6s（−54.4%），选择器 adopt。
 
 

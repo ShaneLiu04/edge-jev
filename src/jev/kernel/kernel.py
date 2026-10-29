@@ -543,6 +543,8 @@ def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
         prefix_cache=bool(runtime_cfg.get("prefix_cache", False)),
         session_affinity=bool(runtime_cfg.get("session_affinity", False)),
         stable=stable,
+        decision_shadow=bool(runtime_cfg.get("decision_shadow", True)),
+        decision_post=bool(runtime_cfg.get("decision_post", True)),
     )
     cache = SemanticCache(cache_config) if cache_config.enabled else None
     return runtime_config, cache

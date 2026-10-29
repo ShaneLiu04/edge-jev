@@ -191,10 +191,25 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 - **观测**：`X-Jev-Stable-Compression: <hit|miss|off>;r=<ratio>;t=<tokens>`、
   `X-Jev-Stable-Cache`、`X-Jev-Stable-Ms`；`last_runtime.stable_compression`。
 - **异构**：`[embeddings] gpu_layers` 独立于 `[cerebrum] gpu_layers`；矩阵 `embedding_gpu_layers`。
-- **结论**：shared-prefix 5354→3771 tok（−29.6%）、12/12 命中、quality 1.0；
-  needles 1847→762 tok（−58.7%）、quality 1.0。默认延迟选 CACHE，λ_cost ≥0.5 选 CASC。
+- **结论**（POST 修复后）：shared-prefix 2662→1079 tok（−59.5%）、11/12 命中、quality 1.0、
+  端到端 52.9s→38.1s；needles 1847→762 tok（−58.7%）、quality 1.0、延迟略高于 B1。
 - **数据/配置**：`casc-cpu.toml`、`casc-final-gpu.toml`、`casc-order.toml`、`casc-tune.toml`、
   `casc-needles6.toml`、`server-7b-casc.toml`、`server-14b-casc.toml`、`profiles/casc.toml`。
+
+## 15 AR010 LADS + Laya POST 窗口（增量契约）
+
+- **缺陷修复**：超长 state 预算（`max_len=512`）原保留头部，assistant 答案在尾部被截掉，
+  POST 恒定 `needs_retry`；`laya_sequence.build_sequence` 与 `laya_onnx.system_one`
+  统一改为**保留尾部**。
+- **退化守卫**：`server/chat.py::_is_degenerate_repetition` 检测短周期全串重复，
+  触发一次反馈重试；重试后仍退化则标记 `jev_degraded`。
+- **配置**：`[runtime] decision_shadow / decision_post`（默认 true）。
+  `false` 时 chat 跳过 Laya shadow 评估 / POST 复核；`/v1/systemone` 仍返回完整 active+shadow。
+- **观测**：`X-Jev-Decision-Mode: fast`、`X-Jev-Decisions`；`last_runtime.decision`。
+- **结论**：shared-prefix 12 题，B1 54.0s、FAST 34.2s、CACHE 42.0s、CACHE_FAST **24.6s**；
+  四臂 quality 1.0、`outputs_identical=1.0`；选择器 adopt CACHE_FAST（效用下界 +0.2539）。
+- **配置模板**：`configs/experiments/lads.toml`、`configs/profiles/latency-fast.toml`。
+- **回归**：`tests/integration/test_laya_post_window_real.py`（真实 Laya，长 state POST 可区分答案）。
 
 
 

@@ -143,18 +143,22 @@ def test_build_sequence_layout_and_marker_positions(encode):
     assert len(markers) == 2
     assert markers[1] - markers[0] > 1  # 两个选项各自有 mask
     # 状态（string）保前部：hello 在 world 前
+    assert seq[-3 : -1] == encode("hello world")
     assert IDS is not None and seq[-1] == IDS.sep
     # head 含类型前缀 "choice question: ..."
     assert seq[1] != IDS.mask
 
 
-def test_build_sequence_long_state_keeps_front_and_flags_truncation(encode):
-    long_state = "hello world hello world hello world hello world"
+def test_build_sequence_long_state_keeps_tail_and_flags_truncation(encode):
+    long_state = "hello world jev deep fast off low mid high"
     built = build_sequence(encode, IDS, long_state, _choice_q(), max_len=18, head_max_len=16)
 
     assert built.state_truncated is True
     assert len(built.ids) <= 18
     assert built.markers and all(m < 18 for m in built.markers)
+    # state 截断保尾部：末尾 state token 紧邻收尾 [SEP]
+    assert built.ids[-2] == encode("high")[0]
+    assert encode("hello")[0] not in built.ids[-6:-1]
 
 
 def test_build_sequence_options_over_budget_shrink_evenly(encode):

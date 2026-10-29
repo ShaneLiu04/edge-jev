@@ -133,7 +133,7 @@ class LayaOnnxBackend(CerebellumBackend):
                     f"state 超长（{len(state_ids)} > {self._max_state_tokens} tokens），"
                     "truncation=refuse 拒绝处理"
                 )
-            state_ids = state_ids[: self._max_state_tokens]
+            state_ids = state_ids[-self._max_state_tokens :]
             truncated = True
 
         built: dict[str, BuiltSequence] = {}
