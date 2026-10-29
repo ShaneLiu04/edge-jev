@@ -20,7 +20,7 @@
 | T007 | 真实路由矩阵 `adb-route.toml`（force_full=false） | T004 | passing | route parity |
 | T008 | 组合选择与回退（含 AR009/AR010） | T006 | passing | 质量/延迟门 |
 | T009 | 文档/复刻/大模型服务器配置完善 | T008 | passing | RESULTS/PORTFOLIO 等 |
-| T010 | 全量测试 + ruff + 提交推送 + 浅克隆复刻验证 | T009 | in_progress | Gitee master |
+| T010 | 全量测试 + ruff + 提交推送 + 浅克隆复刻验证 | T009 | passing | Gitee master |
 
 ## 状态说明
 
@@ -52,3 +52,11 @@
   - prompt 2662?1079?11/12 ???quality 1.0??????
   - ??? adopt ADB_CASC_FAST?+0.4054??token ????????
 - ????GPU Laya?CUDA 30.6s > CPU 25.7s?????????????? head+tail ??? 84%?
+
+### 2026-10-29 ????
+
+- T009?RESULTS/EXPERIMENTS/PORTFOLIO/ARCHITECTURE/README/REPRODUCTION/jev_spec ????
+  ?? `profiles/latency-best.toml` ? `server-{7b,14b}-adb-casc.toml`?
+- T010????? **693 passed**?ruff ?????? `546055c` ??? Gitee master?
+- ??????`git clone --depth 1` ? `uv sync` ? `test_probes` + `test_laya_sequence`
+  **26 passed**?AR011 ??? SDD ??????
