@@ -18,7 +18,7 @@
 | T005 | 真实 Laya 路由一致性测试（assets+slow） | T003 | passing | 100% |
 | T006 | 端到端 `cadp.toml` / `cadp-casc.toml` | T003 | passing | 4 arms |
 | T007 | 文档/复刻/服务器配置 | T006 | passing | Gitee |
-| T008 | 全量测试 + ruff + 推送 + 浅克隆验证 | T007 | in_progress | master |
+| T008 | 全量测试 + ruff + 推送 + 浅克隆验证 | T007 | passing | master |
 
 ## 状态说明
 
@@ -48,3 +48,9 @@
 - ???RESULTS/EXPERIMENTS/PORTFOLIO/ARCHITECTURE/README/REPRODUCTION/jev_spec?
   ?? `server-{7b,14b}-cadp-casc.toml`?
 - ??????????? arm ?? 300s ?????????????????????
+
+### 2026-10-29 ????
+
+- ???? **700 passed**?ruff ?????? `f481ea0` ??? Gitee master?
+- ??? `f481ea0` ? `uv sync` ? `test_route_short_circuit` + `test_probes` +
+  `test_laya_sequence` **32 passed**?AR012 ??/SDD/???????
