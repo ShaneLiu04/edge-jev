@@ -259,3 +259,61 @@ prefill **8.8×**，端到端 ↓16.3%；缓存收益在 GPU 上仍成立，但�
 - 约束：`/v1/systemone` 仍返回完整 active+shadow；fast 模式仅作用于 chat。
 - 诚实边界：POST 修复后 Laya 对“短答/空答”仍偏向 `off_topic`，因此 fast 模式以
   “输出一致性 + 外部质量金标”验证，而不是依赖 Laya 自评。
+
+## AR011 ADB：Laya 决策计算预算 + 联合最优
+
+### 1. 瓶颈与取舍
+
+- AR010 修复后，shared-prefix 12 题的 Laya PRE 仍约 **22s/请求**（10 个决策问题，
+  `intent` 占 8 个置换）。
+- 真实验证：置换 4→1 后，6 条 shared + 8 条多样题（中英/needles/生成）的
+  **applied 决策 100% 一致**，PRE 22.1s→11.3s（2.0×）。
+- 单探针：一致率 95%，有 2 处翻转 → 不采用。
+- 负结果：
+  - GPU Laya（ORT CUDA 1.19.2 + CUDA12/cuDNN9）：可运行，但限频 645 MHz +
+    部分节点回退 CPU，PRE **30.6s > CPU 25.7s**。
+  - 槽位绑定/`id_slot`：llama.cpp 已原生多前缀缓存，A/B/C 交替仍命中，无增益。
+  - 状态窗口 head+tail：一致率 84%，出现 safety 翻转，拒绝。
+
+### 2. 隔离实验（`ar011-adb-20261029-192424`，force_full，12 题）
+
+| arm | quality | mean latency | P50 | prefill | cache 命中 | utility |
+| --- | --- | --- | --- | --- | --- | --- |
+| B1 | 1.000 | 45.6s | 48.0s | 8997 ms | 0/12 | 0.350 |
+| ADB | 1.000 | 31.5s | 30.2s | 8527 ms | 0/12 | 0.505 |
+| ADB_CACHE | 1.000 | 29.9s | 29.6s | 1217 ms | 11/12 | 0.522 |
+| **ADB_CACHE_FAST** | **1.000** | **13.1s（−71.3%）** | 12.6s | 1259 ms | 11/12 | **0.707** |
+
+四臂 `outputs_identical=1.0`；选择器 adopt ADB_CACHE_FAST（效用下界 +0.3135）。
+
+### 3. 真实路由实验（`ar011-adb-route-20261029-194947`，force_full=false）
+
+| arm | quality | mean latency | routes | 路由差异 |
+| --- | --- | --- | --- | --- |
+| B1 | 1.000 | 51.1s | full 12 | — |
+| ADB | 1.000 | 38.0s | full 12 | 0 |
+| **ADB_CACHE_FAST** | **1.000** | **13.4s（−73.8%）** | full 12 | 0 |
+
+预算裁剪未改变任何路由与输出。
+
+### 4. 联合最优（`ar011-adb-casc-20261029-201140`，12 题）
+
+| arm | quality | mean latency | P50 | prompt tok | cache 命中 | utility |
+| --- | --- | --- | --- | --- | --- | --- |
+| B1 | 1.000 | 49.2s | 49.6s | 2662 | 0/12 | 0.350 |
+| ADB_CACHE | 1.000 | 29.9s | 29.4s | 2662 | 11/12 | 0.546 |
+| ADB_CASC | 1.000 | 30.3s | 29.0s | **1079** | 11/12 | 0.631 |
+| **ADB_CASC_FAST** | **1.000** | **14.1s（P50 12.1s）** | 12.1s | **1079** | 11/12 | **0.796** |
+
+选择器 adopt **ADB_CASC_FAST**（+0.4054）：token 与延迟综合最优；
+若只看均值延迟，ADB_CACHE_FAST（13.1s）略优，可作为纯延迟档。
+两档均保留于 `profiles/latency-best.toml` 与实验配置。
+
+### 5. 组合结论
+
+- **ADB 是独立增益**：在 AR007/AR009/AR010 之上再降 30%（仅决策）到 47%（联合）。
+- 推荐组合（端侧、本地 CPU，GPU 仅 embedding）：
+  `CASC + 前缀 KV + LADS fast + decision_permutations=1`。
+- 回退规则：若质量或路由不一致，选择器回退到 AR010 最优组合（CACHE_FAST）。
+- 大模型服务器（7B/14B）已提供 `server-{7b,14b}-adb-casc.toml`，
+  需在目标服务器实测后再宣称收益。

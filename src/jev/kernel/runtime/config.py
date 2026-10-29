@@ -34,6 +34,8 @@ class RuntimeConfig:
     stable: StableConfig = dataclasses.field(default_factory=StableConfig)
     decision_shadow: bool = True
     decision_post: bool = True
+    decision_permutations: int = 0
+    decision_escalate_margin: float = 0.0
 
     def __post_init__(self) -> None:
         if self.verifier_max_tokens < 1:
@@ -42,7 +44,17 @@ class RuntimeConfig:
             raise ValueError(f"risk_alpha 须在 (0,1): {self.risk_alpha}")
         if not 0.0 < self.allocator_budget_ratio <= 1.0:
             raise ValueError(
-                f"allocator_budget_ratio 须在 (0,1]: {self.allocator_budget_ratio}"
+                f"allocator_budget_ratio 必须在 (0,1]: {self.allocator_budget_ratio}"
+            )
+        if not 0 <= self.decision_permutations <= 8:
+            raise ValueError(
+                "decision_permutations 必须在 [0,8]（0=不限制）: "
+                f"{self.decision_permutations}"
+            )
+        if not 0.0 <= self.decision_escalate_margin <= 1.0:
+            raise ValueError(
+                "decision_escalate_margin 必须在 [0,1]: "
+                f"{self.decision_escalate_margin}"
             )
 
 

@@ -214,3 +214,19 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 
 
 
+
+## 16 AR011 ADB 决策计算预算（增量契约）
+
+- **配置**：`[runtime] decision_permutations`（0=不限制，1=每点最多 1 次置换）、
+  `decision_escalate_margin`（>0 时对低 margin 点升级）；默认 0/0。
+- **实现**：`kernel/decisions/probes.py::apply_permutation_budget`；
+  chat `_evaluate_points` 对 active+shadow 统一裁剪；可选升级仅重算被裁剪的低 margin active 点。
+- **观测**：`X-Jev-Decision-Permutations`、`X-Jev-Decision-Escalated`；
+  `last_runtime.decision.permutations/escalate_margin`。
+- **真实一致性**：预算 1 与完整预算在 14 条多样 prompt 上 applied 决策 100% 一致；
+  PRE 22.1s→11.3s。
+- **联合结论**：shared-prefix 12 题：B1 49.2s → ADB_CACHE_FAST 13.1s（−71.3%）→
+  ADB_CASC_FAST 14.1s（P50 12.1s，tokens 2662→1079）；quality 1.0、输出一致。
+- **默认策略**：ADB 关闭；`profiles/latency-fast.toml` 与 `profiles/latency-best.toml`
+  显式启用；服务器配置 `server-{7b,14b}-adb-casc.toml`。
+- **负结果**：GPU Laya、槽位绑定、head+tail 状态窗口均不采用。

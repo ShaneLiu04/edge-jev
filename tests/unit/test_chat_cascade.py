@@ -7,6 +7,7 @@ test_chat_endpoint.py 的 _RecordingServer 模式）；级联引擎/注册表/�
 regime 下语义一致）。
 """
 
+import dataclasses
 import json
 import threading
 import time
@@ -25,6 +26,7 @@ from jev.kernel.decisions.calibration import Calibration
 from jev.kernel.decisions.framework import DecisionPoint, DecisionRegistry, Stage
 from jev.kernel.ledger.query import LedgerQuery
 from jev.kernel.ledger.writer import LedgerWriter
+from jev.kernel.runtime.config import RuntimeConfig
 from jev.server.chat import (
     LIGHT_MID_CHUNKS,
     RETRY_FEEDBACK,
@@ -427,6 +429,28 @@ class TestFullRoutePost:
         assert body["choices"][0]["message"]["content"] == "正确回答"
         assert body["usage"]["completion_tokens"] == 80
         assert len(brain_server.requests) == 2
+
+    def test_decision_permutation_budget_header(self, cerebellum, brain, brain_server):
+        """decision_permutations>0 ?????????? margin ???????"""
+        base = _full_registry(post_retry=False)
+        registry = DecisionRegistry()
+        for point in base.by_stage(Stage.PRE) + base.by_stage(Stage.POST):
+            if point.id == "intent":
+                point = dataclasses.replace(point, permutations=4)
+            registry.register(point)
+        brain_server.canned = [_completion("??", completion_tokens=16)]
+        runtime = RuntimeConfig(
+            enabled=True,
+            decision_permutations=1,
+            decision_escalate_margin=1.0,
+        )
+        client = TestClient(
+            _app(cerebellum, brain, registry, runtime_config=runtime)
+        )
+        resp = client.post("/v1/chat/completions", json=_body(max_tokens=64))
+        assert resp.status_code == 200
+        assert resp.headers["x-jev-decision-permutations"] == "1"
+        assert int(resp.headers["x-jev-decision-escalated"]) >= 1
 
     def test_builtin_registry_full_route_accepts(self, cerebellum, brain, brain_server):
         """内置 18 点真实配置 + toy：intent=complex → full；POST needs_retry=no_retry

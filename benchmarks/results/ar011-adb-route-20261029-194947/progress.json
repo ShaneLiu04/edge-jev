@@ -1,0 +1,68 @@
+{
+  "schema": "jev.matrix.progress/1",
+  "completed_arms": [
+    "ADB",
+    "ADB_CACHE_FAST",
+    "B1"
+  ],
+  "remaining": [],
+  "metrics": {
+    "B1": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 51144.264,
+      "p50_latency_ms": 53280.363,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 13280.917,
+      "mean_decode_tps": 10.058,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "ADB": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 37992.621,
+      "p50_latency_ms": 38103.642,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 9043.417,
+      "mean_decode_tps": 7.292,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "ADB_CACHE_FAST": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 13439.134,
+      "p50_latency_ms": 12829.138,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 2425.417,
+      "mean_prefill_ms": 1293.417,
+      "mean_decode_tps": 6.842,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    }
+  }
+}

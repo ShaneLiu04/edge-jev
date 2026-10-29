@@ -157,6 +157,23 @@ def _build_question(spec: ProbeSpec, order: tuple[str, ...]) -> Question:
     return NoulQuestion(instructions=spec.question)
 
 
+def apply_permutation_budget(points: Sequence, budget: int) -> list:
+    """按预算裁剪每个决策点的置换数；0=不限制（返回原对象，零开销）。"""
+    if not isinstance(budget, int) or isinstance(budget, bool):
+        raise ValueError(f"permutation budget 须为整数: {budget!r}")
+    if budget < 0:
+        raise ValueError(f"permutation budget 不能为负: {budget}")
+    if budget == 0:
+        return list(points)
+    result = []
+    for point in points:
+        current = getattr(point, "permutations", 1)
+        if current > budget:
+            point = dataclasses.replace(point, permutations=budget)
+        result.append(point)
+    return result
+
+
 def plan_questions(
     points: Sequence, *, seed: int = 0
 ) -> tuple[dict[str, Question], list[ProbePlan]]:
@@ -335,6 +352,7 @@ __all__ = [
     "PointCalibration",
     "ProbePlan",
     "ProbeSpec",
+    "apply_permutation_budget",
     "fuse_point",
     "plan_questions",
 ]

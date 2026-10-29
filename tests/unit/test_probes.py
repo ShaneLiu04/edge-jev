@@ -13,6 +13,7 @@ from jev.kernel.decisions.probes import (
     MAX_PERMUTATIONS,
     PointCalibration,
     ProbeSpec,
+    apply_permutation_budget,
     fuse_point,
     plan_questions,
 )
@@ -171,3 +172,28 @@ class TestFuse:
         _, plans = plan_questions([point])
         specs = (ProbeSpec("default", "choice", "q", ("decision", "simple", "complex")),)
         assert fuse_point(plans[0], {}, specs) is None
+
+class TestPermutationBudget:
+    def test_zero_budget_is_unbounded(self):
+        point = _point(permutations=4)
+        result = apply_permutation_budget([point], 0)
+        assert result[0] is point
+        assert result[0].permutations == 4
+
+    def test_budget_clips_only_above_budget(self):
+        high = _point(id="intent", permutations=4)
+        low = _point(id="safety", permutations=1)
+        result = apply_permutation_budget([high, low], 2)
+        assert result[0].permutations == 2
+        assert result[1] is low
+
+    def test_budget_keeps_probes(self):
+        spec = ProbeSpec("steps", "choice", "q", ("a", "b"))
+        point = _point(permutations=4, probes=(spec,))
+        result = apply_permutation_budget([point], 1)
+        assert result[0].probes == (spec,)
+        assert result[0].permutations == 1
+
+    def test_negative_budget_rejected(self):
+        with pytest.raises(ValueError):
+            apply_permutation_budget([_point()], -1)

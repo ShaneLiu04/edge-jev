@@ -156,3 +156,23 @@ benchmarks/results/<run>/
 - CPU 模式可跑通但长生成慢；本机历史结果实为 CPU-only，GPU 复测被限频（645 MHz）。
   正常 GPU 主机需先补齐 CUDA 运行库并核对 `llama-server --list-devices`。
 - 负例/复述集为人工构造，覆盖真实语义边界但不穷尽领域。
+
+## 5.6 AR011 ADB：决策计算预算与联合最优
+
+- 缺陷/瓶颈：Laya PRE 约 22s/请求；`intent` 的 2 探针 ×4 置换占 8/10 个 qid。
+- 修复：`apply_permutation_budget` + `RuntimeConfig.decision_permutations`
+  （0=不限制，1=每点 1 置换）+ 可选 `decision_escalate_margin` 升级。
+- 真实一致性：8 条多样题 + 6 条 shared，applied 决策 100% 一致；PRE 22.1s→11.3s。
+- 配置：
+  - `adb.toml`（隔离，force_full=true，4 arms）；
+  - `adb-route.toml`（真实路由，force_full=false，3 arms）；
+  - `adb-casc.toml`（+AR009，4 arms）；
+  - `server-7b-adb-casc.toml` / `server-14b-adb-casc.toml`（external，30 题，服务器复刻）。
+- 真实结果：
+  - 隔离：B1 45.6s → ADB 31.5s → ADB_CACHE 29.9s → **ADB_CACHE_FAST 13.1s**；
+  - 真实路由：B1 51.1s → **13.4s**，12/12 路由一致；
+  - 联合：B1 49.2s → **ADB_CASC_FAST 14.1s（P50 12.1s）**，tokens 2662→1079；
+  - 全部 quality 1.0、输出一致；选择器 adopt ADB_CASC_FAST（+0.4054）。
+- 负结果：GPU Laya 30.6s > CPU 25.7s；槽位绑定无增益；head+tail 状态窗口一致率 84%。
+- 复刻：`uv run jev matrix --config configs/experiments/adb.toml`，
+  或使用 `configs/profiles/latency-best.toml`。

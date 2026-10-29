@@ -545,6 +545,10 @@ def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
         stable=stable,
         decision_shadow=bool(runtime_cfg.get("decision_shadow", True)),
         decision_post=bool(runtime_cfg.get("decision_post", True)),
+        decision_permutations=int(runtime_cfg.get("decision_permutations", 0)),
+        decision_escalate_margin=float(
+            runtime_cfg.get("decision_escalate_margin", 0.0)
+        ),
     )
     cache = SemanticCache(cache_config) if cache_config.enabled else None
     return runtime_config, cache

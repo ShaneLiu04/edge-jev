@@ -179,3 +179,20 @@ bench/matrix.py                     per-arm 决策开关
 - **结果**：12 题输出完全一致；CACHE_FAST 54.0s→24.6s（−54.4%），选择器 adopt。
 
 
+
+## 12. AR011 ADB 决策计算预算（增量）
+
+```text
+kernel/decisions/probes.py       apply_permutation_budget(points, budget)
+kernel/runtime/config.py         decision_permutations / decision_escalate_margin
+server/chat.py                   预算裁剪 + 低 margin 升级 + X-Jev-Decision-*
+configs/profiles/latency-best    联合最优档
+```
+
+- **问题**：Laya PRE 10 个 qid 中 `intent` 占 8 个置换，长 state 下约 22s/请求。
+- **预算**：`decision_permutations=1` 把每点置换裁剪为 1；真实 14 题 applied 决策 100% 一致。
+- **升级**：`decision_escalate_margin>0` 时，对低 margin 且被裁剪的 active 点用完整预算重算。
+- **默认**：0（不限制），不改变现有部署；`latency-fast` / `latency-best` 显式启用 1。
+- **联合**：CASC + 前缀 KV + LADS fast + ADB，shared-prefix 49.2s→14.1s（P50 12.1s），
+  quality 1.0、输出一致、tokens 2662→1079。
+- **负结果**：GPU Laya 更慢；槽位绑定无增益；head+tail 状态窗口一致率 84% 且有 safety 翻转。

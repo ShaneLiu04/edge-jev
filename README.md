@@ -97,6 +97,10 @@ uv run jev matrix --config configs/experiments/casc-final-gpu.toml
 
 # AR010 LADS：完整决策 / 快速决策 / 前缀缓存组合
 uv run jev matrix --config configs/experiments/lads.toml
+
+# AR011 ADB：决策计算预算 + 联合最优（推荐先跑隔离实验）
+uv run jev matrix --config configs/experiments/adb.toml
+uv run jev matrix --config configs/experiments/adb-casc.toml
 ```
 
 产物目录 `benchmarks/results/<run>/`：
@@ -194,6 +198,8 @@ specs/              SDD 需求/设计/任务与归档
 - **AR008** 异构投机解码（0.5B draft）实验：真实测量后无稳定收益，默认关闭并回退 B1
 - **AR009** CASC：查询无关文档压缩 + 压缩 LRU + 前缀 KV + CPU/GPU 异构放置（token −59.5%~−58.7%，质量 1.0）
 - **AR010** LADS：修复 Laya 长 state POST 盲区（保尾部）+ 可配跳过 shadow/POST（CACHE_FAST 端到端 −54.4%）
+- **AR011** ADB：Laya 决策计算预算（置换 4→1，applied 100% 一致）+ 联合最优档
+  （shared-prefix 49.2s→14.1s，P50 12.1s，tokens 2662→1079，quality 1.0）
 
 ## 许可
 

@@ -40,6 +40,11 @@ uv run jev matrix --config configs/experiments/casc-needles6.toml
 
 # AR010 LADS（完整决策 / 快速决策 × 有无前缀缓存）
 uv run jev matrix --config configs/experiments/lads.toml
+
+# AR011 ADB（决策预算隔离 + 真实路由 + 联合最优）
+uv run jev matrix --config configs/experiments/adb.toml
+uv run jev matrix --config configs/experiments/adb-route.toml
+uv run jev matrix --config configs/experiments/adb-casc.toml
 ```
 
 > **POST 复核窗口**：2026-10-29 起 Laya 超长 state 保留**尾部**（原保头部）。
@@ -171,6 +176,27 @@ uv run jev matrix --config configs/experiments/server-14b-casc.toml
 - 判定：quality 不降、tokens 明显下降、`X-Jev-Prefix-Cache` 命中；POST 修复后
   shared-prefix 上 CASC 同时赢 token 与延迟（38.1s vs CACHE 42.2s），默认与成本敏感场景均可用；
 - 7B/14B 未实际运行前不得宣称其 CASC 收益。
+
+### 2.8 AR011 ADB 联合最优（端侧 / 7B / 14B）
+
+```bash
+# 本机端侧（CPU 解码 + GPU embedding）
+uv run jev matrix --config configs/experiments/adb-casc.toml
+
+# 服务器：先启动对应 brain/embedding，再执行
+uv run jev matrix --config configs/experiments/server-7b-adb-casc.toml
+uv run jev matrix --config configs/experiments/server-14b-adb-casc.toml
+```
+
+- 端侧本机实测（shared-prefix 12 题）：B1 49.2s → ADB_CASC_FAST 14.1s（P50 12.1s），
+  quality 1.0、`outputs_identical=1.0`、tokens 2662→1079；
+- 纯延迟档：`ADB_CACHE_FAST` 13.1s（不压缩上下文）；综合档：`ADB_CASC_FAST`；
+- 可直接使用运行时档位：
+  - `configs/profiles/latency-fast.toml`（前缀 KV + LADS fast + 决策预算 1）；
+  - `configs/profiles/latency-best.toml`（再叠加 CASC）；
+- 服务器实验统一 30 题、`max_tokens=128`、`timeout_s=600/900`；
+  7B/14B 必须在目标服务器真实运行后才能写入结果，禁止本机外推；
+- 判定：质量 ≥ baseline、路由/输出一致、配对 bootstrap CI 下界 > 0 才 adopt。
 
 ## 3. 实验口径
 

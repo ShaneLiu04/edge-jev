@@ -11,6 +11,7 @@ prefix_cache = true
 session_affinity = true
 decision_shadow = false
 decision_post = false
+decision_permutations = 1
 
 [prefill]
 enabled = false

@@ -1,0 +1,33 @@
+# AR011 ADB 真实路由实验：不固定路由，验证预算 1 的路由与质量。
+name = "ar011-adb-route"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 12
+dataset = "shared_prefix"
+brain = "spawn"
+embedding = "off"
+gpu_layers = 0
+ctx_size = 8192
+max_tokens = 32
+timeout_s = 300.0
+prompt_prefix = ""
+prompt_cache = true
+force_full = false
+arms = ["B1", "ADB", "ADB_CACHE_FAST"]
+
+[overlays.ADB.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+decision_permutations = 1
+
+[overlays.ADB_CACHE_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1

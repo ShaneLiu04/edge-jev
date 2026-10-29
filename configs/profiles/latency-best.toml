@@ -1,0 +1,26 @@
+# AR011 联合最优档：CASC + 前缀 KV + LADS fast + 决策预算 1。
+# 端侧 shared-prefix 12 题实测：49.2s(B1) -> 14.1s，quality 1.0，输出一致。
+[portfolio]
+name = "latency-best"
+
+[runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+allocator_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64
+stable_compression_embed_batch = 16
+
+[prefill]
+enabled = false
+evidence = false
+adaptive = false

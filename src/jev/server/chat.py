@@ -59,8 +59,10 @@ from jev.kernel.decisions.framework import (
     Decision,
     DecisionPoint,
     DecisionRegistry,
+    Mode,
     Stage,
 )
+from jev.kernel.decisions.probes import apply_permutation_budget
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
 from jev.kernel.prefill.evidence import EvidenceSelector
 from jev.kernel.prefill.stable import StableCompressor, StableResult
@@ -364,11 +366,18 @@ class _CascadeContext:
             "decision": {
                 "shadow": True if runtime_config is None else runtime_config.decision_shadow,
                 "post": True if runtime_config is None else runtime_config.decision_post,
+                "permutations": 0
+                if runtime_config is None
+                else runtime_config.decision_permutations,
+                "escalate_margin": 0.0
+                if runtime_config is None
+                else runtime_config.decision_escalate_margin,
             },
         }
         self.prompt_build = None
         self.budget_capped = False
         self.decision_count = 0
+        self.decision_escalated = 0
         # EX-04：路径②/③ 生成总时长上限（None 表示不限时）
         self.deadline = (
             time.monotonic() + float(generation_timeout_s)
@@ -390,6 +399,50 @@ class _CascadeContext:
     # 决策评估与台账
     # ------------------------------------------------------------------
 
+    def _evaluate_points(
+        self, state: str, points: list[DecisionPoint]
+    ) -> tuple[StageEvaluation, list[DecisionPoint]]:
+        """按运行时预算裁剪置换；可选对低 margin 点用完整预算升级。"""
+        runtime = self.runtime_config
+        budget = runtime.decision_permutations if runtime is not None else 0
+        budgeted = apply_permutation_budget(points, budget)
+        result = evaluate_stage(
+            self.cerebellum, budgeted, state, calibration=self.calibration
+        )
+        if runtime is None or budget <= 0 or runtime.decision_escalate_margin <= 0:
+            return result, budgeted
+
+        threshold = runtime.decision_escalate_margin
+        escalate = [
+            original
+            for original, decision in zip(points, result.decisions, strict=True)
+            if decision.mode is Mode.ACTIVE
+            and getattr(original, "permutations", 1) > budget
+            and decision.margin < threshold
+        ]
+        if not escalate:
+            return result, budgeted
+        try:
+            extra = evaluate_stage(
+                self.cerebellum, escalate, state, calibration=self.calibration
+            )
+            self.decision_escalated += len(escalate)
+        except Exception as exc:  # 升级失败保留预算结果，不阻断请求
+            logger.warning("决策预算升级失败，保留裁剪结果: %s", exc)
+            return result, budgeted
+        replaced = {decision.point_id: decision for decision in extra.decisions}
+        merged = [replaced.get(decision.point_id, decision) for decision in result.decisions]
+        fused = dict(result.fused)
+        fused.update(extra.fused)
+        answers = dict(result.answers)
+        answers.update(extra.answers)
+        return (
+            StageEvaluation(
+                merged, answers, result.latency_ms + extra.latency_ms, fused
+            ),
+            points,
+        )
+
     def evaluate(self, stage: Stage, state: str) -> list[Decision]:
         """该 stage active+shadow 点合并单次批量评估；shadow 只记台账不进控制流。
 
@@ -406,13 +459,13 @@ class _CascadeContext:
         points = active_points + shadow_points
         if not points:
             return []
-        decisions, answers, latency_ms = evaluate_decisions(
-            self.cerebellum, points, state, calibration=self.calibration
-        )
+        result, used = self._evaluate_points(state, points)
         self.decision_count += len(active_points)
-        for decision, point in zip(decisions, points, strict=True):
-            self._log_decision(decision, point, answers.get(decision.point_id), latency_ms)
-        return decisions
+        for decision, point in zip(result.decisions, used, strict=True):
+            self._log_decision(
+                decision, point, result.answers.get(decision.point_id), result.latency_ms
+            )
+        return result.decisions
 
     def state_json(self, assistant_text: str | None = None) -> str:
         """决策 state：messages JSON（可选追加 assistant 生成文本）。"""
@@ -500,13 +553,9 @@ class _CascadeContext:
         points = active_points + shadow_points
         if not points:
             return StageEvaluation([], {}, 0.0, {})
-        from jev.kernel.decisions.evaluate import evaluate_stage
-
-        result = evaluate_stage(
-            self.cerebellum, points, state, calibration=self.calibration
-        )
+        result, used = self._evaluate_points(state, points)
         self.decision_count += len(active_points)
-        for decision, point in zip(result.decisions, points, strict=True):
+        for decision, point in zip(result.decisions, used, strict=True):
             self._log_decision(
                 decision, point, result.answers.get(decision.point_id), result.latency_ms
             )
@@ -1288,6 +1337,11 @@ def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
         decision = runtime.get("decision") or {}
         if not decision.get("shadow", True) or not decision.get("post", True):
             headers["X-Jev-Decision-Mode"] = "fast"
+        permutations = int(decision.get("permutations", 0) or 0)
+        if permutations > 0:
+            headers["X-Jev-Decision-Permutations"] = str(permutations)
+            if context.decision_escalated:
+                headers["X-Jev-Decision-Escalated"] = str(context.decision_escalated)
         prefill = runtime["prefill"]
         if prefill["skipped"]:
             headers["X-Jev-Prefill"] = f"skipped:{prefill['skipped']}"
