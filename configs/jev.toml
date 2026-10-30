@@ -96,6 +96,8 @@ decision_shadow = true            # AR010：chat 路径评估 shadow 决策点�
 decision_post = true              # AR010：chat 路径执行 POST 复核/重试（false=fast）
 decision_permutations = 0         # AR011：每点置换预算（0=不限制；1=省一半 Laya 计算）
 decision_escalate_margin = 0.0    # AR011：margin 低于该值时对裁剪点用完整预算升级
+decision_staged = false           # AR012：仅无其他 PRE 消费者时分阶段评估
+decision_staged_minimal = false   # AR013：wave1 先用最小探针，非 FULL 时完整确认
 
 [cache]
 enabled = false

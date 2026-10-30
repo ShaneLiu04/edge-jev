@@ -37,6 +37,7 @@ class RuntimeConfig:
     decision_permutations: int = 0
     decision_escalate_margin: float = 0.0
     decision_staged: bool = False
+    decision_staged_minimal: bool = False
 
     def __post_init__(self) -> None:
         if self.verifier_max_tokens < 1:

@@ -52,6 +52,11 @@ class RouteDecision:
     skipped_reason: str | None = None
 
 
+def needs_minimal_confirmation(short: Route | None) -> bool:
+    """AR013：最小 wave1 非 FULL 时必须用完整 wave1 复算确认。"""
+    return short is not Route.FULL
+
+
 class MidAction(Enum):
     """MID 分段生成动作：早停/继续。"""
 

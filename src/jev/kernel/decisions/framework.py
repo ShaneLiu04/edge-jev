@@ -8,6 +8,7 @@ confidence >= tau 采信小脑答案，否则取 fallback_action（安全侧默�
 import dataclasses
 import logging
 import tomllib
+from collections.abc import Sequence
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -268,6 +269,14 @@ def _permutations_from_table(point_id: str, table: dict) -> int:
 # ----------------------------------------------------------------------
 # 评估与映射
 # ----------------------------------------------------------------------
+
+
+def minimize_points(points: Sequence[DecisionPoint]) -> list[DecisionPoint]:
+    """AR013：wave1 最小探针，每点 1 探针、1 置换。"""
+    return [
+        dataclasses.replace(point, permutations=1, probes=())
+        for point in points
+    ]
 
 
 def to_question(point: DecisionPoint) -> Question:

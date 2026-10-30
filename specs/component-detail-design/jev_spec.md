@@ -246,3 +246,19 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 - **???**??? Laya 6 ??? prompt ???/???? 100% ???
 - **????**?`cadp.toml`?`cadp-casc.toml`?`server-{7b,14b}-cadp-casc.toml`?
   `profiles/latency-fast.toml`?`profiles/latency-best.toml`?
+
+
+## 18 AR013 RDMP：最小路由探针 + 保守确认
+
+- **开关**：`[runtime] decision_staged_minimal`（默认 false，依赖 `decision_staged`）。
+- **实现**：`framework.minimize_points`（每点 1 探针、1 置换）；
+  `engine.needs_minimal_confirmation`（非 FULL 需确认）；
+  `chat.evaluate_pre`：最小 wave1 → 非 FULL 用完整 wave1 复算 → wave2。
+- **观测**：`X-Jev-Decision-Minimal: on|confirm`。
+- **安全**：16 条真实 prompt 仅 2 次保守翻转（LIGHT→FULL）；确认路径保证无激进翻转；
+  `tests/integration/test_rdmp_route_real.py` 真实 Laya 回归。
+- **结果**：隔离 B1 36.8s → CADP 21.2s → RDMP 19.7s（P50 19.5s）；
+  联合 CADP_CACHE_FAST 6.85s → RDMP_CACHE_FAST 5.05s（P50 4.33s，−26%）；
+  RDMP_CASC_FAST P50 4.33s、tokens 1079、quality 1.0。
+- **负结果**：wave1 状态窗口缩至 384/320/256 会改变 needle 路由，不采用。
+- **配置**：`rdmp.toml` / `rdmp-casc.toml`；`profiles/latency-{fast,best}.toml` 已启用。

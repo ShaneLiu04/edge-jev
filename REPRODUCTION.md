@@ -46,9 +46,13 @@ uv run jev matrix --config configs/experiments/adb.toml
 uv run jev matrix --config configs/experiments/adb-route.toml
 uv run jev matrix --config configs/experiments/adb-casc.toml
 
-# AR012 CADP（消费者感知 + 路由分阶段；当前最优）
+# AR012 CADP（消费者感知 + 路由分阶段）
 uv run jev matrix --config configs/experiments/cadp.toml
 uv run jev matrix --config configs/experiments/cadp-casc.toml
+
+# AR013 RDMP（最小 wave1 + 保守确认；当前最优）
+uv run jev matrix --config configs/experiments/rdmp.toml
+uv run jev matrix --config configs/experiments/rdmp-casc.toml
 ```
 
 > **POST 复核窗口**：2026-10-29 起 Laya 超长 state 保留**尾部**（原保头部）。
@@ -214,6 +218,20 @@ uv run jev matrix --config configs/experiments/server-14b-cadp-casc.toml
   CADP_CASC_FAST **10.6s（P50 8.8s）**；quality 1.0、输出一致；tokens 2662→1079（CASC 档）；
 - 服务器配置 30 题、external、超时 600/900s；未在目标机运行前不得宣称收益；
 - `configs/profiles/latency-best.toml` 已含 `decision_staged=true`，可直接作为部署档。
+
+### 2.10 AR013 RDMP（端侧）
+
+```bash
+uv run jev matrix --config configs/experiments/rdmp.toml
+uv run jev matrix --config configs/experiments/rdmp-casc.toml
+```
+
+- 真实回归：`uv run pytest tests/integration/test_rdmp_route_real.py -q`（8 条真实
+  Laya prompt，激进翻转 0、保守翻转 ≤2，约 160s）；
+- 隔离：B1 36.8s → CADP 21.2s → **RDMP 19.7s**（P50 19.5s），quality 1.0；
+- 联合：CADP_CACHE_FAST 6.85s → RDMP_CACHE_FAST **5.05s**（P50 4.33s）；
+  RDMP_CASC_FAST P50 **4.33s**、tokens **1079**、quality 1.0（选择器 adopt）；
+- `latency-fast` / `latency-best` 已启用 `decision_staged_minimal=true`。
 
 ## 3. 实验口径
 

@@ -18,6 +18,7 @@
 | AR010 | LADS 决策调度 + POST 窗口修复 | 端到端 ↓54.4%（CACHE_FAST） | fast 模式禁用 shadow/POST 复核 | 关 |
 | AR011 | ADB 决策计算预算 | 决策 ↓30%，联合端到端 ↓71.3% | 置换 1 的一致性需按负载验证 | 关 |
 | AR012 | CADP 消费者感知分阶段决策 | 再降 26%，联合端到端 ↓80.6% | 依赖路由短路规则一致性 | 关 |
+| AR013 | RDMP 最小 wave1 探针 + 保守确认 | 相对 CADP P50 −28%，联合 P50 4.3s | 保守翻转（LIGHT→FULL）允许 | 关 |
 
 ## 2. 负载 → 最优组合
 
@@ -29,8 +30,8 @@
 | 成本/上下文受限的共享文档 | **CASC**（AR009：文档级稳定压缩 + 压缩 LRU + KV） | shared-prefix：2662→1079 tok（−59.5%），11/12 命中，quality 1.0 |
 | 单文档长文、token 成本优先 | **CASC**（无跨问缓存也保留证据） | needles：1847→762 tok（−58.7%），quality 1.0 |
 | 极低延迟（可放弃 Laya 复核） | **CACHE_FAST / FAST**（AR010：跳过 shadow+POST，叠加前缀 KV） | shared-prefix：54.0s→24.6s（−54.4%），输出一致 |
-| 端侧综合最优（token+延迟） | **CADP_CASC_FAST**（AR012+AR011+AR010+AR009+AR007） | shared-prefix：51.6s→10.6s（P50 8.8s），tokens 2662→1079，quality 1.0 |
-| 纯延迟最优（不压缩上下文） | **CADP_CACHE_FAST**（AR012+AR011+AR010+AR007） | shared-prefix：51.6s→10.0s（−80.6%），输出一致 |
+| 端侧综合最优（token+延迟） | **RDMP_CASC_FAST**（AR013+AR012+AR011+AR010+AR009+AR007） | shared-prefix：37.0s→5.59s（P50 4.33s），tokens 2662→1079，quality 1.0 |
+| 纯延迟最优（不压缩上下文） | **RDMP_CACHE_FAST**（AR013+AR012+AR011+AR010+AR007） | shared-prefix：37.0s→5.05s（P50 4.33s），相比 CADP −26%，输出一致 |
 | 重复/近义请求 | **语义缓存**（AR003/AR005 准入） | repeat 10×2：completion token ↓36%，延迟 ↓25% |
 | 高风险降级 | **Conformal 风险门**（AR005） | 无可行阈值时自动 disabled，失败安全 |
 | 长输出解码 | **B1（不启用投机）** | 中文 B1 8.51 vs SPEC 9.07（接受率 0.187）；英文 B1 5.36 vs SPEC 4.78；选择器 rollback |
@@ -46,6 +47,7 @@
 | 决策计算过度 | PRE 10 个 qid 中 intent 占 8 个置换 | 预算 1：applied 100% 一致，PRE 22.1s→11.3s |
 | GPU Laya / 槽位绑定 / 状态压缩 | 分别负收益、无增益、safety 翻转 | 放弃；保留 CPU Laya + 全量 512 状态 |
 | 决策点全量计算 | 路由存在安全短路，无需每次算满 5 点 | CADP 分阶段：3 点可短路，联合再降 26% |
+| 最小 wave1 直接使用 | 16 题中 2 次 LIGHT→FULL，无法排除未知数据激进翻转 | RDMP 非 FULL 时完整确认；保守翻转保留 |
 | 长 prompt + verifier/memory（本环境） | 偶发 llama-server 假死 | 长上下文实验显式关闭；生产用 Supervisor 自愈 |
 | token-only 选择 | 误选省 token 但慢的 AEB_CACHE | 必须启用 `lambda_latency`（AR007） |
 | 投机解码 + 本机 CPU draft | S2 接受率 0.624 仍只有 5.83 tps（B1 8.10） | draft/验证开销 > 收益；默认关闭 |
@@ -56,6 +58,7 @@
 - `configs/profiles/aeb.toml`：一次性长文；
 - `configs/profiles/prefix-cache.toml`：会话/共享前缀（延迟优先）；
 - `configs/profiles/casc.toml`：共享文档的成本/上下文优先；
+- `configs/profiles/latency-fast.toml` / `latency-best.toml`：AR013 当前最优档；
 - `configs/profiles/short-qa.toml`：短问答基线。
 
 在 `configs/jev.toml`：
@@ -75,6 +78,7 @@ profile = "configs/profiles/aeb.toml"   # 或 prefix-cache / short-qa
 | 投机解码 | `spec-short.toml` / `spec-short-en.toml` / `spec-tuning-cpu.toml` |
 | 稳定压缩 + 缓存 | `casc-cpu.toml` / `casc-final-gpu.toml` / `casc-tune.toml` / `casc-needles6.toml` |
 | 服务器 7B/14B | `server-7b-combos.toml` / `server-7b-prefix.toml` / `server-7b-spec.toml` / `server-7b-casc.toml`（14B 同名） |
+| AR013 最小 wave1 | `rdmp.toml` / `rdmp-casc.toml` |
 
 ## 5. 选择规则
 

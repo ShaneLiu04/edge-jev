@@ -190,3 +190,14 @@ benchmarks/results/<run>/
   quality 1.0????????? adopt CADP_CASC_FAST?+0.444??
 - ??????6 ??? prompt ?????????? 100% ???
 - ???`uv run jev matrix --config configs/experiments/cadp-casc.toml`?
+
+## 5.8 AR013 RDMP：最小 wave1 + 保守确认
+
+- 动机：CADP 后 wave1 仍占 6 qid（intent 2 探针、safety/needs_reasoning 各 2 置换）。
+- 真实探测：最小 wave1（3 qid）在 16 条多样 prompt 上仅 2 次翻转，均为 LIGHT→FULL；
+  保守确认保证不出现激进翻转。
+- 实现：`decision_staged_minimal`（默认 false）；最小结果非 FULL 时用完整 wave1 复算。
+- 隔离矩阵：B1 36.8s → CADP 21.2s → **RDMP 19.7s**（P50 19.5s），quality 1.0。
+- 联合矩阵：CADP_CACHE_FAST 6.85s → RDMP_CACHE_FAST **5.05s**（P50 4.33s，−26%）；
+  RDMP_CASC_FAST P50 **4.33s**、tokens **1079**、quality 1.0，选择器 adopt。
+- 复刻：`uv run jev matrix --config configs/experiments/rdmp-casc.toml`。

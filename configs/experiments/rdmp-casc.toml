@@ -1,0 +1,59 @@
+# AR013 RDMP 联合：CASC + 前缀 KV + LADS fast + ADB + CADP + 最小 wave1。
+name = "ar013-rdmp-casc"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 12
+dataset = "shared_prefix"
+brain = "spawn"
+embedding = "auto"
+gpu_layers = 0
+embedding_gpu_layers = 99
+ctx_size = 8192
+max_tokens = 32
+timeout_s = 300.0
+prompt_prefix = ""
+prompt_cache = true
+force_full = false
+arms = ["B1", "CADP_CACHE_FAST", "RDMP_CACHE_FAST", "RDMP_CASC_FAST"]
+
+[overlays.CADP_CACHE_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+
+[overlays.RDMP_CACHE_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+
+[overlays.RDMP_CASC_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64
+stable_compression_embed_batch = 16

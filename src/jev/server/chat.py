@@ -42,6 +42,7 @@ from jev.kernel.cascade.engine import (
     PostVerdict,
     Route,
     RouteDecision,
+    needs_minimal_confirmation,
 )
 from jev.kernel.cascade.prefix import prefix_fingerprint
 from jev.kernel.cerebellum.base import (
@@ -61,6 +62,7 @@ from jev.kernel.decisions.framework import (
     DecisionRegistry,
     Mode,
     Stage,
+    minimize_points,
 )
 from jev.kernel.decisions.probes import apply_permutation_budget
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
@@ -373,6 +375,7 @@ class _CascadeContext:
                 if runtime_config is None
                 else runtime_config.decision_escalate_margin,
                 "staged": False,
+                "minimal": "off",
             },
         }
         self.prompt_build = None
@@ -609,21 +612,39 @@ class _CascadeContext:
             return self.evaluate_detailed(Stage.PRE, state).decisions
 
         wave1_points = [active[point_id] for point_id in wave1_ids]
-        first, used_first = self._evaluate_points(state, wave1_points)
-        self.decision_count += len(wave1_points)
+        budget = self.budget()
+        if runtime.decision_staged_minimal:
+            minimal = minimize_points(wave1_points)
+            first, used_first = self._evaluate_points(state, minimal)
+            short = self.engine.route_short_circuit(
+                first.decisions, budget=budget
+            )
+            if needs_minimal_confirmation(short):
+                first, used_first = self._evaluate_points(state, wave1_points)
+                short = self.engine.route_short_circuit(
+                    first.decisions, budget=budget
+                )
+                self.last_runtime["decision"]["minimal"] = "confirm"
+            else:
+                self.last_runtime["decision"]["minimal"] = "on"
+        else:
+            first, used_first = self._evaluate_points(state, wave1_points)
+            short = self.engine.route_short_circuit(
+                first.decisions, budget=budget
+            )
+
+        wave2_ids = ("needs_generation", "complexity")
+        if short is None and any(point_id not in active for point_id in wave2_ids):
+            return self.evaluate_detailed(Stage.PRE, state).decisions
+
+        self.decision_count += len(used_first)
         self._log_points(first, used_first)
         self.last_fused = dict(first.fused)
 
-        short = self.engine.route_short_circuit(
-            first.decisions, budget=self.budget()
-        )
         if short is None:
-            wave2_ids = ("needs_generation", "complexity")
-            if any(point_id not in active for point_id in wave2_ids):
-                return self.evaluate_detailed(Stage.PRE, state).decisions
             wave2_points = [active[point_id] for point_id in wave2_ids]
             second, used_second = self._evaluate_points(state, wave2_points)
-            self.decision_count += len(wave2_points)
+            self.decision_count += len(used_second)
             self._log_points(second, used_second)
             self.last_fused.update(second.fused)
             merged = {decision.point_id: decision for decision in first.decisions}
@@ -1418,6 +1439,9 @@ def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
         staged = decision.get("staged")
         if staged:
             headers["X-Jev-Decision-Staged"] = str(staged)
+        minimal = decision.get("minimal")
+        if minimal and minimal != "off":
+            headers["X-Jev-Decision-Minimal"] = str(minimal)
         prefill = runtime["prefill"]
         if prefill["skipped"]:
             headers["X-Jev-Prefill"] = f"skipped:{prefill['skipped']}"

@@ -1,4 +1,4 @@
-"""T013：级联引擎全链路 chat——三路径 + MID 早停 + POST 复核 + SSE 流式 + 台账。
+﻿"""T013：级联引擎全链路 chat——三路径 + MID 早停 + POST 复核 + SSE 流式 + 台账。
 
 约束 C1：禁 mock 后端。小脑为真实契约微型 bundle（conftest）；大脑为标准库
 http.server 实现的真实 OpenAI 协议对端（非流式 canned 响应 + SSE 流式 chunk，
@@ -476,6 +476,93 @@ class TestFullRoutePost:
         # ? POST 3 ? active ??PRE 4 ???????????? 7?
         assert resp.headers["x-jev-decisions"] == "3"
         assert resp.json()["choices"][0]["message"]["content"] == "??"
+
+    def test_staged_minimal_accepts_full_without_confirmation(
+        self, cerebellum, brain, brain_server
+    ):
+        """AR013??? wave1 ? FULL ? ???????????"""
+        registry = _full_registry(post_retry=False)
+        brain_server.canned = [_completion("full", completion_tokens=16)]
+        runtime = RuntimeConfig(
+            enabled=True,
+            decision_permutations=1,
+            decision_staged=True,
+            decision_staged_minimal=True,
+        )
+        client = TestClient(
+            _app(cerebellum, brain, registry, runtime_config=runtime)
+        )
+        resp = client.post("/v1/chat/completions", json=_body(max_tokens=64))
+        assert resp.status_code == 200
+        assert resp.headers["x-jev-route"] == "full"
+        assert resp.headers["x-jev-decision-minimal"] == "on"
+        assert resp.headers["x-jev-decision-staged"] == "on"
+
+    def test_staged_minimal_confirms_cheap_route(
+        self, cerebellum, brain, brain_server
+    ):
+        """AR013??? wave1 ? DIRECT ? ??? wave1 ?????"""
+        registry = _direct_registry()
+        brain_server.canned = [_completion("direct", completion_tokens=16)]
+        runtime = RuntimeConfig(
+            enabled=True,
+            decision_permutations=1,
+            decision_staged=True,
+            decision_staged_minimal=True,
+        )
+        client = TestClient(
+            _app(cerebellum, brain, registry, runtime_config=runtime)
+        )
+        resp = client.post("/v1/chat/completions", json=_body(max_tokens=64))
+        assert resp.status_code == 200
+        assert resp.headers["x-jev-route"] == "direct"
+        assert resp.headers["x-jev-decision-minimal"] == "confirm"
+        assert resp.headers["x-jev-decision-staged"] == "on"
+
+    def test_staged_minimal_confirms_then_wave2(
+        self, cerebellum, brain, brain_server
+    ):
+        """AR013????????? ? ?? wave2?????????"""
+        registry = _registry(
+            [
+                _point("safety", Stage.PRE, ("unsafe", "safe"), tau=0.8),
+                _point("intent", Stage.PRE, ("decision", "complex"), tau=0.7),
+                _point(
+                    "needs_reasoning",
+                    Stage.PRE,
+                    ("reasoning", "no_reasoning"),
+                    tau=0.6,
+                ),
+                _point(
+                    "needs_generation",
+                    Stage.PRE,
+                    ("generation", "no_generation"),
+                    tau=0.6,
+                ),
+                _point("complexity", Stage.PRE, ("high", "low"), tau=0.6),
+                _point("needs_retry", Stage.POST, ("retry", "no_retry"), tau=0.6),
+                _point(
+                    "answer_complete", Stage.POST, ("incomplete", "complete"), tau=0.7
+                ),
+                _point("matches_request", Stage.POST, ("off_topic", "matches"), tau=0.7),
+            ]
+        )
+        brain_server.canned = [_completion("wave2", completion_tokens=16)]
+        runtime = RuntimeConfig(
+            enabled=True,
+            decision_permutations=1,
+            decision_staged=True,
+            decision_staged_minimal=True,
+        )
+        client = TestClient(
+            _app(cerebellum, brain, registry, runtime_config=runtime)
+        )
+        resp = client.post("/v1/chat/completions", json=_body(max_tokens=64))
+        assert resp.status_code == 200
+        assert resp.headers["x-jev-route"] == "direct"
+        assert resp.headers["x-jev-decision-minimal"] == "confirm"
+        # direct 路径跳过 POST：wave1 3 + wave2 2
+        assert resp.headers["x-jev-decisions"] == "5"
 
     def test_builtin_registry_full_route_accepts(self, cerebellum, brain, brain_server):
         """内置 18 点真实配置 + toy：intent=complex → full；POST needs_retry=no_retry

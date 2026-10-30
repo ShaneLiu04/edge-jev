@@ -365,3 +365,49 @@ AR011 ? PRE ?? 11s?perm1???????????????safety=safe?intent?decision??
 `CASC + ?? KV + LADS fast + ???? 1 + ?????`?
 shared-prefix 12 ? **51.6s ? 10.0?10.6s?? 5??**?quality 1.0??????
 tokens 2662?1079?CASC ????????????????????? AR011 ???
+
+## AR013 RDMP：最小路由探针 + 保守确认
+
+### 1. 问题
+
+AR012 CADP 后 wave1 仍为 6 个 qid（safety 2 置换 + intent 2 探针 + needs_reasoning 2 置换），
+是 Laya 主要成本。
+
+### 2. 真实探测
+
+16 条多样 prompt（质量/needles/生成/shared）：wave1 用“1 探针 + 1 置换”（3 qid）：
+路由翻转 2/16，**全部为 LIGHT→FULL（保守，不降质）**；无激进翻转。
+
+### 3. 策略
+
+最小 wave1 判 FULL → 直接采用；否则用完整 wave1 复算确认，再走 wave2。
+`decision_staged_minimal` 默认关闭；确认路径消除激进翻转。
+
+### 4. 真实回归
+
+`tests/integration/test_rdmp_route_real.py`：8 条真实 Laya prompt，
+激进翻转 0、保守翻转 ≤2、确认路径至少 1 次（160.7s）。
+
+### 5. 隔离矩阵 `ar013-rdmp-20261030-100203`（12 题）
+
+| arm | quality | mean latency | P50 | 决策数 | utility |
+| --- | --- | --- | --- | --- | --- |
+| B1 | 1.000 | 36.8s | 36.7s | 9 | 0.350 |
+| CADP | 1.000 | 21.2s | 20.9s | 7 | 0.563 |
+| **RDMP** | **1.000** | **19.7s** | **19.5s** | 7 | **0.582（adopt）** |
+
+RDMP 相对 CADP 再降约 6.7%，质量/输出一致。
+
+### 6. 联合矩阵 `ar013-rdmp-casc-20261030-101917`（12 题）
+
+| arm | quality | mean latency | P50 | prompt tok | cache | utility |
+| --- | --- | --- | --- | --- | --- | --- |
+| B1 | 1.000 | 37.0s | 37.5s | 2662 | 0/12 | 0.350 |
+| CADP_CACHE_FAST | 1.000 | 6.85s | 6.02s | 2662 | 11/12 | 0.758 |
+| RDMP_CACHE_FAST | 1.000 | 5.05s | 4.33s | 2662 | 11/12 | 0.782 |
+| **RDMP_CASC_FAST** | **1.000** | 5.59s | **4.33s** | **1079** | 11/12 | **0.864（adopt）** |
+
+- 相对 CADP_CACHE_FAST：P50 6.02s→4.33s（**−28%**），mean 6.85s→5.05s（−26%）。
+- token+延迟综合最优仍为 CASC 版本：tokens 2662→1079（−59.5%），P50 4.33s。
+- `latency-fast` / `latency-best` 已启用 `decision_staged_minimal=true`。
+- 负结果：缩短 wave1 状态窗口（384/320/256）导致 needle 路由翻转，暂不采用。

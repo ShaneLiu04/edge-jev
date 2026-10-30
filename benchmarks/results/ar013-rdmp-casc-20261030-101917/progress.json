@@ -1,0 +1,88 @@
+{
+  "schema": "jev.matrix.progress/1",
+  "completed_arms": [
+    "B1",
+    "CADP_CACHE_FAST",
+    "RDMP_CACHE_FAST",
+    "RDMP_CASC_FAST"
+  ],
+  "remaining": [],
+  "metrics": {
+    "B1": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 37049.889,
+      "p50_latency_ms": 37530.65,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 8259.25,
+      "mean_decode_tps": 22.35,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "CADP_CACHE_FAST": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 6849.091,
+      "p50_latency_ms": 6016.216,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 2425.417,
+      "mean_prefill_ms": 996.833,
+      "mean_decode_tps": 21.358,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "RDMP_CACHE_FAST": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 5045.968,
+      "p50_latency_ms": 4334.527,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 2425.417,
+      "mean_prefill_ms": 938.25,
+      "mean_decode_tps": 24.208,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "RDMP_CASC_FAST": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 1079.0,
+      "mean_latency_ms": 5593.883,
+      "p50_latency_ms": 4328.891,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 974.333,
+      "mean_prefill_ms": 480.333,
+      "mean_decode_tps": 28.25,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    }
+  }
+}

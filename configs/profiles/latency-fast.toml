@@ -1,4 +1,4 @@
-# AR010：最低延迟组合（CACHE + fast decisions）。
+# AR013：最低延迟组合（CACHE + fast decisions + 最小 wave1）。
 [portfolio]
 name = "latency-fast"
 
@@ -13,6 +13,7 @@ decision_shadow = false
 decision_post = false
 decision_permutations = 1
 decision_staged = true
+decision_staged_minimal = true
 
 [prefill]
 enabled = false

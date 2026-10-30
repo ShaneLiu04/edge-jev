@@ -213,3 +213,20 @@ server/chat.py                 evaluate_pre?wave1/wave2 + ?????
 - **??**?B1 51.6s ? CADP_CACHE_FAST 10.0s ? CADP_CASC_FAST 10.6s?P50 8.8s??
   quality 1.0???????? 12/12 ????? AR011 ?? 26%?
 - **???**??? Laya ?? prompt ?????????? 100% ???
+
+## 14. AR013 RDMP：最小路由探针 + 保守确认
+
+```text
+kernel/decisions/framework.py  minimize_points：1 探针 + 1 置换
+kernel/cascade/engine.py       needs_minimal_confirmation
+kernel/runtime/config.py       decision_staged_minimal（默认 false）
+server/chat.py                 evaluate_pre：最小 wave1 → 非 FULL 完整确认
+```
+
+- **触发**：仅 `decision_staged=true` 且无其他 PRE 消费者。
+- **流程**：最小 wave1 判 FULL → 直接采用；DIRECT/LIGHT/None → 完整 wave1 复算。
+- **安全**：真实 16 题仅 2 次保守翻转（LIGHT→FULL），确认路径保证无激进翻转。
+- **观测**：`X-Jev-Decision-Minimal: on|confirm`。
+- **结果**：CADP_CACHE_FAST 6.85s → RDMP_CACHE_FAST 5.05s（P50 4.33s，−26%）；
+  RDMP_CASC_FAST P50 4.33s、tokens 1079、quality 1.0。
+- **负结果**：wave1 状态窗口缩到 384/320/256 会改变 needle 路由，不采用。
