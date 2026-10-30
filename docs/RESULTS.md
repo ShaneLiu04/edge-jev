@@ -593,3 +593,9 @@ mean 361ms、P50 200ms、平均 1.22 级；共享同一 int8 session。
 - 历史配置显式写入 `decision_long_context_gate_windows = []` 保持单窗口行为；
   当前 profile/服务器配置使用 `[128, 384]`；
 - 无 int8 资产或窗口配置为空时自动退化为 AR015/AR013 路径。
+
+### 7. 验证
+
+- 本机全量：`721 passed`，`ruff` 零告警；
+- Gitee 浅克隆：`718 passed`，另 3 个依赖 `models/` 真实资产的用例
+  （doctor/serve）在无资产环境按预期失败；AR017 相关 57 个纯逻辑用例全通过、lint 干净。
