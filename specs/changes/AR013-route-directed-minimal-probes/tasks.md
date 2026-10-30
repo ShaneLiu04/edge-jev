@@ -11,4 +11,4 @@
 | T1307 | 实验配置 rdmp / rdmp-casc | passing |
 | T1308 | 端到端矩阵（CADP / RDMP / RDMP_CASC） | passing |
 | T1309 | 文档更新（RESULTS/EXPERIMENTS/jev_spec）+ 全量测试 | passing |
-| T1310 | 提交并推送 Gitee master + 浅克隆验证 | pending |
+| T1310 | 提交并推送 Gitee master + 浅克隆验证 | passing |
