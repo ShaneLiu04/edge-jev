@@ -539,3 +539,57 @@ B1 也从 48.67s→45.44s（prefill 8.97s→5.75s）。GPU 放置 mean −11.8%�
 - **GPU 放置纳入当前综合最优**：AGW_CASC_FAST + gpu_layers=99；
 - 无 GPU/显存不足保持 `gpu_layers=0`，行为与 AR015 相同；
 - 本机 GPU 被限频，仍获得正收益；高速服务器应重新实测后更新结果。
+
+## AR017 CGW：级联门控窗口
+
+### 1. 背景
+
+AGW 单窗口 384 在 shared 12 题上命中 12/12，但每请求都要跑完整 384 token
+状态的 int8 前向。多数请求在更短前缀即可判定 FULL，级联“短窗优先、命中即停”
+可在不改变路由结论的前提下缩短门控。
+
+### 2. 实现
+
+- `LayaOnnxBackend.windowed(max_state_tokens)` 从共享 ONNX session 生成浅拷贝，
+  不重复加载 int8 模型；
+- `[runtime] decision_long_context_gate_windows`（默认 `(128, 384)`，空列表=单窗口）；
+- chat 门控按升序逐级判定，命中 FULL 即停，全部未中回退 fp32 RDMP；
+- `X-Jev-Decision-Long` 记录实际链，如 `int8-reason-full:w128` / `w128+w384`。
+
+### 3. 真实探测
+
+`tests/integration/test_lcpt_real.py` 的级联用例：128→384 链命中 18/18，
+mean 361ms、P50 200ms、平均 1.22 级；共享同一 int8 session。
+
+### 4. 隔离矩阵 `ar017-cgw-20261030-182328`（12 题，GPU offload）
+
+| arm | quality | mean | P50 | tokens | 实际门控链 |
+| --- | --- | --- | --- | --- | --- |
+| B1 | 1.000 | 36.587s | 38.285s | 2662 | — |
+| AGW | 1.000 | 16.540s | 16.538s | 2662 | w384 |
+| **CGW** | **1.000** | **16.338s** | **16.296s** | **2662** | **w128** |
+
+隔离场景 uncached prefill 占主导，CGW 仅小幅下降（P50 −1.5%），但门控链已按预期
+在首级 128 命中。
+
+### 5. 联合矩阵 `ar017-cgw-casc-20261030-222210`（12 题，GPU offload）
+
+| arm | quality | mean | P50 | tokens | 实际门控链 |
+| --- | --- | --- | --- | --- | --- |
+| B1 | 1.000 | 52.338s | 52.644s | 2662 | — |
+| AGW_CACHE_FAST | 1.000 | 2.286s | 1.849s | 2662 | w384 |
+| AGW_CASC_FAST | 1.000 | 2.970s | 1.658s | 1079 | w384 |
+| CGW_CACHE_FAST | 1.000 | 1.531s | 1.044s | 2662 | w128 |
+| **CGW_CASC_FAST** | **1.000** | **2.063s** | **1.001s** | **1079** | **w128** |
+
+- 相对 AGW_CASC_FAST：P50 1.658s→**1.001s（−39.6%）**，mean −30.5%，
+  tokens/quality/输出一致性均不变；选择器 adopt CGW_CASC_FAST；
+- CACHE 档同样从 1.849s→1.044s（−43.5%），说明收益来自门控窗口而非压缩路径；
+- 首次运行曾受外部 WSL/Hyper-V GPU 争用污染（decode 2.8 tps），清理后复现稳定。
+
+### 6. 结论
+
+- **级联门控纳入当前最优**：CGW_CASC_FAST + GPU offload，P50 **1.001s**；
+- 历史配置显式写入 `decision_long_context_gate_windows = []` 保持单窗口行为；
+  当前 profile/服务器配置使用 `[128, 384]`；
+- 无 int8 资产或窗口配置为空时自动退化为 AR015/AR013 路径。

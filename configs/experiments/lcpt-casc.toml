@@ -60,6 +60,7 @@ decision_staged = true
 decision_staged_minimal = true
 decision_long_context_tokens = 4000
 decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = []
 
 [overlays.LCPT_CASC_FAST.runtime]
 enabled = true
@@ -74,6 +75,7 @@ decision_staged = true
 decision_staged_minimal = true
 decision_long_context_tokens = 4000
 decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = []
 stable_compression = true
 stable_compression_ratio = 0.4
 stable_compression_block_tokens = 128

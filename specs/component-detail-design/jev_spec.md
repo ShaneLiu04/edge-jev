@@ -307,3 +307,15 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 - **回退**：无 GPU/显存不足用 `latency-best.toml`（gpu_layers=0）。
 - **配置**：`latency-best-gpu.toml`、`ar016-gpu-{cpu,offload}.toml`、
   `server-{7b,14b}-agw-casc.toml`。
+
+## 22 AR017 CGW：级联门控窗口
+
+- **开关**：`[runtime] decision_long_context_gate_windows`（默认 `[128, 384]`）；
+  空列表=单窗口，兼容历史配置。
+- **实现**：`windowed(max_state_tokens)` 共享 int8 ONNX session；chat 按升序逐级判定，
+  命中 FULL 即停，全部未中回退 fp32 RDMP。
+- **观测**：`X-Jev-Decision-Long` 记录实际链（如 `int8-reason-full:w128`）。
+- **实测**：联合矩阵 CGW_CASC_FAST P50 **1.001s** vs AGW_CASC_FAST 1.658s
+  （−39.6%），mean 2.063s vs 2.970s，tokens 1079、quality 1.0。
+- **回退**：窗口为空或无 int8 资产时退化为 AR015/AR013，不影响正确性。
+- **配置**：`cgw.toml` / `cgw-casc.toml`；当前 profile/服务器配置启用 `[128, 384]`。

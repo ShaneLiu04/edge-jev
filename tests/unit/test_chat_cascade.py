@@ -583,13 +583,13 @@ class TestFullRoutePost:
                 brain,
                 registry,
                 runtime_config=runtime,
-                decision_int8=cerebellum,
+                decision_int8_gates=[cerebellum.windowed(32)],
             )
         )
         resp = client.post("/v1/chat/completions", json=_body(max_tokens=64))
         assert resp.status_code == 200
         assert resp.headers["x-jev-route"] == "full"
-        assert resp.headers["x-jev-decision-long"] == "int8-reason-full:w384"
+        assert resp.headers["x-jev-decision-long"] == "int8-reason-full:w32"
         assert resp.headers["x-jev-decision-staged"] == "on"
         # reasoning 1 + POST 3
         assert resp.headers["x-jev-decisions"] == "4"

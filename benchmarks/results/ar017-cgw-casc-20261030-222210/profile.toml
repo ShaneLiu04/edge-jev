@@ -1,0 +1,69 @@
+# 由 jev matrix 生成；人工可编辑，未知节会被拒绝。
+
+[portfolio]
+name = "CGW_CASC_FAST"
+
+[runtime]
+enabled = true
+tau_low = 0.35
+tau_high = 0.65
+verifier_enabled = false
+self_verify_mode = "observe"
+gate_threshold = 0.6
+verifier_max_tokens = 16
+draft_injection = false
+memory_enabled = false
+keep_turns = 2
+risk_control = false
+risk_calibration = ""
+risk_alpha = 0.1
+allocator_enabled = false
+allocator_budget_ratio = 0.6
+allocator_min_prompt_tokens = 512
+prefix_cache = true
+session_affinity = true
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_min_blocks = 4
+stable_compression_mmr_lambda = 0.75
+stable_compression_cache_entries = 64
+stable_compression_embed_batch = 16
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_escalate_margin = 0.0
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = [128, 384]
+
+[cache]
+enabled = false
+similarity = 0.93
+margin = 0.02
+ttl_s = 1800.0
+capacity = 256
+conformal_admission = false
+admission_calibration = ""
+admission_alpha = 0.1
+admission_min_recall = 0.6
+
+[prefill]
+enabled = false
+budget_ratio = 0.6
+min_prompt_tokens = 512
+min_blocks = 4
+block_tokens = 256
+adaptive = false
+evidence = false
+anchor = true
+evidence_embed_weight = 0.55
+evidence_lexical_weight = 0.25
+evidence_position_weight = 0.1
+evidence_decision_weight = 0.1
+evidence_mmr_lambda = 0.25
+adaptive_min_ratio = 0.22
+adaptive_max_ratio = 0.6

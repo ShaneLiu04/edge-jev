@@ -79,7 +79,7 @@ def test_int8_reasoning_gate_matches_rdmp(real_kernel):
 
 
 def test_agw_384_gate_matches_rdmp(real_kernel):
-    """AR015?384 ????? shared ??????? RDMP ?????"""
+    """AR015：384 门控窗口在 shared 长文上的真实路由与 RDMP 对比。"""
     registry = load_builtin_registry()
     engine = CascadeEngine(registry)
     points = registry.active(Stage.PRE)
@@ -90,7 +90,7 @@ def test_agw_384_gate_matches_rdmp(real_kernel):
     reasoning = by_id["needs_reasoning"]
     gate_point = minimize_points([reasoning])
     if not INT8.is_file():
-        pytest.skip("int8 ????????? uv run jev prepare-laya-int8")
+        pytest.skip("int8 资产缺失，请先 uv run jev prepare-laya-int8")
     int8 = LayaOnnxBackend(
         model_path=INT8,
         tokenizer_path=REPO / "models" / "laya" / "tokenizer" / "tokenizer.json",
@@ -124,3 +124,53 @@ def test_agw_384_gate_matches_rdmp(real_kernel):
             hits += 1
             assert route_rdmp is Route.FULL
     assert hits >= 4
+
+
+def test_cgw_cascade_matches_rdmp(real_kernel):
+    """AR017：128→384 级联门控在 shared 长文上的真实命中与门控耗时。"""
+    registry = load_builtin_registry()
+    engine = CascadeEngine(registry)
+    points = registry.active(Stage.PRE)
+    by_id = {point.id: point for point in points}
+    wave1 = [by_id[name] for name in ("safety", "intent", "needs_reasoning")]
+    minimal = minimize_points(wave1)
+    wave2 = [by_id[name] for name in ("needs_generation", "complexity")]
+    reasoning = by_id["needs_reasoning"]
+    gate_point = minimize_points([reasoning])
+    if not INT8.is_file():
+        pytest.skip("int8 资产缺失，请先 uv run jev prepare-laya-int8")
+    base = LayaOnnxBackend(
+        model_path=INT8,
+        tokenizer_path=REPO / "models" / "laya" / "tokenizer" / "tokenizer.json",
+        config_path=REPO / "models" / "laya" / "laya_config.json",
+        providers=["CPUExecutionProvider"],
+    )
+    gates = [base.windowed(128), base.windowed(384)]
+    fp32 = real_kernel.cerebellum
+    for question in build_shared_prefix(6):
+        state = json.dumps(
+            [{"role": "user", "content": question.prompt}],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        first = evaluate_stage(fp32, minimal, state)
+        short = engine.route_short_circuit(first.decisions)
+        if needs_minimal_confirmation(short):
+            first = evaluate_stage(fp32, wave1, state)
+            short = engine.route_short_circuit(first.decisions)
+        if short is None:
+            second = evaluate_stage(fp32, wave2, state)
+            merged = {d.point_id: d for d in first.decisions}
+            merged.update({d.point_id: d for d in second.decisions})
+            partial = [merged[p.id] for p in points if p.id in merged]
+        else:
+            partial = first.decisions
+        route_rdmp = engine.route_chat(partial)
+        hit = False
+        for backend in gates:
+            gate = evaluate_stage(backend, gate_point, state).decisions[0]
+            if gate.applied_value(reasoning) != "no_reasoning":
+                hit = True
+                break
+        assert hit
+        assert route_rdmp is Route.FULL

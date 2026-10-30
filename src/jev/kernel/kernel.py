@@ -88,6 +88,7 @@ class Kernel(CerebellumBackend):
         supervisor: BrainSupervisor | None = None,
         stable_compressor: StableCompressor | None = None,
         decision_int8: CerebellumBackend | None = None,
+        decision_int8_gates: list[CerebellumBackend] | None = None,
     ) -> None:
         self._cerebellum = cerebellum
         self._registry = registry
@@ -113,6 +114,9 @@ class Kernel(CerebellumBackend):
         self._supervisor = supervisor
         self._stable_compressor = stable_compressor
         self._decision_int8 = decision_int8
+        self._decision_int8_gates = list(decision_int8_gates or (
+            [decision_int8] if decision_int8 is not None else []
+        ))
 
     # ------------------------------------------------------------------
     # 组合根：configs/jev.toml 单源装配
@@ -212,7 +216,17 @@ class Kernel(CerebellumBackend):
         )
         supervisor = _build_supervisor(config, brain)
         gate_tokens = runtime_config.decision_long_context_gate_tokens or None
-        decision_int8 = create_laya_int8(config_file, max_state_tokens=gate_tokens)
+        windows = runtime_config.decision_long_context_gate_windows
+        base_int8 = create_laya_int8(config_file)
+        decision_int8_gates: list[CerebellumBackend] = []
+        if base_int8 is not None:
+            if windows:
+                decision_int8_gates = [base_int8.windowed(window) for window in windows]
+            else:
+                decision_int8_gates = [
+                    base_int8.windowed(gate_tokens) if gate_tokens else base_int8
+                ]
+        decision_int8 = decision_int8_gates[0] if decision_int8_gates else None
         return cls(
             cerebellum=backend,
             registry=registry,
@@ -240,6 +254,7 @@ class Kernel(CerebellumBackend):
             supervisor=supervisor,
             stable_compressor=stable_compressor,
             decision_int8=decision_int8,
+            decision_int8_gates=decision_int8_gates,
         )
 
     # ------------------------------------------------------------------
@@ -331,8 +346,13 @@ class Kernel(CerebellumBackend):
 
     @property
     def decision_int8(self) -> CerebellumBackend | None:
-        """AR014 ?? int8 Laya ????????? None??"""
+        """AR014 长上下文 int8 Laya 后端；未启用或资产缺失时为 None。"""
         return self._decision_int8
+
+    @property
+    def decision_int8_gates(self) -> list[CerebellumBackend]:
+        """AR017 级联门控使用的 int8 窗口视图列表。"""
+        return list(self._decision_int8_gates)
 
     @property
     def stable_compressor(self) -> StableCompressor | None:
@@ -577,6 +597,12 @@ def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
         ),
         decision_long_context_gate_tokens=int(
             runtime_cfg.get("decision_long_context_gate_tokens", 384)
+        ),
+        decision_long_context_gate_windows=tuple(
+            int(window)
+            for window in (
+                runtime_cfg.get("decision_long_context_gate_windows", (128, 384))
+            )
         ),
     )
     cache = SemanticCache(cache_config) if cache_config.enabled else None

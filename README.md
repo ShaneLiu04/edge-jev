@@ -110,20 +110,24 @@ uv run jev matrix --config configs/experiments/cadp-casc.toml
 uv run jev matrix --config configs/experiments/rdmp.toml
 uv run jev matrix --config configs/experiments/rdmp-casc.toml
 
-# AR014 LCPT-RFG：长上下文 int8 精度分层（当前最优）
+# AR014 LCPT-RFG：长上下文 int8 精度分层
 uv run jev prepare-laya-int8          # 生成 models/laya/laya_int8.onnx（~427MB，不入仓）
 uv run jev matrix --config configs/experiments/lcpt.toml
 uv run jev matrix --config configs/experiments/lcpt-casc.toml
 uv run jev matrix --config configs/experiments/lcpt-needles.toml
 
-# AR015 AGW??????????????
+# AR015 AGW：自适应门控窗口
 uv run jev matrix --config configs/experiments/agw.toml
 uv run jev matrix --config configs/experiments/agw-casc.toml
 
-# AR016 GPU ??????????GPU offload?
+# AR016 GPU 服务放置（GPU offload）
 uv run jev matrix --config configs/experiments/ar016-gpu-cpu.toml
 uv run jev matrix --config configs/experiments/ar016-gpu-offload.toml
-# ?? GPU ????configs/profiles/latency-best-gpu.toml
+# 有 GPU 部署档：configs/profiles/latency-best-gpu.toml
+
+# AR017 CGW：级联门控窗口（当前最优）
+uv run jev matrix --config configs/experiments/cgw.toml
+uv run jev matrix --config configs/experiments/cgw-casc.toml
 ```
 
 产物目录 `benchmarks/results/<run>/`：

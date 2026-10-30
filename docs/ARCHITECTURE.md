@@ -279,3 +279,19 @@ configs/experiments/ar016-gpu-{cpu,offload}.toml  真实对照
   prefill 726ms→357ms，quality 1.0、输出一致。
 - **回退**：`gpu_layers=0` 或使用 `latency-best.toml`。
 - **服务器**：7B/14B external brain 启动时显式 `--n-gpu-layers`，需在目标机重测。
+
+## 18. AR017 CGW：级联门控窗口
+
+```text
+kernel/cerebellum/laya_onnx.py   windowed(max_state_tokens) 共享 session
+kernel/runtime/config.py         decision_long_context_gate_windows（默认 128,384）
+kernel/kernel.py                 decision_int8_gates 窗口列表
+server/chat.py                   升序级联，命中 FULL 即停，header 记录实际链
+configs/experiments/cgw{,-casc}.toml  真实实验
+```
+
+- **作用**：仅缩短 int8 门控前缀；fp32 RDMP 兜底与路由短路规则不变。
+- **实测**：联合矩阵 CGW_CASC_FAST P50 1.001s vs AGW_CASC_FAST 1.658s（−39.6%），
+  mean 2.063s、tokens 1079、quality 1.0。
+- **观测**：`X-Jev-Decision-Long: int8-reason-full:w128`（首级命中）或 `w128+w384`。
+- **回退**：窗口配置为空即单窗口；无 int8 资产退化为 AR015/AR013。

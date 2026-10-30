@@ -102,6 +102,7 @@ decision_staged = false           # AR012：仅无其他 PRE 消费者时分阶�
 decision_staged_minimal = false   # AR013：wave1 先用最小探针，非 FULL 时完整确认
 decision_long_context_tokens = 0  # AR014：>0 且 int8 就位时启用长上下文门控
 decision_long_context_gate_tokens = 384  # AR015：int8 门控短窗口（0=完整窗口）
+decision_long_context_gate_windows = []
 
 [cache]
 enabled = false

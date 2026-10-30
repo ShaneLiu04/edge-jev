@@ -123,6 +123,23 @@ class LayaOnnxBackend(CerebellumBackend):
         """state 的 Laya token 数（AR014 长上下文精度分层使用）。"""
         return len(self._encode(text))
 
+    @property
+    def state_window(self) -> int:
+        """当前 state token 预算（AR017 级联门控可观测）。"""
+        return self._max_state_tokens
+
+    def windowed(self, max_state_tokens: int) -> "LayaOnnxBackend":
+        """共享 ONNX 会话/分词器的轻量视图，仅覆盖 state 预算。"""
+        limit = int(max_state_tokens)
+        if limit <= 0 or limit > self._max_len:
+            raise JevProtocolError(
+                f"state 窗口必须在 (0, {self._max_len}]: {limit}"
+            )
+        clone = object.__new__(type(self))
+        clone.__dict__ = self.__dict__.copy()
+        clone._max_state_tokens = limit
+        return clone
+
     def system_one(self, state: str, questions: dict[str, Question]) -> SystemOneResponse:
         if not questions:
             raise JevProtocolError("questions 至少包含 1 个问题")

@@ -7,6 +7,7 @@ import pytest
 from jev.errors import JevAssetError
 from jev.kernel.cerebellum.quantize import int8_sidecar, prepare_laya_int8
 from jev.kernel.runtime.config import RuntimeConfig
+from jev.kernel.runtime.portfolio import to_toml
 
 
 def test_count_tokens_matches_tokenizer(make_backend):
@@ -45,3 +46,29 @@ def test_prepare_laya_int8_requires_onnx_output(tmp_path):
 
 def test_int8_sidecar_name():
     assert int8_sidecar(Path("models/laya/laya_int8.onnx")).name == "laya_int8.onnx.data"
+
+
+def test_gate_windows_validation_and_default():
+    config = RuntimeConfig()
+    assert config.decision_long_context_gate_windows == (128, 384)
+    empty = RuntimeConfig(decision_long_context_gate_windows=())
+    assert empty.decision_long_context_gate_windows == ()
+    with pytest.raises(ValueError):
+        RuntimeConfig(decision_long_context_gate_windows=(384, 128))
+    with pytest.raises(ValueError):
+        RuntimeConfig(decision_long_context_gate_windows=(128, 128))
+    with pytest.raises(ValueError):
+        RuntimeConfig(decision_long_context_gate_windows=(0, 128))
+
+
+def test_windowed_backend_shares_session(make_backend):
+    backend = make_backend()
+    view = backend.windowed(32)
+    assert view.state_window == 32
+    assert view._session is backend._session
+    assert view._tokenizer is backend._tokenizer
+
+
+def test_profile_toml_serializes_gate_windows():
+    text = to_toml("CGW", {"runtime": {"decision_long_context_gate_windows": (128, 384)}})
+    assert "decision_long_context_gate_windows = [128, 384]" in text

@@ -75,6 +75,20 @@ def to_toml(name: str, overlay: dict) -> str:
                 rendered = str(value)
             elif isinstance(value, str):
                 rendered = f'"{value}"'
+            elif isinstance(value, (list, tuple)):
+                items = []
+                for item in value:
+                    if isinstance(item, bool):
+                        items.append("true" if item else "false")
+                    elif isinstance(item, (int, float)):
+                        items.append(str(item))
+                    elif isinstance(item, str):
+                        items.append(f'"{item}"')
+                    else:
+                        raise JevProtocolError(
+                            f"profile 值不可序列化: {section}.{key}"
+                        )
+                rendered = f"[{', '.join(items)}]"
             else:
                 raise JevProtocolError(f"profile 值不可序列化: {section}.{key}")
             lines.append(f"{key} = {rendered}")

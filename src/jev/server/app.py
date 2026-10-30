@@ -61,6 +61,7 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
             evidence=kernel.evidence_selector,
             stable_compressor=kernel.stable_compressor,
             decision_int8=kernel.decision_int8,
+            decision_int8_gates=kernel.decision_int8_gates,
         )
     )
 

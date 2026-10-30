@@ -40,6 +40,7 @@ class RuntimeConfig:
     decision_staged_minimal: bool = False
     decision_long_context_tokens: int = 0
     decision_long_context_gate_tokens: int = 384
+    decision_long_context_gate_windows: tuple[int, ...] = (128, 384)
 
     def __post_init__(self) -> None:
         if self.verifier_max_tokens < 1:
@@ -55,14 +56,22 @@ class RuntimeConfig:
                 "decision_permutations 必须在 [0,8]（0=不限制）: "
                 f"{self.decision_permutations}"
             )
+        windows = self.decision_long_context_gate_windows
+        if windows:
+            if any(window <= 0 or window > 512 for window in windows):
+                raise ValueError(
+                    f"gate_windows 必须在 [1,512]: {windows}"
+                )
+            if list(windows) != sorted(set(windows)):
+                raise ValueError(f"gate_windows 必须升序且不重复: {windows}")
         if self.decision_long_context_gate_tokens < 0:
             raise ValueError(
-                "decision_long_context_gate_tokens ?? >=0: "
+                "decision_long_context_gate_tokens 必须 >=0: "
                 f"{self.decision_long_context_gate_tokens}"
             )
         if self.decision_long_context_tokens < 0:
             raise ValueError(
-                "decision_long_context_tokens ?? >=0: "
+                "decision_long_context_tokens 必须 >=0: "
                 f"{self.decision_long_context_tokens}"
             )
         if not 0.0 <= self.decision_escalate_margin <= 1.0:

@@ -235,3 +235,15 @@ benchmarks/results/<run>/
 - 无 GPU 回退 `latency-best.toml`；
 - 复刻：`uv run jev matrix --config configs/experiments/ar016-gpu-offload.toml`
   （对照 `ar016-gpu-cpu.toml`）。
+
+## 5.12 AR017 CGW：级联门控窗口
+
+- `decision_long_context_gate_windows` 默认 `[128, 384]`，空列表保持单窗口；
+- `windowed()` 共享 int8 session，短窗命中即停；真实 128→384 链命中 18/18，
+  mean 361ms、P50 200ms；
+- 隔离矩阵：CGW mean 16.338s/P50 16.296s vs AGW 16.540s/16.538s（prefill 主导）；
+- 联合矩阵：**CGW_CASC_FAST P50 1.001s** vs AGW_CASC_FAST 1.658s（−39.6%），
+  mean 2.063s vs 2.970s，tokens 1079、quality 1.0；
+- 注意：GPU 争用会使末段 arm decode 掉到 ~2.8 tps，需清理环境后重跑；
+- 复刻：`uv run jev matrix --config configs/experiments/cgw.toml`，
+  联合用 `cgw-casc.toml`。

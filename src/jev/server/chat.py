@@ -316,6 +316,7 @@ class _CascadeContext:
         session_id: str = "",
         stable_compressor: StableCompressor | None = None,
         decision_int8: CerebellumBackend | None = None,
+        decision_int8_gates: list[CerebellumBackend] | None = None,
     ) -> None:
         self.cerebellum = cerebellum
         self.brain = brain
@@ -344,6 +345,10 @@ class _CascadeContext:
         self.session_id = session_id
         self.stable_compressor = stable_compressor
         self.decision_int8 = decision_int8
+        self.decision_int8_gates = list(
+            decision_int8_gates
+            or ([decision_int8] if decision_int8 is not None else [])
+        )
         self.stable_result: StableResult | None = None
         self.prefix_cache_active = False
         self.prefix_cache_hits = 0
@@ -595,9 +600,9 @@ class _CascadeContext:
     def _long_context_gate(
         self, state: str, active: dict[str, DecisionPoint]
     ) -> list[Decision] | None:
-        """AR014：超长 state 用 int8 先判 reasoning；命中 FULL 仅需 1 行。"""
+        """AR017：按窗口升序逐级门控；命中 FULL 即停，全部未中回退 RDMP。"""
         runtime = self.runtime_config
-        if runtime is None or self.decision_int8 is None:
+        if runtime is None or not self.decision_int8_gates:
             return None
         threshold = runtime.decision_long_context_tokens
         if threshold <= 0:
@@ -616,25 +621,29 @@ class _CascadeContext:
         if point is None:
             return None
         gate = minimize_points([point])
-        try:
-            result = evaluate_stage(
-                self.decision_int8, gate, state, calibration=self.calibration
+        used: list[int] = []
+        for backend in self.decision_int8_gates:
+            used.append(int(getattr(backend, "state_window", 0)))
+            try:
+                result = evaluate_stage(
+                    backend, gate, state, calibration=self.calibration
+                )
+            except Exception as exc:  # int8 推理失败回退 fp32 RDMP
+                logger.warning("int8 长上下文门控失败，回退完整决策: %s", exc)
+                return None
+            decision = result.decisions[0]
+            if decision.applied_value(point) == "no_reasoning":
+                continue
+            self.decision_count += len(gate)
+            self._log_points(result, gate)
+            self.last_fused = dict(result.fused)
+            self.last_runtime["decision"]["staged"] = "on"
+            chain = "+".join(f"w{window}" for window in used if window)
+            self.last_runtime["decision"]["long"] = (
+                f"int8-reason-full:{chain}" if chain else "int8-reason-full"
             )
-        except Exception as exc:  # int8 推理失败回退 fp32 RDMP
-            logger.warning("int8 长上下文门控失败，回退完整决策: %s", exc)
-            return None
-        decision = result.decisions[0]
-        if decision.applied_value(point) == "no_reasoning":
-            return None
-        self.decision_count += len(gate)
-        self._log_points(result, gate)
-        self.last_fused = dict(result.fused)
-        self.last_runtime["decision"]["staged"] = "on"
-        window = runtime.decision_long_context_gate_tokens
-        self.last_runtime["decision"]["long"] = (
-            f"int8-reason-full:w{window}" if window else "int8-reason-full"
-        )
-        return result.decisions
+            return result.decisions
+        return None
 
     def evaluate_pre(self) -> list[Decision]:
         """AR012：按消费者与路由短路分阶段评估 PRE。"""
@@ -1049,6 +1058,7 @@ def create_chat_router(
     evidence: EvidenceSelector | None = None,
     stable_compressor: StableCompressor | None = None,
     decision_int8: CerebellumBackend | None = None,
+    decision_int8_gates: list[CerebellumBackend] | None = None,
 ) -> APIRouter:
     """构建 /v1/chat/completions 路由。
 
@@ -1125,6 +1135,7 @@ def create_chat_router(
                 session_id=user,
                 stable_compressor=stable_compressor,
                 decision_int8=decision_int8,
+                decision_int8_gates=decision_int8_gates,
             )
             if stream:
                 return _stream_response(context)

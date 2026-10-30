@@ -293,6 +293,18 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
+def _arm_gate_backends(kernel: Kernel, runtime_config) -> list:
+    """按 arm runtime 配置生成 int8 门控窗口视图（共享 base session）。"""
+    base = kernel.decision_int8
+    if base is None:
+        return []
+    windows = getattr(runtime_config, "decision_long_context_gate_windows", ())
+    if windows:
+        return [base.windowed(window) for window in windows]
+    gate = getattr(runtime_config, "decision_long_context_gate_tokens", 0)
+    return [base.windowed(gate) if gate else base]
+
+
 def _build_client(
     kernel: Kernel,
     brain: LlamaServerClient,
@@ -327,6 +339,7 @@ def _build_client(
             evidence=evidence,
             stable_compressor=stable_compressor,
             decision_int8=kernel.decision_int8,
+            decision_int8_gates=_arm_gate_backends(kernel, runtime_config),
         )
     )
     return TestClient(app)
