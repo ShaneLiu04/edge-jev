@@ -63,6 +63,10 @@ uv run jev matrix --config configs/experiments/lcpt-needles.toml
 # AR015 AGW??????????????
 uv run jev matrix --config configs/experiments/agw.toml
 uv run jev matrix --config configs/experiments/agw-casc.toml
+
+# AR016 GPU ??????????gpu_layers=99?
+uv run jev matrix --config configs/experiments/ar016-gpu-cpu.toml
+uv run jev matrix --config configs/experiments/ar016-gpu-offload.toml
 ```
 
 > **int8 资产**：`jev prepare-laya-int8` 从已 fetch 的 fp32 模型确定性生成

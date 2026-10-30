@@ -295,3 +295,15 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
   tokens 1079、quality 1.0。
 - **取舍**：隔离矩阵无收益；联合矩阵小幅正收益，选择器 adopt；不宣称大幅提升。
 - **配置**：`agw.toml` / `agw-casc.toml`；`latency-{fast,best}.toml` 已启用。
+
+
+## 21 AR016 GSP：GPU 服务放置
+
+- **开关**：`[cerebrum] gpu_layers`（默认 0）→ llama-server `--n-gpu-layers`。
+- **实测**：AGW_CASC_FAST 同题集 CPU mean 3.462s/P50 2.032s →
+  GPU offload **mean 3.054s/P50 1.753s**（−11.8%/−13.7%），prefill 726ms→357ms，
+  quality 1.0、输出一致。
+- **结论**：短输出 + 长 prefill 场景 GPU 放置有效；纳入当前最优。
+- **回退**：无 GPU/显存不足用 `latency-best.toml`（gpu_layers=0）。
+- **配置**：`latency-best-gpu.toml`、`ar016-gpu-{cpu,offload}.toml`、
+  `server-{7b,14b}-agw-casc.toml`。

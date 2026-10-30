@@ -225,3 +225,13 @@ benchmarks/results/<run>/
 - 诚实结论：门控层收益较小，不宣称大幅提升；当前综合最优仍为
   `AGW_CASC_FAST`（P50 1.97s、tokens 1079、quality 1.0）；
 - 复刻：`uv run jev matrix --config configs/experiments/agw-casc.toml`。
+
+## 5.11 AR016 GSP：GPU 服务放置
+
+- `[cerebrum] gpu_layers` 接入生产 llama-server；默认 0，GPU profile 为 99；
+- 同配置真实对照：CPU mean 3.462s/P50 2.032s → GPU **3.054s/1.753s**，
+  prefill 726ms→357ms，decode 不降；
+- 当前综合最优更新为 **AGW_CASC_FAST + gpu_layers=99**；
+- 无 GPU 回退 `latency-best.toml`；
+- 复刻：`uv run jev matrix --config configs/experiments/ar016-gpu-offload.toml`
+  （对照 `ar016-gpu-cpu.toml`）。

@@ -24,6 +24,7 @@ ctx_size = 4096
 startup_probe = "/health"
 restart_max = 3
 parallel = 1                             # AR003 多槽：并行请求共享前缀（1=关闭）
+gpu_layers = 0                           # AR016 大脑 GPU 层数（0=CPU；99=全部 offload）
 supervisor_enabled = false               # AR006 大脑自愈监督（默认关闭）
 health_interval_s = 30.0                 # 健康探针最小间隔
 health_timeout_s = 3.0                   # 探针超时（秒）

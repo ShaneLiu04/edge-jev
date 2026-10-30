@@ -1,0 +1,34 @@
+# AR016 GPU 部署档：AGW + CASC + 前缀 KV + LADS fast + 长上下文 int8 + GPU offload。
+# shared-prefix 12 题：GPU offload P50 1.753s、mean 3.054s，quality 1.0。
+# 无 GPU / 显存不足请使用 latency-best.toml（CPU decode）。
+[portfolio]
+name = "latency-best-gpu"
+
+[runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+allocator_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64
+stable_compression_embed_batch = 16
+
+[prefill]
+enabled = false
+evidence = false
+adaptive = false
+
+[cerebrum]
+gpu_layers = 99

@@ -264,3 +264,18 @@ server/chat.py                 header 记录 w384
   AGW_CASC_FAST mean 3.765s / P50 1.969s（相对 LCPT_CASC mean −1.9%）。
 - **取舍**：隔离矩阵无收益；联合矩阵小幅正收益，选择器 adopt。
 - **配置**：`agw.toml` / `agw-casc.toml`；profile 已启用 384。
+
+## 17. AR016 GSP：GPU 服务放置
+
+```text
+kernel/kernel.py               [cerebrum] gpu_layers → --n-gpu-layers
+configs/jev.toml               gpu_layers = 0（默认）
+configs/profiles/latency-best-gpu.toml   GPU 部署档
+configs/experiments/ar016-gpu-{cpu,offload}.toml  真实对照
+```
+
+- **作用**：只改变大脑 llama-server 放置；小脑/决策不变。
+- **实测**：CPU mean 3.462s / P50 2.032s → GPU **3.054s / 1.753s**（−11.8% / −13.7%），
+  prefill 726ms→357ms，quality 1.0、输出一致。
+- **回退**：`gpu_layers=0` 或使用 `latency-best.toml`。
+- **服务器**：7B/14B external brain 启动时显式 `--n-gpu-layers`，需在目标机重测。

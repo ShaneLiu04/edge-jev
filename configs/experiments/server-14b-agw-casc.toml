@@ -1,0 +1,84 @@
+# AR014 服务器 14B 复现：external brain(8388) + embedding(8389)。
+# 先启动 14B llama-server，再运行 `uv run jev matrix --config ...`。
+# 资产缺失必须失败（JevAssetError），不得用 7B 结果外推。
+name = "ar016-server-14b-agw-casc"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 30
+dataset = "shared_prefix"
+brain = "external"
+brain_base_url = "http://127.0.0.1:8388"
+embedding = "external"
+embedding_base_url = "http://127.0.0.1:8389"
+ctx_size = 16384
+max_tokens = 128
+timeout_s = 900.0
+prompt_prefix = ""
+prompt_cache = true
+force_full = false
+arms = ["B1", "RDMP_CACHE_FAST", "RDMP_CASC_FAST", "AGW_CACHE_FAST", "AGW_CASC_FAST"]
+
+[overlays.RDMP_CACHE_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+
+[overlays.RDMP_CASC_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64
+stable_compression_embed_batch = 16
+
+[overlays.AGW_CACHE_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+
+[overlays.AGW_CASC_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64
+stable_compression_embed_batch = 16

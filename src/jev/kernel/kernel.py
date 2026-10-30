@@ -18,7 +18,12 @@ import tomllib
 import uuid
 from pathlib import Path
 
-from jev.errors import JevAssetError, JevError, JevUnavailableError
+from jev.errors import (
+    JevAssetError,
+    JevError,
+    JevProtocolError,
+    JevUnavailableError,
+)
 from jev.kernel.cache.semantic import CacheConfig, SemanticCache
 from jev.kernel.cascade.breaker import Breaker, BreakerState
 from jev.kernel.cascade.draft import DraftConfig
@@ -450,10 +455,14 @@ def _build_brain_manager(config: dict) -> LlamaServerManager | None:
 
     default_bin = "models/llama-server/bin/llama-server.exe"
     default_gguf = "models/qwen/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+    gpu_layers = int(cerebrum_cfg.get("gpu_layers", 0))
+    if gpu_layers < 0:
+        raise JevProtocolError(f"cerebrum.gpu_layers 必须 >=0: {gpu_layers}")
     extra_args = slot_server_args(
         parallel=int(cerebrum_cfg.get("parallel", 1)),
         slot_prompt_similarity=cerebrum_cfg.get("slot_prompt_similarity"),
     )
+    extra_args += ["--n-gpu-layers", str(gpu_layers)]
     spec_cfg = cerebrum_cfg.get("spec") or {}
     if spec_cfg.get("enabled", False):
         draft = spec_cfg.get("draft_model", "")

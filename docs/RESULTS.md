@@ -511,3 +511,31 @@ int8 门控在 shared-prefix 12 题上的窗口扫描：
 
 - 相对 LCPT_CASC_FAST：mean −1.9%、P50 −0.8%、utility 0.9024→0.9031，选择器 adopt；
 - 收益幅度小，属门控层优化；若后续更大改动无增益，应回退到本组合。
+
+## AR016 GSP：GPU 服务放置
+
+### 1. 背景
+
+当前最优 AGW_CASC_FAST 是“短输出 + 长 prefill”，与此前“长输出 GPU 更慢”的结论不同。
+真实同配置对照（shared-prefix 12 题，embedding GPU 均开启）：
+
+| 放置 | quality | mean | P50 | prefill | decode tps |
+| --- | --- | --- | --- | --- | --- |
+| CPU decode（gpu_layers=0） | 1.000 | 3.462s | 2.032s | 726ms | 7.83 |
+| **GPU offload（gpu_layers=99）** | **1.000** | **3.054s** | **1.753s** | **357ms** | 7.78 |
+
+B1 也从 48.67s→45.44s（prefill 8.97s→5.75s）。GPU 放置 mean −11.8%、P50 −13.7%，
+输出一致、质量 1.0。
+
+### 2. 实现
+
+- `[cerebrum] gpu_layers`（默认 0）真正传入 `llama-server --n-gpu-layers`；
+- 新增 `configs/profiles/latency-best-gpu.toml`（GPU 部署档）；
+- `ar016-gpu-cpu.toml` / `ar016-gpu-offload.toml` 为可复现同题对照；
+- 服务器 7B/14B 使用已有 external brain 启动参数 `--n-gpu-layers`。
+
+### 3. 结论
+
+- **GPU 放置纳入当前综合最优**：AGW_CASC_FAST + gpu_layers=99；
+- 无 GPU/显存不足保持 `gpu_layers=0`，行为与 AR015 相同；
+- 本机 GPU 被限频，仍获得正收益；高速服务器应重新实测后更新结果。

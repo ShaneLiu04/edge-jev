@@ -119,6 +119,11 @@ uv run jev matrix --config configs/experiments/lcpt-needles.toml
 # AR015 AGW??????????????
 uv run jev matrix --config configs/experiments/agw.toml
 uv run jev matrix --config configs/experiments/agw-casc.toml
+
+# AR016 GPU ??????????GPU offload?
+uv run jev matrix --config configs/experiments/ar016-gpu-cpu.toml
+uv run jev matrix --config configs/experiments/ar016-gpu-offload.toml
+# ?? GPU ????configs/profiles/latency-best-gpu.toml
 ```
 
 产物目录 `benchmarks/results/<run>/`：
