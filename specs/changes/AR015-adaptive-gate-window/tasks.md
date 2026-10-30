@@ -9,4 +9,4 @@
 | T1505 | AGW 实验配置 | passing |
 | T1506 | 本地联合矩阵 + needles 回归 | passing |
 | T1507 | profile/文档/全量测试 | passing |
-| T1508 | 提交推送 Gitee + 浅克隆验证 | pending |
+| T1508 | 提交推送 Gitee + 浅克隆验证 | passing |
