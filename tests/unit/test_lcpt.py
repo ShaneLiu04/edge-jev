@@ -24,6 +24,13 @@ def test_long_context_threshold_defaults_off_and_rejects_negative():
         RuntimeConfig(decision_long_context_tokens=-1)
 
 
+def test_gate_window_defaults_to_384_and_allows_zero():
+    assert RuntimeConfig().decision_long_context_gate_tokens == 384
+    assert RuntimeConfig(decision_long_context_gate_tokens=0).decision_long_context_gate_tokens == 0
+    with pytest.raises(ValueError):
+        RuntimeConfig(decision_long_context_gate_tokens=-1)
+
+
 def test_prepare_laya_int8_rejects_missing_source(tmp_path):
     with pytest.raises(JevAssetError):
         prepare_laya_int8(tmp_path / "missing.onnx", tmp_path / "out.onnx")

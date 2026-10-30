@@ -249,3 +249,18 @@ cli/main.py                    jev prepare-laya-int8
 - **回归**：needles（~2810 tokens）不触发门控，37.88s vs RDMP 38.25s，质量 1.0。
 - **资产**：int8 模型 427MB，不入仓，命令生成；服务器配置
   `server-{7b,14b}-lcpt-casc.toml`。
+
+## 16. AR015 AGW：自适应门控窗口
+
+```text
+kernel/runtime/config.py       decision_long_context_gate_tokens（默认 384）
+kernel/cerebellum/registry.py  create_laya_int8(max_state_tokens=...)
+server/chat.py                 header 记录 w384
+```
+
+- **作用域**：只缩短 int8 门控后端窗口；fp32 兜底与短问完全不变。
+- **安全**：窗口变短只影响“是否直接判 FULL”；未命中仍完整 RDMP。
+- **结果**：shared 门控命中 12/12、门控 1.51s→1.05s；联合
+  AGW_CASC_FAST mean 3.765s / P50 1.969s（相对 LCPT_CASC mean −1.9%）。
+- **取舍**：隔离矩阵无收益；联合矩阵小幅正收益，选择器 adopt。
+- **配置**：`agw.toml` / `agw-casc.toml`；profile 已启用 384。

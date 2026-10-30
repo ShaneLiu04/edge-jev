@@ -1,0 +1,108 @@
+{
+  "schema": "jev.matrix.progress/1",
+  "completed_arms": [
+    "AGW_CACHE_FAST",
+    "AGW_CASC_FAST",
+    "B1",
+    "LCPT_CACHE_FAST",
+    "LCPT_CASC_FAST"
+  ],
+  "remaining": [],
+  "metrics": {
+    "B1": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 52353.672,
+      "p50_latency_ms": 52387.684,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 13625.167,
+      "mean_decode_tps": 6.842,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "LCPT_CACHE_FAST": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 3325.649,
+      "p50_latency_ms": 2214.152,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 2425.417,
+      "mean_prefill_ms": 1671.25,
+      "mean_decode_tps": 6.867,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "LCPT_CASC_FAST": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 1079.0,
+      "mean_latency_ms": 3835.698,
+      "p50_latency_ms": 1983.865,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 974.333,
+      "mean_prefill_ms": 861.417,
+      "mean_decode_tps": 8.2,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "AGW_CACHE_FAST": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 3260.215,
+      "p50_latency_ms": 2167.606,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 2425.417,
+      "mean_prefill_ms": 1636.75,
+      "mean_decode_tps": 7.15,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "AGW_CASC_FAST": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 1079.0,
+      "mean_latency_ms": 3765.261,
+      "p50_latency_ms": 1969.443,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 974.333,
+      "mean_prefill_ms": 843.083,
+      "mean_decode_tps": 8.475,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    }
+  }
+}

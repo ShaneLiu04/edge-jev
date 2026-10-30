@@ -206,7 +206,8 @@ class Kernel(CerebellumBackend):
             else None
         )
         supervisor = _build_supervisor(config, brain)
-        decision_int8 = create_laya_int8(config_file)
+        gate_tokens = runtime_config.decision_long_context_gate_tokens or None
+        decision_int8 = create_laya_int8(config_file, max_state_tokens=gate_tokens)
         return cls(
             cerebellum=backend,
             registry=registry,
@@ -564,6 +565,9 @@ def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
         ),
         decision_long_context_tokens=int(
             runtime_cfg.get("decision_long_context_tokens", 0)
+        ),
+        decision_long_context_gate_tokens=int(
+            runtime_cfg.get("decision_long_context_gate_tokens", 384)
         ),
     )
     cache = SemanticCache(cache_config) if cache_config.enabled else None

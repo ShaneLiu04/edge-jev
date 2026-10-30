@@ -214,3 +214,14 @@ benchmarks/results/<run>/
 - needles 回归：LCPT 37.88s vs RDMP 38.25s，quality 1.0，无回退；
 - 服务器：`server-{7b,14b}-lcpt-casc.toml`（完整 overlay，external 8388/8389）；
 - 复刻：`uv run jev matrix --config configs/experiments/lcpt-casc.toml`。
+
+## 5.10 AR015 AGW：自适应门控窗口
+
+- `decision_long_context_gate_tokens`（默认 384）：int8 门控只读短窗口，
+  fp32 RDMP 兜底保持完整 512；
+- 真实 shared 窗口扫描：384 命中 12/12，门控 1.51s→1.05s；
+- 隔离矩阵无收益（uncached prefill 主导）；联合矩阵 AGW_CASC_FAST
+  mean 3.765s vs LCPT_CASC_FAST 3.836s（−1.9%），P50 1.969s vs 1.984s，utility 采纳；
+- 诚实结论：门控层收益较小，不宣称大幅提升；当前综合最优仍为
+  `AGW_CASC_FAST`（P50 1.97s、tokens 1079、quality 1.0）；
+- 复刻：`uv run jev matrix --config configs/experiments/agw-casc.toml`。

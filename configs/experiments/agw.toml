@@ -1,0 +1,45 @@
+# AR015 AGW 隔离：完整 512 门控 vs 384 自适应门控。
+name = "ar015-agw"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 12
+dataset = "shared_prefix"
+brain = "spawn"
+embedding = "off"
+gpu_layers = 0
+ctx_size = 8192
+max_tokens = 32
+timeout_s = 300.0
+prompt_prefix = ""
+prompt_cache = true
+force_full = false
+arms = ["B1", "RDMP", "LCPT512", "AGW384"]
+
+[overlays.RDMP.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+
+[overlays.LCPT512.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 0
+
+[overlays.AGW384.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384

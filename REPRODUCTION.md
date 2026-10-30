@@ -59,6 +59,10 @@ uv run jev prepare-laya-int8
 uv run jev matrix --config configs/experiments/lcpt.toml
 uv run jev matrix --config configs/experiments/lcpt-casc.toml
 uv run jev matrix --config configs/experiments/lcpt-needles.toml
+
+# AR015 AGW??????????????
+uv run jev matrix --config configs/experiments/agw.toml
+uv run jev matrix --config configs/experiments/agw-casc.toml
 ```
 
 > **int8 资产**：`jev prepare-laya-int8` 从已 fetch 的 fp32 模型确定性生成

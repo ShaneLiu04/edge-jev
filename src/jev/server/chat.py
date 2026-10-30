@@ -630,7 +630,10 @@ class _CascadeContext:
         self._log_points(result, gate)
         self.last_fused = dict(result.fused)
         self.last_runtime["decision"]["staged"] = "on"
-        self.last_runtime["decision"]["long"] = "int8-reason-full"
+        window = runtime.decision_long_context_gate_tokens
+        self.last_runtime["decision"]["long"] = (
+            f"int8-reason-full:w{window}" if window else "int8-reason-full"
+        )
         return result.decisions
 
     def evaluate_pre(self) -> list[Decision]:

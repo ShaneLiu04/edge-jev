@@ -115,6 +115,10 @@ uv run jev prepare-laya-int8          # 生成 models/laya/laya_int8.onnx（~427
 uv run jev matrix --config configs/experiments/lcpt.toml
 uv run jev matrix --config configs/experiments/lcpt-casc.toml
 uv run jev matrix --config configs/experiments/lcpt-needles.toml
+
+# AR015 AGW??????????????
+uv run jev matrix --config configs/experiments/agw.toml
+uv run jev matrix --config configs/experiments/agw-casc.toml
 ```
 
 产物目录 `benchmarks/results/<run>/`：

@@ -53,7 +53,9 @@ def create_backend(name: str, config_path: Path | str) -> CerebellumBackend:
     )
 
 
-def create_laya_int8(config_path: Path | str) -> CerebellumBackend | None:
+def create_laya_int8(
+    config_path: Path | str, *, max_state_tokens: int | None = None
+) -> CerebellumBackend | None:
     """构建可选 int8 Laya 决策后端；路径为空/文件不存在返回 None。"""
     config_file = Path(config_path)
     if not config_file.is_file():
@@ -81,6 +83,7 @@ def create_laya_int8(config_path: Path | str) -> CerebellumBackend | None:
         tokenizer_path=tokenizer_path,
         config_path=bundle_config_path,
         calibration=_load_calibration(laya_cfg.get("calibration_path")),
+        max_state_tokens=max_state_tokens,
     )
 
 

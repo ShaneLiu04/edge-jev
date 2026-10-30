@@ -281,3 +281,17 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 - **回归**：needles（~2810 tokens）不触发门控，LCPT 37.88s vs RDMP 38.25s，质量 1.0。
 - **配置**：`lcpt.toml` / `lcpt-casc.toml` / `lcpt-needles.toml`；
   `server-{7b,14b}-lcpt-casc.toml`（完整 overlay）。
+
+
+## 20 AR015 AGW：自适应门控窗口
+
+- **开关**：`[runtime] decision_long_context_gate_tokens`（默认 384，0=完整 512）。
+- **实现**：`create_laya_int8(max_state_tokens=...)` 仅缩短 int8 门控窗口；
+  fp32 RDMP 兜底保持完整 state。
+- **安全**：窗口只影响“能否直接判 FULL”；未命中回退完整 RDMP，不产生更便宜路由。
+- **观测**：`X-Jev-Decision-Long: int8-reason-full:w384`。
+- **结果**：shared 12 题门控命中 12/12；门控 1.51s→1.05s；
+  联合 AGW_CASC_FAST mean 3.765s / P50 **1.969s**（相对 LCPT_CASC mean −1.9%），
+  tokens 1079、quality 1.0。
+- **取舍**：隔离矩阵无收益；联合矩阵小幅正收益，选择器 adopt；不宣称大幅提升。
+- **配置**：`agw.toml` / `agw-casc.toml`；`latency-{fast,best}.toml` 已启用。

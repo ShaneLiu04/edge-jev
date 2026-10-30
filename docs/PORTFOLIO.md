@@ -20,6 +20,7 @@
 | AR012 | CADP 消费者感知分阶段决策 | 再降 26%，联合端到端 ↓80.6% | 依赖路由短路规则一致性 | 关 |
 | AR013 | RDMP 最小 wave1 探针 + 保守确认 | 相对 CADP P50 −28%，联合 P50 4.3s | 保守翻转（LIGHT→FULL）允许 | 关 |
 | AR014 | LCPT-RFG 长上下文 int8 + reasoning 门控 | 联合 P50 2.42s，相对 RDMP −62% | 需生成本地 int8 资产；仅超长上下文 | 关 |
+| AR015 | AGW 自适应门控窗口 | 联合 mean −1.9%，P50 1.97s | 收益较小；隔离无收益 | 关 |
 
 ## 2. 负载 → 最优组合
 
@@ -31,8 +32,8 @@
 | 成本/上下文受限的共享文档 | **CASC**（AR009：文档级稳定压缩 + 压缩 LRU + KV） | shared-prefix：2662→1079 tok（−59.5%），11/12 命中，quality 1.0 |
 | 单文档长文、token 成本优先 | **CASC**（无跨问缓存也保留证据） | needles：1847→762 tok（−58.7%），quality 1.0 |
 | 极低延迟（可放弃 Laya 复核） | **CACHE_FAST / FAST**（AR010：跳过 shadow+POST，叠加前缀 KV） | shared-prefix：54.0s→24.6s（−54.4%），输出一致 |
-| 端侧综合最优（token+延迟） | **LCPT_CASC_FAST**（AR014+AR013+AR012+AR011+AR010+AR009+AR007） | shared-prefix：44.4s→2.42s（P50，−94.6%），tokens 2662→1079，quality 1.0 |
-| 纯延迟最优（不压缩上下文） | **LCPT_CACHE_FAST**（AR014+AR013+AR012+AR011+AR010+AR007） | shared-prefix：44.4s→2.53s（P50），相比 RDMP_CACHE_FAST −62%，输出一致 |
+| 端侧综合最优（token+延迟） | **AGW_CASC_FAST**（AR015+AR014+AR013+AR012+AR011+AR010+AR009+AR007） | shared-prefix：44.4s→1.97s（P50），tokens 1079，quality 1.0；mean 3.77s |
+| 纯延迟最优（不压缩上下文） | **AGW_CACHE_FAST**（AR015+AR014+AR013+AR012+AR011+AR010+AR007） | shared-prefix：P50 2.17s，相对 LCPT_CACHE mean −2%，输出一致 |
 | 重复/近义请求 | **语义缓存**（AR003/AR005 准入） | repeat 10×2：completion token ↓36%，延迟 ↓25% |
 | 高风险降级 | **Conformal 风险门**（AR005） | 无可行阈值时自动 disabled，失败安全 |
 | 长输出解码 | **B1（不启用投机）** | 中文 B1 8.51 vs SPEC 9.07（接受率 0.187）；英文 B1 5.36 vs SPEC 4.78；选择器 rollback |
@@ -83,6 +84,7 @@ profile = "configs/profiles/aeb.toml"   # 或 prefix-cache / short-qa
 | 服务器 7B/14B | `server-7b-combos.toml` / `server-7b-prefix.toml` / `server-7b-spec.toml` / `server-7b-casc.toml`（14B 同名） |
 | AR013 最小 wave1 | `rdmp.toml` / `rdmp-casc.toml` |
 | AR014 长上下文精度分层 | `lcpt.toml` / `lcpt-casc.toml` / `lcpt-needles.toml` |
+| AR015 自适应门控窗口 | `agw.toml` / `agw-casc.toml` |
 | 服务器 7B/14B（完整 overlay） | `server-{7b,14b}-lcpt-casc.toml` |
 
 ## 5. 选择规则

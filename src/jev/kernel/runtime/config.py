@@ -39,6 +39,7 @@ class RuntimeConfig:
     decision_staged: bool = False
     decision_staged_minimal: bool = False
     decision_long_context_tokens: int = 0
+    decision_long_context_gate_tokens: int = 384
 
     def __post_init__(self) -> None:
         if self.verifier_max_tokens < 1:
@@ -53,6 +54,11 @@ class RuntimeConfig:
             raise ValueError(
                 "decision_permutations 必须在 [0,8]（0=不限制）: "
                 f"{self.decision_permutations}"
+            )
+        if self.decision_long_context_gate_tokens < 0:
+            raise ValueError(
+                "decision_long_context_gate_tokens ?? >=0: "
+                f"{self.decision_long_context_gate_tokens}"
             )
         if self.decision_long_context_tokens < 0:
             raise ValueError(
