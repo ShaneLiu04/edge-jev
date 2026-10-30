@@ -11,4 +11,4 @@
 | T1407 | `lcpt` / `lcpt-casc` / server 7B/14B 配置 | passing |
 | T1408 | 本地端到端矩阵与 needles 回归 | passing |
 | T1409 | profile + 文档 + 全量测试 | passing |
-| T1410 | 提交推送 Gitee + 浅克隆复刻验证 | pending |
+| T1410 | 提交推送 Gitee + 浅克隆复刻验证 | passing |
