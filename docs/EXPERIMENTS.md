@@ -201,3 +201,16 @@ benchmarks/results/<run>/
 - 联合矩阵：CADP_CACHE_FAST 6.85s → RDMP_CACHE_FAST **5.05s**（P50 4.33s，−26%）；
   RDMP_CASC_FAST P50 **4.33s**、tokens **1079**、quality 1.0，选择器 adopt。
 - 复刻：`uv run jev matrix --config configs/experiments/rdmp-casc.toml`。
+
+## 5.9 AR014 LCPT-RFG：长上下文精度分层 + reasoning-first
+
+- 量化：`uv run jev prepare-laya-int8` 生成 ~427MB int8 Laya（QInt8/per-channel）；
+- 门控：`decision_long_context_tokens=4000`；超长 state 先算 `needs_reasoning`（int8 单行），
+  applied≠no_reasoning 直接 FULL；否则回退 fp32 RDMP；
+- 真实 16 题：与 RDMP 路由 16/16 一致、0 激进翻转；shared 6 题 Laya 决策 2.1×；
+- 隔离：B1 44.36s → RDMP 23.00s → **LCPT 19.46s（P50，−15.4%）**；
+- 联合：RDMP_CACHE_FAST 6.63s → **LCPT_CACHE_FAST 2.53s**；
+  **LCPT_CASC_FAST P50 2.42s、tokens 1079、quality 1.0**（选择器 adopt）；
+- needles 回归：LCPT 37.88s vs RDMP 38.25s，quality 1.0，无回退；
+- 服务器：`server-{7b,14b}-lcpt-casc.toml`（完整 overlay，external 8388/8389）；
+- 复刻：`uv run jev matrix --config configs/experiments/lcpt-casc.toml`。

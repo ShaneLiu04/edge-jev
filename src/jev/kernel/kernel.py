@@ -24,7 +24,7 @@ from jev.kernel.cascade.breaker import Breaker, BreakerState
 from jev.kernel.cascade.draft import DraftConfig
 from jev.kernel.cascade.engine import CascadeEngine, RoutePolicy
 from jev.kernel.cerebellum.base import CerebellumBackend, Question, SystemOneResponse
-from jev.kernel.cerebellum.registry import create_backend, repo_root
+from jev.kernel.cerebellum.registry import create_backend, create_laya_int8, repo_root
 from jev.kernel.cerebrum.embeddings import EmbeddingClient, EmbeddingService
 from jev.kernel.cerebrum.llama_server import (
     LlamaServerManager,
@@ -82,6 +82,7 @@ class Kernel(CerebellumBackend):
         evidence_selector: EvidenceSelector | None = None,
         supervisor: BrainSupervisor | None = None,
         stable_compressor: StableCompressor | None = None,
+        decision_int8: CerebellumBackend | None = None,
     ) -> None:
         self._cerebellum = cerebellum
         self._registry = registry
@@ -106,6 +107,7 @@ class Kernel(CerebellumBackend):
         self._evidence_selector = evidence_selector
         self._supervisor = supervisor
         self._stable_compressor = stable_compressor
+        self._decision_int8 = decision_int8
 
     # ------------------------------------------------------------------
     # 组合根：configs/jev.toml 单源装配
@@ -204,6 +206,7 @@ class Kernel(CerebellumBackend):
             else None
         )
         supervisor = _build_supervisor(config, brain)
+        decision_int8 = create_laya_int8(config_file)
         return cls(
             cerebellum=backend,
             registry=registry,
@@ -230,6 +233,7 @@ class Kernel(CerebellumBackend):
             evidence_selector=evidence_selector,
             supervisor=supervisor,
             stable_compressor=stable_compressor,
+            decision_int8=decision_int8,
         )
 
     # ------------------------------------------------------------------
@@ -318,6 +322,11 @@ class Kernel(CerebellumBackend):
     def supervisor(self) -> BrainSupervisor | None:
         """AR006：大脑自愈监督器（未启用时为 None）。"""
         return self._supervisor
+
+    @property
+    def decision_int8(self) -> CerebellumBackend | None:
+        """AR014 ?? int8 Laya ????????? None??"""
+        return self._decision_int8
 
     @property
     def stable_compressor(self) -> StableCompressor | None:
@@ -552,6 +561,9 @@ def _build_runtime(config: dict) -> tuple[RuntimeConfig, SemanticCache | None]:
         decision_staged=bool(runtime_cfg.get("decision_staged", False)),
         decision_staged_minimal=bool(
             runtime_cfg.get("decision_staged_minimal", False)
+        ),
+        decision_long_context_tokens=int(
+            runtime_cfg.get("decision_long_context_tokens", 0)
         ),
     )
     cache = SemanticCache(cache_config) if cache_config.enabled else None

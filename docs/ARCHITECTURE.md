@@ -230,3 +230,22 @@ server/chat.py                 evaluate_pre：最小 wave1 → 非 FULL 完整�
 - **结果**：CADP_CACHE_FAST 6.85s → RDMP_CACHE_FAST 5.05s（P50 4.33s，−26%）；
   RDMP_CASC_FAST P50 4.33s、tokens 1079、quality 1.0。
 - **负结果**：wave1 状态窗口缩到 384/320/256 会改变 needle 路由，不采用。
+
+## 15. AR014 LCPT-RFG：长上下文精度分层 + reasoning-first 门控
+
+```text
+kernel/cerebellum/quantize.py  fp32 → int8（合并外部数据 + 动态量化）
+kernel/cerebellum/registry.py  create_laya_int8（缺失则禁用）
+kernel/runtime/config.py       decision_long_context_tokens（默认 0）
+server/chat.py                 _long_context_gate：int8 单行 reasoning → FULL
+cli/main.py                    jev prepare-laya-int8
+```
+
+- **触发**：staged && 无其他 PRE 消费者 && state token > 阈值 && int8 就位。
+- **安全**：门控只可能产生 FULL；未命中回退 fp32 RDMP，不可能产生更便宜路由。
+- **观测**：`X-Jev-Decision-Long: int8-reason-full`。
+- **结果**：隔离 P50 23.00s→19.46s；联合 RDMP_CACHE_FAST 6.63s→**2.53s**；
+  LCPT_CASC_FAST **P50 2.42s、tokens 1079、quality 1.0**（B1 44.43s，−94.6%）。
+- **回归**：needles（~2810 tokens）不触发门控，37.88s vs RDMP 38.25s，质量 1.0。
+- **资产**：int8 模型 427MB，不入仓，命令生成；服务器配置
+  `server-{7b,14b}-lcpt-casc.toml`。

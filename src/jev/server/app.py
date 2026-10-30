@@ -60,6 +60,7 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
             profile_name=(kernel.profile.name if kernel.profile is not None else ""),
             evidence=kernel.evidence_selector,
             stable_compressor=kernel.stable_compressor,
+            decision_int8=kernel.decision_int8,
         )
     )
 

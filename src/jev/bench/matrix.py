@@ -326,6 +326,7 @@ def _build_client(
             profile_name=profile_name,
             evidence=evidence,
             stable_compressor=stable_compressor,
+            decision_int8=kernel.decision_int8,
         )
     )
     return TestClient(app)

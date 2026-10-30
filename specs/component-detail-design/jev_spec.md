@@ -262,3 +262,22 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
   RDMP_CASC_FAST P50 4.33s、tokens 1079、quality 1.0。
 - **负结果**：wave1 状态窗口缩至 384/320/256 会改变 needle 路由，不采用。
 - **配置**：`rdmp.toml` / `rdmp-casc.toml`；`profiles/latency-{fast,best}.toml` 已启用。
+
+
+## 19 AR014 LCPT-RFG：长上下文精度分层 + reasoning-first 门控
+
+- **量化**：`jev prepare-laya-int8` 从 fp32 Laya 生成 QInt8/per-channel 动态量化模型
+  （~427MB，`models/laya/laya_int8.onnx`，不入仓）。
+- **开关**：`[cerebellum.laya_onnx] int8_model_path`；
+  `[runtime] decision_long_context_tokens`（默认 0；推荐 4000）。
+- **门控**：仅 staged、无其他 PRE 消费者、state token > 阈值且 int8 就位时，
+  先用 int8 单行计算 `needs_reasoning`；applied≠no_reasoning → FULL；
+  否则回退 fp32 RDMP。
+- **安全**：门控只可能产生 FULL；缺 int8/阈值 0/推理失败均回退 AR013，不可能更激进。
+- **观测**：`X-Jev-Decision-Long: int8-reason-full`。
+- **结果**：隔离 B1 44.36s → RDMP 23.00s → LCPT 19.46s；
+  联合 RDMP_CACHE_FAST 6.63s → LCPT_CACHE_FAST 2.53s；
+  LCPT_CASC_FAST **P50 2.42s、tokens 1079、quality 1.0**。
+- **回归**：needles（~2810 tokens）不触发门控，LCPT 37.88s vs RDMP 38.25s，质量 1.0。
+- **配置**：`lcpt.toml` / `lcpt-casc.toml` / `lcpt-needles.toml`；
+  `server-{7b,14b}-lcpt-casc.toml`（完整 overlay）。

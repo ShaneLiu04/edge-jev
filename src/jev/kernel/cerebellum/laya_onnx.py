@@ -119,6 +119,10 @@ class LayaOnnxBackend(CerebellumBackend):
     # system_one：单次前向多问
     # ------------------------------------------------------------------
 
+    def count_tokens(self, text: str) -> int:
+        """state 的 Laya token 数（AR014 长上下文精度分层使用）。"""
+        return len(self._encode(text))
+
     def system_one(self, state: str, questions: dict[str, Question]) -> SystemOneResponse:
         if not questions:
             raise JevProtocolError("questions 至少包含 1 个问题")

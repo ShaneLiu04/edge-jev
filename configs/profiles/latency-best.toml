@@ -1,5 +1,5 @@
-# AR013 联合最优档：CASC + 前缀 KV + LADS fast + 决策预算 1 + 最小 wave1。
-# 端侧 shared-prefix 12 题实测：37.5s(B1) -> 4.3s(P50)，quality 1.0，输出一致。
+# AR014 联合最优档：CASC + 前缀 KV + LADS fast + 决策预算 1 + 最小 wave1 + 长上下文 int8。
+# 端侧 shared-prefix 12 题实测：44.4s(B1) -> 2.42s(P50)，quality 1.0，tokens 1079。
 [portfolio]
 name = "latency-best"
 
@@ -15,6 +15,7 @@ decision_post = false
 decision_permutations = 1
 decision_staged = true
 decision_staged_minimal = true
+decision_long_context_tokens = 4000
 stable_compression = true
 stable_compression_ratio = 0.4
 stable_compression_block_tokens = 128

@@ -411,3 +411,57 @@ RDMP 相对 CADP 再降约 6.7%，质量/输出一致。
 - token+延迟综合最优仍为 CASC 版本：tokens 2662→1079（−59.5%），P50 4.33s。
 - `latency-fast` / `latency-best` 已启用 `decision_staged_minimal=true`。
 - 负结果：缩短 wave1 状态窗口（384/320/256）导致 needle 路由翻转，暂不采用。
+
+## AR014 LCPT-RFG：长上下文精度分层 + reasoning-first 门控
+
+### 1. 问题与探测
+
+AR013 RDMP_CASC_FAST 已到 P50 4.33s，剩余成本主要是 Laya wave1 的 3 个 512-token 决策行。
+
+真实探测（16 条多样 prompt）：
+
+- 动态 int8 Laya：1.5× 加速，翻转仅保守方向；
+- 长上下文（>4000 tokens）先算 `needs_reasoning`：applied≠no_reasoning 直接 FULL；
+  与 fp32 RDMP 路由 **16/16 一致、0 激进翻转**；
+- shared 6 题 Laya 决策 5.45s→2.56s（**2.1×**）；needles（~2810 tokens）保持 fp32。
+
+### 2. 实现
+
+- `jev prepare-laya-int8`：合并外部数据 + ORT 动态 int8（QInt8/per-channel），
+  产物 `models/laya/laya_int8.onnx`（~427MB，gitignored）。
+- `decision_long_context_tokens=4000`：仅超长 state 启用 int8 reasoning 门控；
+  未命中严格回退 AR013 RDMP。
+- 观测：`X-Jev-Decision-Long: int8-reason-full`。
+- 真实回归：`test_lcpt_real.py` 6 条 shared 长文，路由与 RDMP 一致（49.3s）。
+
+### 3. 隔离矩阵 `ar014-lcpt-20261030-133457`（12 题）
+
+| arm | quality | P50 | 决策数 | long 头 |
+| --- | --- | --- | --- | --- |
+| B1 | 1.000 | 44.36s | 9 | — |
+| RDMP | 1.000 | 23.00s | 7 | — |
+| **LCPT** | **1.000** | **19.46s（−15.4%）** | **5** | int8-reason-full |
+
+### 4. 联合矩阵 `ar014-lcpt-casc-20261030-135323`（12 题）
+
+| arm | quality | P50 | prompt tok | cache |
+| --- | --- | --- | --- | --- |
+| B1 | 1.000 | 44.43s | 2662 | 0/12 |
+| RDMP_CACHE_FAST | 1.000 | 6.63s | 2662 | 11/12 |
+| RDMP_CASC_FAST | 1.000 | 6.43s | 1079 | 11/12 |
+| LCPT_CACHE_FAST | 1.000 | 2.53s | 2662 | 11/12 |
+| **LCPT_CASC_FAST** | **1.000** | **2.42s** | **1079** | 11/12 |
+
+- 相对 RDMP_CACHE_FAST：P50 **6.63s→2.53s（−62%）**；
+- 相对 B1：**44.43s→2.42s（−94.6%）**，quality 1.0、输出一致、tokens 1079；
+- 选择器 adopt `LCPT_CASC_FAST`。
+
+### 5. needles 回归 `ar014-lcpt-needles-20261030-140824`（6 题）
+
+| arm | quality | P50 |
+| --- | --- | --- |
+| B1 | 0.833（旧基线） | 49.76s |
+| RDMP | 1.000 | 38.25s |
+| **LCPT** | **1.000** | **37.88s** |
+
+needle state ~2810 < 4000，完全走 fp32 RDMP，无回退、无质量下降。

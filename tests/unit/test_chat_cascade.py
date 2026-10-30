@@ -564,6 +564,36 @@ class TestFullRoutePost:
         # direct 路径跳过 POST：wave1 3 + wave2 2
         assert resp.headers["x-jev-decisions"] == "5"
 
+    def test_long_context_int8_reasoning_gate_uses_one_decision(
+        self, cerebellum, brain, brain_server
+    ):
+        """AR014??? state + int8 ?? ? ? reasoning 1 ??? FULL?"""
+        registry = _full_registry(post_retry=False)
+        brain_server.canned = [_completion("long", completion_tokens=16)]
+        runtime = RuntimeConfig(
+            enabled=True,
+            decision_permutations=1,
+            decision_staged=True,
+            decision_staged_minimal=True,
+            decision_long_context_tokens=1,
+        )
+        client = TestClient(
+            _app(
+                cerebellum,
+                brain,
+                registry,
+                runtime_config=runtime,
+                decision_int8=cerebellum,
+            )
+        )
+        resp = client.post("/v1/chat/completions", json=_body(max_tokens=64))
+        assert resp.status_code == 200
+        assert resp.headers["x-jev-route"] == "full"
+        assert resp.headers["x-jev-decision-long"] == "int8-reason-full"
+        assert resp.headers["x-jev-decision-staged"] == "on"
+        # reasoning 1 + POST 3
+        assert resp.headers["x-jev-decisions"] == "4"
+
     def test_builtin_registry_full_route_accepts(self, cerebellum, brain, brain_server):
         """内置 18 点真实配置 + toy：intent=complex → full；POST needs_retry=no_retry
         → 首轮采纳（真实 builtin 决策链路，PRE5+POST4）。"""

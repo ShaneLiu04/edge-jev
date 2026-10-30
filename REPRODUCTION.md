@@ -50,10 +50,20 @@ uv run jev matrix --config configs/experiments/adb-casc.toml
 uv run jev matrix --config configs/experiments/cadp.toml
 uv run jev matrix --config configs/experiments/cadp-casc.toml
 
-# AR013 RDMP（最小 wave1 + 保守确认；当前最优）
+# AR013 RDMP（最小 wave1 + 保守确认）
 uv run jev matrix --config configs/experiments/rdmp.toml
 uv run jev matrix --config configs/experiments/rdmp-casc.toml
+
+# AR014 LCPT-RFG（长上下文 int8；当前最优）
+uv run jev prepare-laya-int8
+uv run jev matrix --config configs/experiments/lcpt.toml
+uv run jev matrix --config configs/experiments/lcpt-casc.toml
+uv run jev matrix --config configs/experiments/lcpt-needles.toml
 ```
+
+> **int8 资产**：`jev prepare-laya-int8` 从已 fetch 的 fp32 模型确定性生成
+> `models/laya/laya_int8.onnx`（约 427MB，`models/` gitignored）。缺失时
+> `decision_long_context_tokens` 自动退化为 AR013，不影响正确性。
 
 > **POST 复核窗口**：2026-10-29 起 Laya 超长 state 保留**尾部**（原保头部）。
 > 旧版在 prompt >512 tokens 时会把 assistant 答案截掉，导致 POST 恒定 `needs_retry`、
@@ -232,6 +242,29 @@ uv run jev matrix --config configs/experiments/rdmp-casc.toml
 - 联合：CADP_CACHE_FAST 6.85s → RDMP_CACHE_FAST **5.05s**（P50 4.33s）；
   RDMP_CASC_FAST P50 **4.33s**、tokens **1079**、quality 1.0（选择器 adopt）；
 - `latency-fast` / `latency-best` 已启用 `decision_staged_minimal=true`。
+
+### 2.11 AR014 LCPT-RFG（端侧 / 7B / 14B）
+
+```bash
+uv run jev prepare-laya-int8
+uv run jev matrix --config configs/experiments/lcpt.toml
+uv run jev matrix --config configs/experiments/lcpt-casc.toml
+uv run jev matrix --config configs/experiments/lcpt-needles.toml
+uv run pytest tests/integration/test_lcpt_real.py -q   # 真实 int8/fp32 路由一致性
+
+# 服务器（先启动 external brain 8388 / embedding 8389）
+uv run jev matrix --config configs/experiments/server-7b-lcpt-casc.toml
+uv run jev matrix --config configs/experiments/server-14b-lcpt-casc.toml
+```
+
+- int8 模型 427MB，由命令生成，不入仓；缺失时自动回退 AR013；
+- 真实 16 题：与 RDMP 路由 16/16 一致、0 激进翻转；shared 6 题 Laya 决策 2.1×；
+- 隔离：B1 44.36s → RDMP 23.00s → **LCPT 19.46s（P50，−15.4%）**；
+- 联合：RDMP_CACHE_FAST 6.63s → **LCPT_CACHE_FAST 2.53s**；
+  **LCPT_CASC_FAST P50 2.42s、tokens 1079、quality 1.0**（adopt）；
+- needles 回归：LCPT 37.88s vs RDMP 38.25s，quality 1.0；
+- 服务器配置为完整 runtime overlay（修正早期 CADP 服务器配置只写
+  `decision_staged` 导致开关未生效的问题）。
 
 ## 3. 实验口径
 

@@ -1,0 +1,108 @@
+{
+  "schema": "jev.matrix.progress/1",
+  "completed_arms": [
+    "B1",
+    "LCPT_CACHE_FAST",
+    "LCPT_CASC_FAST",
+    "RDMP_CACHE_FAST",
+    "RDMP_CASC_FAST"
+  ],
+  "remaining": [],
+  "metrics": {
+    "B1": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 43987.72,
+      "p50_latency_ms": 44433.732,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 7743.083,
+      "mean_decode_tps": 7.792,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "RDMP_CACHE_FAST": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 7212.012,
+      "p50_latency_ms": 6629.802,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 2425.417,
+      "mean_prefill_ms": 1150.25,
+      "mean_decode_tps": 6.575,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "RDMP_CASC_FAST": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 1079.0,
+      "mean_latency_ms": 7761.515,
+      "p50_latency_ms": 6430.67,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 974.333,
+      "mean_prefill_ms": 675.167,
+      "mean_decode_tps": 7.5,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "LCPT_CACHE_FAST": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 4083.583,
+      "p50_latency_ms": 2525.219,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 2425.417,
+      "mean_prefill_ms": 1154.75,
+      "mean_decode_tps": 6.483,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "LCPT_CASC_FAST": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 1079.0,
+      "mean_latency_ms": 4630.634,
+      "p50_latency_ms": 2414.825,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 974.333,
+      "mean_prefill_ms": 682.583,
+      "mean_decode_tps": 7.2,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    }
+  }
+}

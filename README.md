@@ -106,9 +106,15 @@ uv run jev matrix --config configs/experiments/adb-casc.toml
 uv run jev matrix --config configs/experiments/cadp.toml
 uv run jev matrix --config configs/experiments/cadp-casc.toml
 
-# AR013 RDMP：最小 wave1 + 保守确认（当前最优）
+# AR013 RDMP：最小 wave1 + 保守确认
 uv run jev matrix --config configs/experiments/rdmp.toml
 uv run jev matrix --config configs/experiments/rdmp-casc.toml
+
+# AR014 LCPT-RFG：长上下文 int8 精度分层（当前最优）
+uv run jev prepare-laya-int8          # 生成 models/laya/laya_int8.onnx（~427MB，不入仓）
+uv run jev matrix --config configs/experiments/lcpt.toml
+uv run jev matrix --config configs/experiments/lcpt-casc.toml
+uv run jev matrix --config configs/experiments/lcpt-needles.toml
 ```
 
 产物目录 `benchmarks/results/<run>/`：
@@ -210,8 +216,10 @@ specs/              SDD 需求/设计/任务与归档
   （shared-prefix 49.2s→14.1s，P50 12.1s，tokens 2662→1079，quality 1.0）
 - **AR012** CADP：消费者感知 + 路由分阶段决策
   （shared-prefix 51.6s→10.0–10.6s，P50 8.8s，quality 1.0）
-- **AR013** RDMP：wave1 最小探针 + 保守确认，联合最优
+- **AR013** RDMP：wave1 最小探针 + 保守确认
   （CADP 6.85s→5.05s，P50 4.33s；CASC 档 tokens 1079，quality 1.0）
+- **AR014** LCPT-RFG：超长上下文 int8 reasoning 门控，联合最优
+  （RDMP_CACHE_FAST 6.63s→2.53s；LCPT_CASC_FAST P50 2.42s，tokens 1079，quality 1.0）
 
 ## 许可
 

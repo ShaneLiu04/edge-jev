@@ -315,6 +315,7 @@ class _CascadeContext:
         evidence: EvidenceSelector | None = None,
         session_id: str = "",
         stable_compressor: StableCompressor | None = None,
+        decision_int8: CerebellumBackend | None = None,
     ) -> None:
         self.cerebellum = cerebellum
         self.brain = brain
@@ -342,6 +343,7 @@ class _CascadeContext:
         self.evidence = evidence
         self.session_id = session_id
         self.stable_compressor = stable_compressor
+        self.decision_int8 = decision_int8
         self.stable_result: StableResult | None = None
         self.prefix_cache_active = False
         self.prefix_cache_hits = 0
@@ -376,6 +378,7 @@ class _CascadeContext:
                 else runtime_config.decision_escalate_margin,
                 "staged": False,
                 "minimal": "off",
+                "long": "",
             },
         }
         self.prompt_build = None
@@ -589,6 +592,47 @@ class _CascadeContext:
                 decision, point, result.answers.get(decision.point_id), result.latency_ms
             )
 
+    def _long_context_gate(
+        self, state: str, active: dict[str, DecisionPoint]
+    ) -> list[Decision] | None:
+        """AR014：超长 state 用 int8 先判 reasoning；命中 FULL 仅需 1 行。"""
+        runtime = self.runtime_config
+        if runtime is None or self.decision_int8 is None:
+            return None
+        threshold = runtime.decision_long_context_tokens
+        if threshold <= 0:
+            return None
+        counter = getattr(self.cerebellum, "count_tokens", None)
+        if counter is None:
+            return None
+        try:
+            tokens = int(counter(state))
+        except Exception as exc:  # 计数失败不阻断请求
+            logger.warning("长上下文 token 计数失败，回退完整决策: %s", exc)
+            return None
+        if tokens <= threshold:
+            return None
+        point = active.get("needs_reasoning")
+        if point is None:
+            return None
+        gate = minimize_points([point])
+        try:
+            result = evaluate_stage(
+                self.decision_int8, gate, state, calibration=self.calibration
+            )
+        except Exception as exc:  # int8 推理失败回退 fp32 RDMP
+            logger.warning("int8 长上下文门控失败，回退完整决策: %s", exc)
+            return None
+        decision = result.decisions[0]
+        if decision.applied_value(point) == "no_reasoning":
+            return None
+        self.decision_count += len(gate)
+        self._log_points(result, gate)
+        self.last_fused = dict(result.fused)
+        self.last_runtime["decision"]["staged"] = "on"
+        self.last_runtime["decision"]["long"] = "int8-reason-full"
+        return result.decisions
+
     def evaluate_pre(self) -> list[Decision]:
         """AR012：按消费者与路由短路分阶段评估 PRE。"""
         state = self.state_json()
@@ -607,6 +651,9 @@ class _CascadeContext:
             return []
 
         active = {point.id: point for point in self.registry.active(Stage.PRE)}
+        long_gate = self._long_context_gate(state, active)
+        if long_gate is not None:
+            return long_gate
         wave1_ids = ("safety", "intent", "needs_reasoning")
         if any(point_id not in active for point_id in wave1_ids):
             return self.evaluate_detailed(Stage.PRE, state).decisions
@@ -998,6 +1045,7 @@ def create_chat_router(
     profile_name: str = "",
     evidence: EvidenceSelector | None = None,
     stable_compressor: StableCompressor | None = None,
+    decision_int8: CerebellumBackend | None = None,
 ) -> APIRouter:
     """构建 /v1/chat/completions 路由。
 
@@ -1073,6 +1121,7 @@ def create_chat_router(
                 evidence=evidence,
                 session_id=user,
                 stable_compressor=stable_compressor,
+                decision_int8=decision_int8,
             )
             if stream:
                 return _stream_response(context)
@@ -1442,6 +1491,9 @@ def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
         minimal = decision.get("minimal")
         if minimal and minimal != "off":
             headers["X-Jev-Decision-Minimal"] = str(minimal)
+        long_mode = decision.get("long")
+        if long_mode:
+            headers["X-Jev-Decision-Long"] = str(long_mode)
         prefill = runtime["prefill"]
         if prefill["skipped"]:
             headers["X-Jev-Prefill"] = f"skipped:{prefill['skipped']}"

@@ -77,6 +77,31 @@ def fetch(
         typer.echo(f"就位: {path}")
 
 
+@app.command("prepare-laya-int8")
+def prepare_laya_int8_cmd(
+    source: Annotated[
+        Path | None,
+        typer.Option("--source", help="fp32 Laya ONNX??? models/laya/laya.onnx"),
+    ] = None,
+    output: Annotated[
+        Path | None,
+        typer.Option("--output", help="int8 ????? models/laya/laya_int8.onnx"),
+    ] = None,
+) -> None:
+    """? fp32 Laya ?? int8 ?????AR014????????"""
+    from jev.kernel.cerebellum.quantize import prepare_laya_int8
+    from jev.kernel.cerebellum.registry import repo_root
+
+    src = source or (repo_root() / "models" / "laya" / "laya.onnx")
+    dst = output or (repo_root() / "models" / "laya" / "laya_int8.onnx")
+    try:
+        path = prepare_laya_int8(src, dst)
+    except Exception as exc:
+        typer.echo(f"????: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"int8 ????: {path}")
+
+
 @app.command()
 def serve(
     config: Annotated[

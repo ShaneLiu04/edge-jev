@@ -53,6 +53,37 @@ def create_backend(name: str, config_path: Path | str) -> CerebellumBackend:
     )
 
 
+def create_laya_int8(config_path: Path | str) -> CerebellumBackend | None:
+    """构建可选 int8 Laya 决策后端；路径为空/文件不存在返回 None。"""
+    config_file = Path(config_path)
+    if not config_file.is_file():
+        raise JevAssetError(f"配置文件不存在: {config_file}")
+    with config_file.open("rb") as f:
+        config = tomllib.load(f)
+    laya_cfg = (config.get("cerebellum", {}) or {}).get("laya_onnx", {}) or {}
+    raw = str(laya_cfg.get("int8_model_path", "") or "").strip()
+    if not raw:
+        return None
+    int8_path = _resolve(raw)
+    if not int8_path.is_file():
+        logger.info("int8 Laya 未就位，跳过精度分层: %s", int8_path)
+        return None
+    fp32_path = _resolve(laya_cfg.get("model_path", "models/laya/laya.onnx"))
+    model_dir = fp32_path.parent
+    tokenizer_path = _resolve(
+        laya_cfg.get("tokenizer_path", model_dir / "tokenizer" / "tokenizer.json")
+    )
+    bundle_config_path = _resolve(
+        laya_cfg.get("config_path", model_dir / "laya_config.json")
+    )
+    return LayaOnnxBackend(
+        model_path=int8_path,
+        tokenizer_path=tokenizer_path,
+        config_path=bundle_config_path,
+        calibration=_load_calibration(laya_cfg.get("calibration_path")),
+    )
+
+
 def _load_calibration(calibration_path: str | Path | None) -> dict[str, float] | None:
     """蒸馏校准文件（T019 产物）→ 逐 qtype 温度表。
 

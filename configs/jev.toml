@@ -11,6 +11,7 @@ default_backend = "laya_onnx"          # laya_onnx（进程内，默认） | kev
 [cerebellum.laya_onnx]
 model_path = "models/laya/laya.onnx"    # jev fetch 落位路径
 calibration_path = "models/laya/calibration.json"
+int8_model_path = "models/laya/laya_int8.onnx"  # AR014 ???jev prepare-laya-int8 ??
 
 [cerebellum.kev]
 serve_url = "http://127.0.0.1:8311"     # kev.serve 子进程端点

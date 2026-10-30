@@ -1,5 +1,5 @@
-# AR012 服务器 14B CADP 联合最优（external 大脑/embedding；先启动 8390/8389）。
-# AR012 CADP 联合最优：与 AR007/AR009/AR010/AR011 组合。
+# AR012 服务器 14B 复现：external brain(8388) + embedding(8389)。
+# 修正：每个 arm 使用完整 runtime overlay。资产缺失必须失败，不得外推。
 name = "ar012-server-14b-cadp-casc"
 seed = 20261026
 lambda_cost = 0.15
@@ -7,7 +7,7 @@ lambda_latency = 0.50
 limit = 30
 dataset = "shared_prefix"
 brain = "external"
-brain_base_url = "http://127.0.0.1:8390"
+brain_base_url = "http://127.0.0.1:8388"
 embedding = "external"
 embedding_base_url = "http://127.0.0.1:8389"
 ctx_size = 16384
@@ -29,9 +29,26 @@ decision_post = false
 decision_permutations = 1
 
 [overlays.CADP_CACHE_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
 decision_staged = true
 
 [overlays.CADP_CASC_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
 stable_compression = true
 stable_compression_ratio = 0.4
 stable_compression_block_tokens = 128
