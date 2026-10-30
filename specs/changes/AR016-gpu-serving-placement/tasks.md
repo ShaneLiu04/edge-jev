@@ -7,4 +7,4 @@
 | T1603 | GPU/CPU 对照实验配置 | passing |
 | T1604 | 本地真实对照矩阵 | passing |
 | T1605 | GPU profile + 服务器 7B/14B 文档 | passing |
-| T1606 | 全量测试 + 文档 + 推送/浅克隆 | pending |
+| T1606 | 全量测试 + 文档 + 推送/浅克隆 | passing |
