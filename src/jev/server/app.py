@@ -10,6 +10,7 @@ import time
 from fastapi import FastAPI
 
 from jev.kernel.cerebrum.llama_server import LlamaServerClient
+from jev.kernel.cerebrum.tiering import TieredBrain
 from jev.kernel.kernel import Kernel
 from jev.server.chat import create_chat_router
 from jev.server.systemone import create_app
@@ -39,6 +40,17 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
             else None
         )
     )
+    tiered_brain = None
+    if (
+        brain_client is not None
+        and kernel.small_brain is not None
+        and kernel.small_brain.is_running()
+    ):
+        small_client = LlamaServerClient(
+            kernel.small_brain.base_url,
+            cache_prompt=kernel.runtime_config.prefix_cache,
+        )
+        tiered_brain = TieredBrain(brain_client, small_client, kernel.tier_config)
     app.include_router(
         create_chat_router(
             kernel,
@@ -62,6 +74,7 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
             stable_compressor=kernel.stable_compressor,
             decision_int8=kernel.decision_int8,
             decision_int8_gates=kernel.decision_int8_gates,
+            tiered_brain=tiered_brain,
         )
     )
 

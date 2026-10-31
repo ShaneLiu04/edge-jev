@@ -143,10 +143,18 @@ def serve(
             kernel.brain.start()
         except BrainStartupError as exc:
             typer.echo(
-                f"警告: 大脑启动失败（chat 生成路径将 503，小脑决策仍可用）: {exc}",
+                f"警告: 大脑启动失败（chat 降级路径仍 503；小脑决策仍可用）: {exc}",
                 err=True,
             )
             typer.echo("提示: 运行 `jev doctor` 体检环境", err=True)
+    if kernel.small_brain is not None and not no_brain:
+        try:
+            kernel.small_brain.start()
+        except BrainStartupError as exc:
+            typer.echo(
+                f"警告: 级联小模型启动失败，GTB 自动回退大模型: {exc}",
+                err=True,
+            )
 
     from jev.server.app import build_serve_app
 

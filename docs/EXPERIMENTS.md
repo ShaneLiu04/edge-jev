@@ -247,3 +247,15 @@ benchmarks/results/<run>/
 - 注意：GPU 争用会使末段 arm decode 掉到 ~2.8 tps，需清理环境后重跑；
 - 复刻：`uv run jev matrix --config configs/experiments/cgw.toml`，
   联合用 `cgw-casc.toml`。
+
+## 5.13 AR018 GTB：证据接地双脑级联
+
+- 小模型 Qwen2.5-0.5B 先答；仅在答案位于问题锚点所在文档段落时采用，否则升级 1.5B；
+- 隔离：GTB quality 1.0，P50 10.363s vs CGW 13.080s（7/12 小模型）；
+- 联合：`GTB_CASC_FAST` P50 **0.721s** vs CGW 1.493s，mean 1.009s vs 1.452s，
+  quality 1.0；选择器 adopt；
+- 保守复跑（外部 GPU 争用）：P50 0.684s vs 1.035s（−33.9%），mean +3.1%，
+  按 mean 回退 CGW；GTB 定位为 P50/交互优化档；
+- needles force-full：12/12 小模型接地、quality 1.0，P50 14.596s vs 15.489s；
+- 复刻：`uv run jev matrix --config configs/experiments/gtb.toml`、
+  `gtb-casc.toml`；稳态统计使用 `drop_first=true`（同时作用于选择器）。

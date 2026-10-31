@@ -1,0 +1,57 @@
+# AR018 GTB: grounded tiered brain experiment (real llama-server, no mocks)
+drop_first = true
+name = "ar018-gtb"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 12
+dataset = "shared_prefix"
+brain = "spawn"
+embedding = "off"
+gpu_layers = 99
+small_brain_gguf = "models/qwen/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+small_gpu_layers = 99
+embedding_gpu_layers = 0
+ctx_size = 8192
+max_tokens = 32
+timeout_s = 300.0
+prompt_prefix = ""
+prompt_cache = true
+force_full = false
+arms = ["B1", "AGW", "CGW", "GTB"]
+
+[overlays.AGW.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = []
+
+[overlays.CGW.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = [128, 384]
+
+[overlays.GTB.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = [128, 384]
+
+[overlays.GTB.cerebrum]
+tier_enabled = true

@@ -319,3 +319,18 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
   （−39.6%），mean 2.063s vs 2.970s，tokens 1079、quality 1.0。
 - **回退**：窗口为空或无 int8 资产时退化为 AR015/AR013，不影响正确性。
 - **配置**：`cgw.toml` / `cgw-casc.toml`；当前 profile/服务器配置启用 `[128, 384]`。
+
+## 23 AR018 GTB：证据接地的双脑级联
+
+- **开关**：`[cerebrum] tier_enabled`（默认 false）、`small_model`、`small_gpu_layers`、
+  `tier_ground_window`、`tier_max_answer_chars`、`tier_prewarm`。
+- **实现**：`TieredBrain` 在 full 路由先调用真实 0.5B llama-server；
+  `grounded_verify` 用问题锚点所在文档段落的局部窗口验证短答案，通过即采用，
+  否则升级 1.5B；小模型超时/不可达直接回退；light/streaming 不启用。
+- **观测**：`X-Jev-Tier: small|small->large|small-error->large`、
+  `X-Jev-Tier-Reason`。
+- **实测**：联合 `GTB_CASC_FAST` P50 0.721s vs CGW 1.493s（quality 1.0，select adopt）；
+  外部争用复跑 P50 0.684s vs 1.035s，mean 1.062s vs 1.030s（选择器 mean 回退 CGW）。
+- **回退**：关闭 tier 或使用 `latency-best.toml`；独立文档推荐 CGW。
+- **配置**：`gtb.toml` / `gtb-casc.toml` / `gtb-needles*.toml`；
+  `latency-best-gpu.toml` 启用 GTB。

@@ -33,3 +33,10 @@ adaptive = false
 
 [cerebrum]
 gpu_layers = 99
+tier_enabled = true
+small_model = "models/qwen/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+small_gpu_layers = 99
+small_port = 0
+tier_ground_window = 600
+tier_max_answer_chars = 64
+tier_prewarm = true

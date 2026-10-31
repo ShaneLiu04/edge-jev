@@ -599,3 +599,68 @@ mean 361ms、P50 200ms、平均 1.22 级；共享同一 int8 session。
 - 本机全量：`721 passed`，`ruff` 零告警；
 - Gitee 浅克隆：`718 passed`，另 3 个依赖 `models/` 真实资产的用例
   （doctor/serve）在无资产环境按预期失败；AR017 相关 57 个纯逻辑用例全通过、lint 干净。
+
+## AR018 GTB：证据接地的双脑级联
+
+### 1. 背景与真实探测
+
+AR017 后 shared-prefix 稳态约 1.0s，其中解码约 0.6s。真实对照：
+
+| 模型 | shared 12 题质量 | shared 稳态 P50 | needles 12 题质量 | 解码 tps |
+| --- | --- | --- | --- | --- |
+| Qwen2.5-1.5B q4 | 1.000 | 1001ms | 1.000 | 9.5 |
+| Qwen2.5-0.5B q4 | 0.750（联合压缩） | 497ms | 1.000 | 21.5 |
+
+0.5B 的错误答案多为其它针的编号；用“问题锚点所在段落”的证据窗口验证后，
+真实 shared 12 题接受 7~9 个正确答案、**0 个错误答案被接受**，失败自动升级 1.5B。
+
+### 2. 实现
+
+- `[cerebrum] tier_enabled/small_model/small_gpu_layers/tier_ground_window/
+  tier_max_answer_chars/tier_prewarm`，默认关闭；
+- `TieredBrain`：full 路由先小模型，`grounded_verify` 通过即用；否则大模型；
+  小模型超时/不可达直接回退大模型；
+- 接地验证：问题锚点（标识符/长数字/引号/英文词/中文片段）+ 文档段落内窗口，
+  纯确定性、无模型/网络；
+- 同一文档第二次出现时预热大模型 1 token prefix KV（避免独立文档额外开销）；
+- 响应头 `X-Jev-Tier` / `X-Jev-Tier-Reason`；light/streaming/POST 路径不变。
+
+### 3. 隔离矩阵 `ar018-gtb-20261031-102551`
+
+| arm | quality | mean | P50 | 实际分派 |
+| --- | --- | --- | --- | --- |
+| B1 | 1.000 | 43.743s | 43.861s | — |
+| AGW | 1.000 | 16.496s | 16.528s | — |
+| CGW | 1.000 | 13.127s | 13.080s | — |
+| **GTB** | **1.000** | **12.924s** | **10.363s** | 7 small / 5 escalate |
+
+隔离下 uncached prefill 占主导；GTB P50 −20.8%，0 错误接受。
+
+### 4. 联合矩阵 `ar018-gtb-casc-20261031-115815`
+
+| arm | quality | mean | P50 | tokens | 分派 |
+| --- | --- | --- | --- | --- | --- |
+| AGW_CASC_FAST | 1.000 | 2.042s | 2.006s | 1079 | — |
+| CGW_CASC_FAST | 1.000 | 1.452s | 1.493s | 1079 | — |
+| GTB_CACHE_FAST | 1.000 | 1.410s | 0.872s | 2662 | 7 small / 5 escalate |
+| **GTB_CASC_FAST** | **1.000** | **1.009s** | **0.721s** | **1079** | **9 small / 3 escalate** |
+
+- 选择器 adopt `GTB_CASC_FAST`，utility 0.9281 vs CGW 0.9233；
+- P50 −51.7%、mean −30.5%（该轮外部 GPU 争用使 CGW 也偏慢，但同轮相对比较有效）；
+- 后续 `ar018-gtb-casc-20261031-144049` 在持续外部 GPU 争用下复现为
+  **P50 0.684s vs CGW 1.035s（−33.9%）**，mean 1.062s vs 1.030s（+3.1%），
+  选择器按 mean 回退 CGW。**结论：GTB 是交互 P50 优化档，mean 与 CGW 基本持平；
+  对 P50 敏感场景启用 GTB，对 mean/混合负载保守用 CGW。**
+
+### 5. needles 回归 `ar018-gtb-needles-full-20261031-124016`
+
+- force_full 12 题：GTB 12/12 小模型接地、quality 1.0；
+- P50 14.596s vs CGW 15.489s（−5.8%），mean 19.693s vs 18.184s（+8.3%，含外部波动）；
+- 选择器按 mean rollback CGW；独立文档场景推荐 CGW，GTB 仅对重复/共享文档启用。
+
+### 6. 回退与配置
+
+- 默认 `tier_enabled=false`；`latency-best-gpu.toml` 显式开启 GTB；
+- 无正收益/混合负载可回退 `latency-best.toml`（CGW，mean 更稳）；
+- `gtb.toml` / `gtb-casc.toml` / `gtb-needles*.toml` 为可复现实验；
+- 使用 `drop_first=true` 排除每个 arm 的冷启动预热请求，并同步作用于选择器。

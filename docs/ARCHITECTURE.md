@@ -295,3 +295,22 @@ configs/experiments/cgw{,-casc}.toml  真实实验
   mean 2.063s、tokens 1079、quality 1.0。
 - **观测**：`X-Jev-Decision-Long: int8-reason-full:w128`（首级命中）或 `w128+w384`。
 - **回退**：窗口配置为空即单窗口；无 int8 资产退化为 AR015/AR013。
+
+## 19. AR018 GTB：证据接地的双脑级联
+
+```text
+kernel/cerebrum/tiering.py    grounded_verify / TieredBrain / TierConfig
+kernel/kernel.py              [cerebrum] tier 配置 + 小模型 manager 生命周期
+server/app.py                 small client → TieredBrain 注入
+server/chat.py                full 路由分派；X-Jev-Tier / X-Jev-Tier-Reason
+bench/matrix.py               small_brain_gguf、drop_first、小模型 arm 生命周期
+configs/experiments/gtb*.toml 真实实验
+```
+
+- **作用**：只改变 full 路由的生成器选择；PRE/POST、light、streaming 不变。
+- **验证**：锚点（标识符/长数字/引号/英文词/中文片段）在文档段落内定位，
+  短答案命中即采用；无证据 → 升级 1.5B；小模型故障 → 直接大模型。
+- **实测**：联合 `GTB_CASC_FAST` P50 0.721s vs CGW 1.493s（select 轮），
+  quality 1.0；争用环境复跑 P50 0.684s vs 1.035s，mean 持平。
+- **回退**：`tier_enabled=false`；独立文档/mean 优先场景用 CGW profile。
+- **内存**：0.5B q4 约 0.5GB；与 1.5B 分进程，prefix KV 各自维护。

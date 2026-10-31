@@ -23,6 +23,7 @@
 | AR015 | AGW 自适应门控窗口 | 联合 mean −1.9%，P50 1.97s | 收益较小；隔离无收益 | 关 |
 | AR016 | GSP GPU 服务放置 | GPU offload mean −11.8%，P50 1.75s | 无 GPU/显存不足需回退 CPU | 关 |
 | AR017 | CGW 级联门控窗口 | 联合 P50 1.00s（相对 AGW −39.6%） | 需 int8 资产；窗口为空退化为单窗 | 关 |
+| AR018 | GTB 证据接地双脑级联 | 交互 P50 0.68–0.72s；quality 1.0 | mean 与 CGW 基本持平，独立文档回退 CGW | 关 |
 
 ## 2. 负载 → 最优组合
 
@@ -34,8 +35,9 @@
 | 成本/上下文受限的共享文档 | **CASC**（AR009：文档级稳定压缩 + 压缩 LRU + KV） | shared-prefix：2662→1079 tok（−59.5%），11/12 命中，quality 1.0 |
 | 单文档长文、token 成本优先 | **CASC**（无跨问缓存也保留证据） | needles：1847→762 tok（−58.7%），quality 1.0 |
 | 极低延迟（可放弃 Laya 复核） | **CACHE_FAST / FAST**（AR010：跳过 shadow+POST，叠加前缀 KV） | shared-prefix：54.0s→24.6s（−54.4%），输出一致 |
-| 端侧综合最优（token+延迟） | **CGW_CASC_FAST + GPU offload**（AR017+AR016+AR015+AR014+AR013+AR012+AR011+AR010+AR009+AR007） | shared-prefix：P50 **1.00s**，mean 2.06s，tokens 1079，quality 1.0 |
-| 纯延迟最优（不压缩上下文） | **CGW_CACHE + GPU offload**（AR017+AR016+AR015+AR014+AR013+AR012+AR011+AR010+AR007） | shared-prefix：P50 1.04s（CASC 更快且省 token，通常优先 CASC） |
+| 端侧综合最优（token+mean） | **CGW_CASC_FAST + GPU offload**（AR017+AR016+AR015+AR014+AR013+AR012+AR011+AR010+AR009+AR007） | shared-prefix：P50 1.00s，mean 2.06s，tokens 1079，quality 1.0 |
+| 交互 P50 最优（重复/共享文档） | **GTB_CASC_FAST + GPU offload**（AR018+AR017+...+AR007） | shared-prefix：P50 0.68–0.72s，quality 1.0，9/12 走 0.5B、3 次安全升级 |
+| 纯延迟最优（不压缩上下文） | **GTB_CACHE + GPU offload**（AR018+AR017+...+AR007） | shared-prefix：P50 0.87–1.37s；CASC 更省 token，通常优先 GTB_CASC |
 | 无 GPU / 显存不足 | **AGW_CASC_FAST（CPU）** | shared-prefix：P50 1.97s，mean 3.77s，quality 1.0；CGW 未在 CPU 联合矩阵实测 |
 | 重复/近义请求 | **语义缓存**（AR003/AR005 准入） | repeat 10×2：completion token ↓36%，延迟 ↓25% |
 | 高风险降级 | **Conformal 风险门**（AR005） | 无可行阈值时自动 disabled，失败安全 |
@@ -91,6 +93,7 @@ profile = "configs/profiles/aeb.toml"   # 或 prefix-cache / short-qa
 | AR015 自适应门控窗口 | `agw.toml` / `agw-casc.toml` |
 | AR016 GPU 放置 | `ar016-gpu-cpu.toml` / `ar016-gpu-offload.toml`；`latency-best-gpu.toml` |
 | AR017 级联门控窗口 | `cgw.toml` / `cgw-casc.toml` |
+| AR018 双脑级联 | `gtb.toml` / `gtb-casc.toml` / `gtb-needles*.toml`；`latency-best-gpu.toml` |
 | 服务器 7B/14B（完整 overlay） | `server-{7b,14b}-lcpt-casc.toml` / `server-{7b,14b}-agw-casc.toml` |
 
 ## 5. 选择规则

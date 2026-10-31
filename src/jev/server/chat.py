@@ -54,6 +54,7 @@ from jev.kernel.cerebellum.base import (
 )
 from jev.kernel.cerebrum.embeddings import EmbeddingService
 from jev.kernel.cerebrum.llama_server import LlamaServerClient
+from jev.kernel.cerebrum.tiering import TieredBrain
 from jev.kernel.decisions.calibration import Calibration
 from jev.kernel.decisions.evaluate import StageEvaluation, evaluate_stage
 from jev.kernel.decisions.framework import (
@@ -317,6 +318,7 @@ class _CascadeContext:
         stable_compressor: StableCompressor | None = None,
         decision_int8: CerebellumBackend | None = None,
         decision_int8_gates: list[CerebellumBackend] | None = None,
+        tiered_brain: TieredBrain | None = None,
     ) -> None:
         self.cerebellum = cerebellum
         self.brain = brain
@@ -349,6 +351,7 @@ class _CascadeContext:
             decision_int8_gates
             or ([decision_int8] if decision_int8 is not None else [])
         )
+        self.tiered_brain = tiered_brain
         self.stable_result: StableResult | None = None
         self.prefix_cache_active = False
         self.prefix_cache_hits = 0
@@ -384,6 +387,8 @@ class _CascadeContext:
                 "staged": False,
                 "minimal": "off",
                 "long": "",
+                "tier": "",
+                "tier_reason": "",
             },
         }
         self.prompt_build = None
@@ -1059,6 +1064,7 @@ def create_chat_router(
     stable_compressor: StableCompressor | None = None,
     decision_int8: CerebellumBackend | None = None,
     decision_int8_gates: list[CerebellumBackend] | None = None,
+    tiered_brain: TieredBrain | None = None,
 ) -> APIRouter:
     """构建 /v1/chat/completions 路由。
 
@@ -1136,6 +1142,7 @@ def create_chat_router(
                 stable_compressor=stable_compressor,
                 decision_int8=decision_int8,
                 decision_int8_gates=decision_int8_gates,
+                tiered_brain=tiered_brain,
             )
             if stream:
                 return _stream_response(context)
@@ -1316,13 +1323,27 @@ def _generate_full(
     pre: list[Decision] | None = None,
     messages: list[dict] | None = None,
 ) -> tuple[str, dict[str, int]]:
-    response = context.brain.chat(
-        messages if messages is not None else _draft_messages(context, pre or []),
-        max_tokens=context.effective_max_tokens(),
-        temperature=context.temperature,
-        stop=context.stop,
-        timeout_s=context.remaining_s(),
+    request_messages = (
+        messages if messages is not None else _draft_messages(context, pre or [])
     )
+    if context.tiered_brain is not None:
+        response, tier, reason = context.tiered_brain.chat_full(
+            request_messages,
+            max_tokens=context.effective_max_tokens(),
+            temperature=context.temperature,
+            stop=context.stop,
+            timeout_s=context.remaining_s(),
+        )
+        context.last_runtime["decision"]["tier"] = tier
+        context.last_runtime["decision"]["tier_reason"] = reason
+    else:
+        response = context.brain.chat(
+            request_messages,
+            max_tokens=context.effective_max_tokens(),
+            temperature=context.temperature,
+            stop=context.stop,
+            timeout_s=context.remaining_s(),
+        )
     context.record_server_timings(response.get("timings") or {})
     return _content_of(response), _usage_of(response)
 
@@ -1492,6 +1513,12 @@ def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
         if context.profile_name:
             headers["X-Jev-Plan"] = context.profile_name
         decision = runtime.get("decision") or {}
+        tier = decision.get("tier")
+        if tier:
+            headers["X-Jev-Tier"] = str(tier)
+            reason = decision.get("tier_reason")
+            if reason:
+                headers["X-Jev-Tier-Reason"] = str(reason)
         if not decision.get("shadow", True) or not decision.get("post", True):
             headers["X-Jev-Decision-Mode"] = "fast"
         permutations = int(decision.get("permutations", 0) or 0)

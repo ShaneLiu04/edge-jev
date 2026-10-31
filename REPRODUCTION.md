@@ -71,6 +71,11 @@ uv run jev matrix --config configs/experiments/ar016-gpu-offload.toml
 # AR017 CGW：级联门控窗口（当前最优）
 uv run jev matrix --config configs/experiments/cgw.toml
 uv run jev matrix --config configs/experiments/cgw-casc.toml
+
+# AR018 GTB: grounded tiered brain (P50 profile; requires 0.5B asset)
+uv run jev matrix --config configs/experiments/gtb.toml
+uv run jev matrix --config configs/experiments/gtb-casc.toml
+# mixed/unique-document workloads: use configs/profiles/latency-best.toml (CGW)
 ```
 
 > **int8 资产**：`jev prepare-laya-int8` 从已 fetch 的 fp32 模型确定性生成

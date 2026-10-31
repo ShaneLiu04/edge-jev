@@ -1,0 +1,88 @@
+{
+  "schema": "jev.matrix.progress/1",
+  "completed_arms": [
+    "AGW",
+    "B1",
+    "CGW",
+    "GTB"
+  ],
+  "remaining": [],
+  "metrics": {
+    "B1": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 43742.568,
+      "p50_latency_ms": 43860.816,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 5960.083,
+      "mean_decode_tps": 6.883,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "AGW": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 16495.63,
+      "p50_latency_ms": 16528.15,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 5968.167,
+      "mean_decode_tps": 7.067,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "CGW": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 13127.076,
+      "p50_latency_ms": 13079.701,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 5905.417,
+      "mean_decode_tps": 7.017,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "GTB": {
+      "count": 12,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 2662.0,
+      "mean_latency_ms": 12924.293,
+      "p50_latency_ms": 10362.819,
+      "routes": {
+        "full": 12
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 4413.833,
+      "mean_decode_tps": 12.358,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    }
+  }
+}

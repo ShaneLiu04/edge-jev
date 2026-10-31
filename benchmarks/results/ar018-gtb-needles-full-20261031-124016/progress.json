@@ -1,0 +1,48 @@
+{
+  "schema": "jev.matrix.progress/1",
+  "completed_arms": [
+    "CGW_CASC_FAST",
+    "GTB_CASC_FAST"
+  ],
+  "remaining": [],
+  "metrics": {
+    "CGW_CASC_FAST": {
+      "count": 11,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 753.636,
+      "mean_latency_ms": 18183.893,
+      "p50_latency_ms": 15489.269,
+      "routes": {
+        "full": 11
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 2485.727,
+      "mean_decode_tps": 4.745,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": null
+    },
+    "GTB_CASC_FAST": {
+      "count": 11,
+      "quality": 1.0,
+      "mean_completion_tokens": 5.0,
+      "mean_prompt_tokens": 753.818,
+      "mean_latency_ms": 19693.153,
+      "p50_latency_ms": 14595.633,
+      "routes": {
+        "full": 11
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 1409.818,
+      "mean_decode_tps": 10.627,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": null
+    }
+  }
+}

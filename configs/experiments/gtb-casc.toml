@@ -1,0 +1,135 @@
+# AR018 GTB: grounded tiered brain experiment (real llama-server, no mocks)
+drop_first = true
+name = "ar018-gtb-casc"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 12
+dataset = "shared_prefix"
+brain = "spawn"
+embedding = "auto"
+gpu_layers = 99
+small_brain_gguf = "models/qwen/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+small_gpu_layers = 99
+embedding_gpu_layers = 0
+ctx_size = 8192
+max_tokens = 32
+timeout_s = 300.0
+prompt_prefix = ""
+prompt_cache = true
+force_full = false
+arms = ["B1", "AGW_CASC_FAST", "CGW_CASC_FAST", "GTB_CACHE_FAST", "GTB_CASC_FAST"]
+
+[overlays.AGW_CACHE_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = []
+
+[overlays.AGW_CASC_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = []
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64
+stable_compression_embed_batch = 16
+
+[overlays.CGW_CACHE_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = [128, 384]
+
+[overlays.CGW_CASC_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = [128, 384]
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64
+stable_compression_embed_batch = 16
+
+[overlays.GTB_CACHE_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = [128, 384]
+
+[overlays.GTB_CACHE_FAST.cerebrum]
+tier_enabled = true
+
+[overlays.GTB_CASC_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = [128, 384]
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64
+stable_compression_embed_batch = 16
+
+[overlays.GTB_CASC_FAST.cerebrum]
+tier_enabled = true

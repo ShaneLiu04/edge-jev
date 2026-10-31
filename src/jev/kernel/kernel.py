@@ -13,6 +13,7 @@ backend_fallback=true（kind=fallback 独立条目——Kernel 层无聊天请�
 """
 
 import logging
+import socket
 import time
 import tomllib
 import uuid
@@ -37,6 +38,7 @@ from jev.kernel.cerebrum.llama_server import (
     spec_server_args,
 )
 from jev.kernel.cerebrum.supervisor import BrainSupervisor
+from jev.kernel.cerebrum.tiering import TierConfig
 from jev.kernel.decisions.calibration import Calibration, load_calibration
 from jev.kernel.decisions.framework import DecisionPoint, DecisionRegistry
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
@@ -89,6 +91,8 @@ class Kernel(CerebellumBackend):
         stable_compressor: StableCompressor | None = None,
         decision_int8: CerebellumBackend | None = None,
         decision_int8_gates: list[CerebellumBackend] | None = None,
+        small_brain: LlamaServerManager | None = None,
+        tier_config: TierConfig | None = None,
     ) -> None:
         self._cerebellum = cerebellum
         self._registry = registry
@@ -117,6 +121,8 @@ class Kernel(CerebellumBackend):
         self._decision_int8_gates = list(decision_int8_gates or (
             [decision_int8] if decision_int8 is not None else []
         ))
+        self._small_brain = small_brain
+        self._tier_config = tier_config if tier_config is not None else TierConfig()
 
     # ------------------------------------------------------------------
     # 组合根：configs/jev.toml 单源装配
@@ -215,6 +221,8 @@ class Kernel(CerebellumBackend):
             else None
         )
         supervisor = _build_supervisor(config, brain)
+        tier_config = _build_tier_config(config)
+        small_brain = _build_small_brain_manager(config)
         gate_tokens = runtime_config.decision_long_context_gate_tokens or None
         windows = runtime_config.decision_long_context_gate_windows
         base_int8 = create_laya_int8(config_file)
@@ -255,6 +263,8 @@ class Kernel(CerebellumBackend):
             stable_compressor=stable_compressor,
             decision_int8=decision_int8,
             decision_int8_gates=decision_int8_gates,
+            small_brain=small_brain,
+            tier_config=tier_config,
         )
 
     # ------------------------------------------------------------------
@@ -280,6 +290,16 @@ class Kernel(CerebellumBackend):
     @property
     def brain(self) -> LlamaServerManager | None:
         return self._brain
+
+    @property
+    def small_brain(self) -> LlamaServerManager | None:
+        """AR018：级联小模型管理器（未启用时为 None）。"""
+        return self._small_brain
+
+    @property
+    def tier_config(self) -> TierConfig:
+        """AR018：级联策略配置。"""
+        return self._tier_config
 
     @property
     def ledger(self) -> LedgerWriter | None:
@@ -438,6 +458,8 @@ class Kernel(CerebellumBackend):
             self._supervisor.close()
         if self._brain is not None:
             self._brain.stop()
+        if self._small_brain is not None:
+            self._small_brain.stop()
         if self._ledger is not None:
             self._ledger.close()
 
@@ -503,6 +525,65 @@ def _build_brain_manager(config: dict) -> LlamaServerManager | None:
         ctx_size=int(cerebrum_cfg.get("ctx_size", 4096)),
         startup_probe=cerebrum_cfg.get("startup_probe", "/health"),
         restart_max=int(cerebrum_cfg.get("restart_max", 3)),
+        extra_args=extra_args,
+    )
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def _cerebrum_path(path: str) -> Path:
+    resolved = Path(path)
+    return resolved if resolved.is_absolute() else repo_root() / resolved
+
+
+def _build_tier_config(config: dict) -> TierConfig:
+    """[cerebrum] tier 配置；默认关闭，非法值 fail-fast。"""
+    cerebrum_cfg = config.get("cerebrum") or {}
+    enabled = bool(cerebrum_cfg.get("tier_enabled", False))
+    small_model = cerebrum_cfg.get("small_model", "")
+    model_path = _cerebrum_path(str(small_model)) if small_model else None
+    if enabled and model_path is not None and not model_path.is_file():
+        raise JevAssetError(f"级联小模型资产缺失: {model_path}")
+    if enabled and model_path is None:
+        raise JevAssetError("tier_enabled=true 但未配置 cerebrum.small_model")
+    return TierConfig(
+        enabled=enabled,
+        ground_window=int(cerebrum_cfg.get("tier_ground_window", 600)),
+        max_answer_chars=int(cerebrum_cfg.get("tier_max_answer_chars", 64)),
+        small_model=model_path,
+        small_gpu_layers=int(cerebrum_cfg.get("small_gpu_layers", 0)),
+        prewarm_large=bool(cerebrum_cfg.get("tier_prewarm", True)),
+    )
+
+
+def _build_small_brain_manager(config: dict) -> LlamaServerManager | None:
+    """AR018：真实小模型管理器（不启动）；未启用返回 None。"""
+    tier_config = _build_tier_config(config)
+    if not tier_config.enabled or tier_config.small_model is None:
+        return None
+    cerebrum_cfg = config.get("cerebrum") or {}
+    bin_path = _cerebrum_path(
+        str(
+            cerebrum_cfg.get(
+                "llama_server_bin", "models/llama-server/bin/llama-server.exe"
+            )
+        )
+    )
+    port = int(cerebrum_cfg.get("small_port", 0)) or _free_port()
+    extra_args = slot_server_args(parallel=1)
+    extra_args += ["--n-gpu-layers", str(tier_config.small_gpu_layers)]
+    return LlamaServerManager(
+        llama_server_bin=bin_path,
+        gguf_path=tier_config.small_model,
+        host=str(cerebrum_cfg.get("host", "127.0.0.1")),
+        port=port,
+        ctx_size=int(cerebrum_cfg.get("ctx_size", 4096)),
+        startup_probe=str(cerebrum_cfg.get("startup_probe", "/health")),
+        restart_max=0,
         extra_args=extra_args,
     )
 

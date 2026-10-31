@@ -28,6 +28,7 @@ from jev.kernel.cerebrum.llama_server import (
     LlamaServerManager,
     spec_server_args,
 )
+from jev.kernel.cerebrum.tiering import TierConfig, TieredBrain
 from jev.kernel.kernel import (
     Kernel,
     _build_admission,
@@ -124,6 +125,9 @@ class MatrixConfig:
     force_full: bool = False
     brain_gguf: str = ""
     embedding_gpu_layers: int = 0
+    small_brain_gguf: str = ""
+    small_gpu_layers: int = 0
+    drop_first: bool = False
 
 
 def load_matrix_config(path: Path | str) -> MatrixConfig:
@@ -166,6 +170,9 @@ def load_matrix_config(path: Path | str) -> MatrixConfig:
         lambda_latency=float(data.get("lambda_latency", 0.0)),
         force_full=bool(data.get("force_full", False)),
         brain_gguf=str(data.get("brain_gguf", "")),
+        small_brain_gguf=str(data.get("small_brain_gguf", "")),
+        small_gpu_layers=int(data.get("small_gpu_layers", 0)),
+        drop_first=bool(data.get("drop_first", False)),
     )
 
 
@@ -173,7 +180,8 @@ def _load_questions(config: MatrixConfig):
     if config.dataset == "needles":
         from jev.bench.needles import build_needles
 
-        return build_needles(30)
+        questions = build_needles(30)
+        return questions[: config.limit] if config.limit > 0 else questions
     if config.dataset == "shared_prefix":
         from jev.bench.prefixset import build_shared_prefix
 
@@ -192,7 +200,8 @@ def _load_questions(config: MatrixConfig):
         return build_long_generation_en(max(12, config.limit or 12))
     if config.dataset != "quality":
         raise JevError(f"未知 dataset: {config.dataset}")
-    return load_quality_set(DEFAULT_QUALITY_SET)
+    questions = load_quality_set(DEFAULT_QUALITY_SET)
+    return questions[: config.limit] if config.limit > 0 else questions
 
 
 def _deep_merge(base: dict, overlay: dict) -> dict:
@@ -305,6 +314,49 @@ def _arm_gate_backends(kernel: Kernel, runtime_config) -> list:
     return [base.windowed(gate) if gate else base]
 
 
+def _tier_enabled(arm_cfg: dict) -> bool:
+    cerebrum = arm_cfg.get("cerebrum") or {}
+    return bool(cerebrum.get("tier_enabled", False))
+
+
+def _arm_tier_config(config: MatrixConfig, arm_cfg: dict) -> TierConfig:
+    cerebrum = arm_cfg.get("cerebrum") or {}
+    small_path = Path(config.small_brain_gguf)
+    if not small_path.is_absolute():
+        small_path = REPO_ROOT / small_path
+    if not small_path.is_file():
+        raise JevAssetError(f"级联小模型资产缺失: {small_path}")
+    return TierConfig(
+        enabled=True,
+        ground_window=int(cerebrum.get("tier_ground_window", 600)),
+        max_answer_chars=int(cerebrum.get("tier_max_answer_chars", 64)),
+        small_model=small_path,
+        small_gpu_layers=config.small_gpu_layers,
+        prewarm_large=bool(cerebrum.get("tier_prewarm", True)),
+    )
+
+
+def _spawn_small_brain(config: MatrixConfig, arm_cfg: dict) -> LlamaServerManager:
+    if DEFAULT_CUDART.is_dir():
+        os.environ["PATH"] = str(DEFAULT_CUDART) + os.pathsep + os.environ["PATH"]
+    small_path = Path(config.small_brain_gguf)
+    if not small_path.is_absolute():
+        small_path = REPO_ROOT / small_path
+    if not small_path.is_file():
+        raise JevAssetError(f"级联小模型资产缺失: {small_path}")
+    manager = LlamaServerManager(
+        llama_server_bin=DEFAULT_LLAMA_BIN,
+        gguf_path=small_path,
+        port=_free_port(),
+        ctx_size=config.ctx_size,
+        probe_timeout_s=180.0,
+        restart_max=0,
+        extra_args=["--n-gpu-layers", str(config.small_gpu_layers)],
+    )
+    manager.start()
+    return manager
+
+
 def _build_client(
     kernel: Kernel,
     brain: LlamaServerClient,
@@ -314,6 +366,7 @@ def _build_client(
     profile_name: str,
     force_full: bool = False,
     evidence: EvidenceSelector | None = None,
+    tiered_brain: TieredBrain | None = None,
 ) -> TestClient:
     runtime_config, cache = _build_runtime(config)
     embeddings = embedding_service
@@ -340,6 +393,7 @@ def _build_client(
             stable_compressor=stable_compressor,
             decision_int8=kernel.decision_int8,
             decision_int8_gates=_arm_gate_backends(kernel, runtime_config),
+            tiered_brain=tiered_brain,
         )
     )
     return TestClient(app)
@@ -572,6 +626,20 @@ def run_matrix(
                         (arm_cfg.get("runtime") or {}).get("prefix_cache", False)
                     ),
                 )
+            small_manager: LlamaServerManager | None = None
+            tiered_brain: TieredBrain | None = None
+            if _tier_enabled(arm_cfg) and config.small_brain_gguf:
+                small_manager = _spawn_small_brain(config, arm_cfg)
+                small_client = LlamaServerClient(
+                    small_manager.base_url,
+                    timeout_s=config.timeout_s,
+                    cache_prompt=bool(
+                        (arm_cfg.get("runtime") or {}).get("prefix_cache", False)
+                    ),
+                )
+                tiered_brain = TieredBrain(
+                    arm_brain, small_client, _arm_tier_config(config, arm_cfg)
+                )
             try:
                 arm_prefill = arm_cfg.get("prefill", {}) or {}
                 arm_cache = arm_cfg.get("cache", {}) or {}
@@ -604,6 +672,7 @@ def run_matrix(
                     profile_name=arm,
                     force_full=(config.force_full or arm == "B0"),
                     evidence=arm_evidence,
+                    tiered_brain=tiered_brain,
                 )
                 raw[arm] = _run_questions(
                     client, questions, arm=arm, seed=config.seed,
@@ -613,6 +682,8 @@ def run_matrix(
                     prompt_cache=config.prompt_cache,
                 )
             finally:
+                if small_manager is not None:
+                    small_manager.stop()
                 if arm_manager is not None:
                     arm_manager.stop()
             (out / "progress.json").write_text(
@@ -621,7 +692,7 @@ def run_matrix(
                         "schema": "jev.matrix.progress/1",
                         "completed_arms": sorted(raw),
                         "remaining": [a for a in config.arms if a not in raw],
-                        "metrics": _summarize(raw),
+                        "metrics": _summarize(raw, drop_first=config.drop_first),
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -648,6 +719,7 @@ def run_matrix(
                 ar_cfg["cache"]["admission_calibration"] = calibrations["cache"]["path"]
             arm_brain = brain
             arm_manager = None
+            small_manager = None
             if arm_brain is None:
                 arm_manager = _spawn_brain(config, ar_cfg)
                 arm_brain = LlamaServerClient(
@@ -686,6 +758,8 @@ def run_matrix(
                     prompt_cache=config.prompt_cache,
                 )
             finally:
+                if small_manager is not None:
+                    small_manager.stop()
                 if arm_manager is not None:
                     arm_manager.stop()
             (out / "progress.json").write_text(
@@ -694,7 +768,7 @@ def run_matrix(
                         "schema": "jev.matrix.progress/1",
                         "completed_arms": sorted(raw),
                         "remaining": [],
-                        "metrics": _summarize(raw),
+                        "metrics": _summarize(raw, drop_first=config.drop_first),
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -706,7 +780,9 @@ def run_matrix(
 
         outcomes: list[ArmOutcome] = []
         for arm, rows in raw.items():
-            for row in rows:
+            for index, row in enumerate(rows):
+                if config.drop_first and index == 0:
+                    continue
                 outcomes.append(
                     ArmOutcome(
                         arm=arm,
@@ -726,10 +802,12 @@ def run_matrix(
             lambda_latency=config.lambda_latency,
             baseline_arm=baseline_arm,
             seed=config.seed,
-            min_samples=min(20, len(questions)),
+            min_samples=min(
+                20, len(questions) - (1 if config.drop_first else 0)
+            ),
         )
 
-        metrics = _summarize(raw)
+        metrics = _summarize(raw, drop_first=config.drop_first)
         fingerprint = environment_fingerprint(
             extra={
                 "arms": list(raw),
@@ -813,13 +891,15 @@ def run_matrix(
             brain_manager.stop()
 
 
-def _summarize(raw: dict[str, list[dict]]) -> dict:
+def _summarize(raw: dict[str, list[dict]], *, drop_first: bool = False) -> dict:
     metrics: dict[str, dict] = {}
     baseline_answers = {
         (row["question_id"], row.get("pass", 0)): row["answer"]
         for row in raw.get("B1", [])
     }
     for arm, rows in raw.items():
+        if drop_first and len(rows) > 1:
+            rows = rows[1:]
         count = len(rows)
         if not count:
             continue
