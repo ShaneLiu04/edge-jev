@@ -664,3 +664,10 @@ AR017 后 shared-prefix 稳态约 1.0s，其中解码约 0.6s。真实对照：
 - 无正收益/混合负载可回退 `latency-best.toml`（CGW，mean 更稳）；
 - `gtb.toml` / `gtb-casc.toml` / `gtb-needles*.toml` 为可复现实验；
 - 使用 `drop_first=true` 排除每个 arm 的冷启动预热请求，并同步作用于选择器。
+
+### 7. 验证
+
+- 本机全量：`731 passed`，`ruff` 零告警；
+- 真实双脑集成：`tests/integration/test_tiered_brain_real.py` 1 passed（双 llama-server 真实进程）；
+- Gitee 浅克隆：AR018 相关 67 个纯逻辑用例通过、lint 干净；
+- 无资产环境不运行 `assets+slow` 用例，符合既有测试纪律。
