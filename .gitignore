@@ -27,3 +27,6 @@ data/ledger/
 # OS
 Thumbs.db
 .DS_Store
+
+# 本地代理规约（不同步到 GitHub）
+AGENTS.md

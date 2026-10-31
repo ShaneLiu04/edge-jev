@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/cover.png" alt="Jev — 端侧快慢双系统 AI 运行时" width="100%">
+</p>
+
 # Jev（捷思）— 端侧快慢双系统 AI 运行时
 
 > **System 1（小脑）+ System 2（大脑）** 的全本地双系统运行时：类型化决策、级联路由、风险可控降级、KV/前缀复用、稀疏 prefill、语义缓存与可复现实验矩阵。
