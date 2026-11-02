@@ -57,5 +57,33 @@ def test_extractive_hit_with_real_laya_and_no_brain() -> None:
         assert response.headers["x-jev-extract"].startswith("hit:")
         assert kernel.brain is not None
         assert not kernel.brain.is_running()
+
+        strict_app = FastAPI()
+        strict_app.include_router(
+            create_chat_router(
+                kernel.cerebellum,
+                None,
+                kernel.registry,
+                engine=kernel.engine,
+                route_policy=lambda _pre: "full",
+                runtime_config=RuntimeConfig(enabled=True, decision_post=True),
+                extractor=GroundedExtractor(
+                    ExtractiveConfig(enabled=True, min_document_chars=200)
+                ),
+            )
+        )
+        strict = TestClient(strict_app).post(
+            "/v1/chat/completions",
+            json={
+                "messages": [{"role": "user", "content": question.prompt}],
+                "max_tokens": 32,
+                "temperature": 0.0,
+            },
+        )
+        assert strict.status_code == 200
+        strict_body = strict.json()
+        assert grade(strict_body["choices"][0]["message"]["content"], question.gold)
+        assert strict_body["usage"]["total_tokens"] == 0
+        assert strict.headers["x-jev-extract"].startswith("hit:")
     finally:
         kernel.close()

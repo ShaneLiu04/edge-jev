@@ -13,7 +13,9 @@ from typing import Any
 from jev.kernel.cerebrum.tiering import split_question_document
 
 _IDENTIFIER_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,15}\d[A-Za-z0-9_-]*|\d{4,}")
-_NUMBER_RE = re.compile(r"(?<![\w.-])-?\d+(?:\.\d+)?(?![\w.-])")
+_NUMBER_RE = re.compile(
+    r"(?<![A-Za-z0-9_.-])-?\d+(?:\.\d+)?(?![A-Za-z0-9_.-])"
+)
 _DATE_RE = re.compile(r"(?:19|20)\d{2}\s*[年/-]\s*\d{1,2}\s*[月/-]\s*\d{1,2}\s*日?")
 _QUOTED_RE = re.compile(r"[\"'“”‘’]([^\"'“”‘’]{2,40})[\"'“”‘’]")
 _CJK_RE = re.compile(r"[\u4e00-\u9fff]{2,8}")
@@ -47,6 +49,22 @@ def _has_cue(cue: str, text: str) -> bool:
         pattern = rf"(?<![a-z0-9]){re.escape(cue)}(?![a-z0-9])"
         return re.search(pattern, text) is not None
     return cue in text
+
+
+def _first_cue_end(sentence: str, cues: list[str]) -> int | None:
+    lowered = sentence.lower()
+    ends: list[int] = []
+    for cue in cues:
+        if cue.isascii() and cue.isalnum():
+            pattern = rf"(?<![a-z0-9]){re.escape(cue)}(?![a-z0-9])"
+            match = re.search(pattern, lowered)
+            if match is not None:
+                ends.append(match.end())
+        else:
+            index = lowered.find(cue)
+            if index >= 0:
+                ends.append(index + len(cue))
+    return min(ends) if ends else None
 
 
 @dataclass(frozen=True)
@@ -118,7 +136,11 @@ class GroundedExtractor:
                 )
                 if not any(_has_cue(cue, sentence.lower()) for cue in cues):
                     continue
-                values = self._values(kind, sentence, left, match.start(), match.end())
+                values = self._values(
+                    kind, sentence, left, match.start(), match.end(), cues
+                )
+                if not values:
+                    return ExtractionResult(False, reason="no-candidate")
                 candidates.update(values)
                 if len(candidates) > 1:
                     return ExtractionResult(False, reason="ambiguous")
@@ -152,6 +174,7 @@ class GroundedExtractor:
         for match in _IDENTIFIER_RE.finditer(question):
             if len(match.group(0)) >= 4:
                 anchors.append(match.group(0))
+        anchors.extend(match.group(0) for match in _DATE_RE.finditer(question))
         anchors.extend(match.group(1) for match in _QUOTED_RE.finditer(question))
         if not anchors:
             anchors.extend(
@@ -159,7 +182,12 @@ class GroundedExtractor:
                 for match in _CJK_RE.finditer(question)
                 if match.group(0) not in _STOP_ANCHORS
             )
-        return sorted(set(anchors), key=len, reverse=True)
+        unique = sorted(set(anchors), key=len, reverse=True)
+        return [
+            anchor
+            for anchor in unique
+            if not any(anchor != other and anchor in other for other in unique)
+        ]
 
     @staticmethod
     def _sentence_at(document: str, start: int, end: int) -> tuple[int, int, str]:
@@ -176,13 +204,18 @@ class GroundedExtractor:
         sentence_start: int,
         anchor_start: int,
         anchor_end: int,
+        cues: list[str],
     ) -> list[str]:
-        if kind == "date":
-            return [match.group(0) for match in _DATE_RE.finditer(sentence)]
+        cue_end = _first_cue_end(sentence, cues)
+        if cue_end is None:
+            return []
+        pattern = _DATE_RE if kind == "date" else _NUMBER_RE
         values: list[str] = []
-        for match in _NUMBER_RE.finditer(sentence):
+        for match in pattern.finditer(sentence):
             absolute_start = sentence_start + match.start()
             absolute_end = sentence_start + match.end()
+            if absolute_start < sentence_start + cue_end:
+                continue
             overlaps = absolute_start < anchor_end and absolute_end > anchor_start
             if not overlaps:
                 values.append(match.group(0))

@@ -531,16 +531,18 @@ def _build_ledger(config: dict) -> LedgerWriter | None:
 
 
 def _build_extractor(config: dict) -> GroundedExtractor:
-    """[extractive] AR020 确定性抽取快答；默认 disabled。"""
+    """[extractive] AR020 确定性抽取快答；默认 disabled，非法配置 fail-fast。"""
     cfg = config.get("extractive") or {}
-    return GroundedExtractor(
-        ExtractiveConfig(
+    try:
+        extractive = ExtractiveConfig(
             enabled=bool(cfg.get("enabled", False)),
             min_document_chars=int(cfg.get("min_document_chars", 200)),
             max_answer_chars=int(cfg.get("max_answer_chars", 64)),
             max_anchor_occurrences=int(cfg.get("max_anchor_occurrences", 64)),
         )
-    )
+    except (TypeError, ValueError) as exc:
+        raise JevProtocolError(f"[extractive] 配置非法: {exc}") from exc
+    return GroundedExtractor(extractive)
 
 
 def _build_snapshot_config(config: dict) -> SnapshotConfig:

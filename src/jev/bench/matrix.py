@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 from jev.bench.dataset import QualityQuestion, grade, load_cache_set, load_quality_set
 from jev.bench.metrics import environment_fingerprint
 from jev.bench.selector import ArmOutcome, select
-from jev.errors import JevAssetError, JevError
+from jev.errors import JevAssetError, JevError, JevProtocolError
 from jev.kernel.cerebrum.embeddings import EmbeddingClient, EmbeddingService
 from jev.kernel.cerebrum.llama_server import (
     LlamaServerClient,
@@ -317,16 +317,18 @@ def _free_port() -> int:
 
 
 def _build_extractor(config: dict) -> GroundedExtractor:
-    """AR020：arm 级抽取快答配置；默认 disabled。"""
+    """AR020：arm 级抽取快答配置；默认 disabled，非法值 fail-fast。"""
     cfg = config.get("extractive") or {}
-    return GroundedExtractor(
-        ExtractiveConfig(
+    try:
+        extractive = ExtractiveConfig(
             enabled=bool(cfg.get("enabled", False)),
             min_document_chars=int(cfg.get("min_document_chars", 200)),
             max_answer_chars=int(cfg.get("max_answer_chars", 64)),
             max_anchor_occurrences=int(cfg.get("max_anchor_occurrences", 64)),
         )
-    )
+    except (TypeError, ValueError) as exc:
+        raise JevProtocolError(f"[extractive] 配置非法: {exc}") from exc
+    return GroundedExtractor(extractive)
 
 
 def _snapshot_config(config: MatrixConfig) -> SnapshotConfig:

@@ -82,6 +82,68 @@ def test_date_extraction() -> None:
     assert "2026" in result.answer
 
 
+def test_number_adjacent_to_chinese_is_extracted() -> None:
+    document = (
+        "第0段特别记录：编号 K-1000 的校验码是4815，归档完成。"
+        + "其他巡检内容。" * 30
+    )
+    prompt = f"{document}\n\n问题：编号 K-1000 的校验码是多少？只输出数字。"
+    result = _extractor().answer(_messages(prompt))
+    assert result.hit
+    assert result.answer == "4815"
+
+
+def test_cue_sentence_without_candidate_falls_back() -> None:
+    document = (
+        "第0段特别记录：编号 K-1000 的校验码缺失，归档完成。\n\n"
+        "第1段特别记录：编号 K-1000 的校验码是 9999，归档完成。\n\n"
+        + "其他巡检内容。" * 30
+    )
+    prompt = f"{document}\n\n问题：编号 K-1000 的校验码是多少？只输出数字。"
+    result = _extractor().answer(_messages(prompt))
+    assert not result.hit
+    assert result.reason == "no-candidate"
+
+
+def test_date_anchor_itself_is_excluded() -> None:
+    document = (
+        "第0段记录：编号 2026-03-15 的入库日期是 2026-04-01，负责人为 A。"
+        + "其他巡检内容。" * 30
+    )
+    prompt = f"{document}\n\n问题：编号 2026-03-15 的入库日期是哪天？只输出日期。"
+    result = _extractor().answer(_messages(prompt))
+    assert result.hit
+    assert result.answer == "2026-04-01"
+
+
+def test_too_many_anchor_occurrences_miss() -> None:
+    document = (
+        ("编号 K-1000 的校验码是 4815。\n\n" * 3)
+        + "其他巡检内容。" * 30
+    )
+    prompt = f"{document}\n\n问题：编号 K-1000 的校验码是多少？只输出数字。"
+    extractor = GroundedExtractor(
+        ExtractiveConfig(
+            enabled=True,
+            min_document_chars=200,
+            max_anchor_occurrences=1,
+        )
+    )
+    result = extractor.answer(_messages(prompt))
+    assert not result.hit
+    assert result.reason == "too-many-anchors"
+
+
+def test_answer_too_long_miss() -> None:
+    result = GroundedExtractor(
+        ExtractiveConfig(
+            enabled=True, min_document_chars=200, max_answer_chars=2
+        )
+    ).answer(_messages(build_shared_prefix(1)[0].prompt))
+    assert not result.hit
+    assert result.reason == "answer-too-long"
+
+
 def test_disabled_and_short_document_miss() -> None:
     disabled = GroundedExtractor(ExtractiveConfig(enabled=False))
     result = disabled.answer(_messages(build_shared_prefix(1)[0].prompt))
@@ -102,6 +164,48 @@ def test_config_validation() -> None:
         ExtractiveConfig(enabled=True, max_anchor_occurrences=0)
 
 
+def test_chat_extractive_post_reject_falls_back(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from jev.kernel.cascade.engine import PostVerdict
+    from jev.server import chat
+
+    context = SimpleNamespace(
+        extractor=_extractor(),
+        messages=_messages(build_shared_prefix(1)[0].prompt),
+        request_id="r-reject",
+        query_text=lambda: build_shared_prefix(1)[0].prompt,
+    )
+    monkeypatch.setattr(
+        chat,
+        "_post_review",
+        lambda *args, **kwargs: (
+            PostVerdict.DOWNGRADE,
+            True,
+            "down",
+            {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        ),
+    )
+    assert chat._try_extractive(context, "full") is None
+
+
+def test_chat_extractive_exception_falls_back() -> None:
+    from types import SimpleNamespace
+
+    from jev.server import chat
+
+    class _Broken:
+        enabled = True
+
+        def answer(self, messages):
+            raise RuntimeError("boom")
+
+    context = SimpleNamespace(
+        extractor=_Broken(), messages=_messages("x"), request_id="r-broken"
+    )
+    assert chat._try_extractive(context, "full") is None
+
+
 def test_chat_extractive_only_runs_on_full_route() -> None:
     from types import SimpleNamespace
 
@@ -117,9 +221,12 @@ def test_chat_extractive_only_runs_on_full_route() -> None:
 
 
 def test_kernel_builder_default_off_and_enabled() -> None:
+    from jev.errors import JevProtocolError
     from jev.kernel.kernel import _build_extractor
 
     assert not _build_extractor({}).enabled
+    with pytest.raises(JevProtocolError, match="extractive"):
+        _build_extractor({"extractive": {"enabled": True, "max_answer_chars": 0}})
     enabled = _build_extractor(
         {
             "extractive": {

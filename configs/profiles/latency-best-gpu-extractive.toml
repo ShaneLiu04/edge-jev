@@ -1,5 +1,5 @@
 # AR020 GPU 部署档：AR019 级联/压缩/KV + GEXA 抽取快答。
-# shared-prefix 12 题：GEXA P50 176ms、tokens 0、quality 1.0（vs CGW 937ms）。
+# shared-prefix 12 题：GEXA P50 175ms、tokens 0、quality 1.0（vs CGW 1.101s）。
 # 非抽取型请求自动回退 AR016/AR017/AR018 级联；无 GPU 用 latency-best.toml。
 [portfolio]
 name = "latency-best-gpu-extractive"

@@ -54,7 +54,7 @@ from jev.kernel.cerebellum.base import (
 )
 from jev.kernel.cerebrum.embeddings import EmbeddingService
 from jev.kernel.cerebrum.llama_server import LlamaServerClient
-from jev.kernel.cerebrum.tiering import TieredBrain
+from jev.kernel.cerebrum.tiering import TieredBrain, split_question_document
 from jev.kernel.decisions.calibration import Calibration
 from jev.kernel.decisions.evaluate import StageEvaluation, evaluate_stage
 from jev.kernel.decisions.framework import (
@@ -1224,8 +1224,21 @@ def _try_extractive(
     if not result.hit:
         return None
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    _document, question = split_question_document(context.query_text())
+    compact_state = json.dumps(
+        [
+            {"role": "user", "content": question or context.query_text()[:500]},
+            {"role": "assistant", "content": result.answer},
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
     verdict, _degraded, content, reviewed_usage = _post_review(
-        context, result.answer, usage, allow_retry=False
+        context,
+        result.answer,
+        usage,
+        allow_retry=False,
+        state_override=compact_state,
     )
     if verdict is not PostVerdict.ACCEPT:
         logger.info(
@@ -1476,6 +1489,7 @@ def _post_review(
     usage: dict[str, int],
     *,
     allow_retry: bool = True,
+    state_override: str | None = None,
 ) -> tuple[PostVerdict, bool, str, dict[str, int]]:
     """POST 复核：needs_retry 触发一次反馈重试；重试后仍不过 → 降级交付。
 
@@ -1490,7 +1504,10 @@ def _post_review(
     if _is_degenerate_repetition(content):
         verdict = PostVerdict.RETRY
     else:
-        post = context.evaluate(Stage.POST, context.state_json(content))
+        post = context.evaluate(
+            Stage.POST,
+            state_override if state_override is not None else context.state_json(content),
+        )
         verdict = context.engine.handle_post(content, post, retried=False)
         if verdict is not PostVerdict.RETRY:
             return verdict, False, content, usage
