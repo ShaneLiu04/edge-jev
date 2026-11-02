@@ -38,6 +38,7 @@ from jev.kernel.cerebrum.llama_server import (
     slot_server_args,
     spec_server_args,
 )
+from jev.kernel.cerebrum.scheduling import SlotScheduler, SlotSchedulerConfig
 from jev.kernel.cerebrum.snapshot import SnapshotConfig
 from jev.kernel.cerebrum.supervisor import BrainSupervisor
 from jev.kernel.cerebrum.tiering import TierConfig
@@ -100,6 +101,7 @@ class Kernel(CerebellumBackend):
         snapshot_namespace_large: str = "large",
         snapshot_namespace_small: str = "small",
         extractor: GroundedExtractor | None = None,
+        slot_scheduler: SlotScheduler | None = None,
     ) -> None:
         self._cerebellum = cerebellum
         self._registry = registry
@@ -139,6 +141,11 @@ class Kernel(CerebellumBackend):
             extractor
             if extractor is not None
             else GroundedExtractor(ExtractiveConfig())
+        )
+        self._slot_scheduler = (
+            slot_scheduler
+            if slot_scheduler is not None
+            else SlotScheduler(SlotSchedulerConfig())
         )
 
     # ------------------------------------------------------------------
@@ -199,6 +206,11 @@ class Kernel(CerebellumBackend):
         snapshot_namespace_large = _snapshot_namespace(config, small=False)
         snapshot_namespace_small = _snapshot_namespace(config, small=True)
         extractor = _build_extractor(config)
+        slot_scheduler = _build_slot_scheduler(config)
+        if snapshot_config.enabled and slot_scheduler.enabled:
+            raise JevProtocolError(
+                "kv_snapshot_dir 与 slot_scheduler_enabled 不能同时启用"
+            )
         ledger = _build_ledger(config)
         cascade_cfg = config.get("cascade", {})
         laya_cfg = cerebellum_cfg.get("laya_onnx", {})
@@ -290,6 +302,7 @@ class Kernel(CerebellumBackend):
             snapshot_namespace_large=snapshot_namespace_large,
             snapshot_namespace_small=snapshot_namespace_small,
             extractor=extractor,
+            slot_scheduler=slot_scheduler,
         )
 
     # ------------------------------------------------------------------
@@ -335,6 +348,11 @@ class Kernel(CerebellumBackend):
     def extractor(self) -> GroundedExtractor:
         """AR020：确定性抽取快答（默认 disabled）。"""
         return self._extractor
+
+    @property
+    def slot_scheduler(self) -> SlotScheduler:
+        """AR022：并行槽调度器（默认 disabled）。"""
+        return self._slot_scheduler
 
     @property
     def snapshot_namespace_large(self) -> str:
@@ -528,6 +546,27 @@ def _build_ledger(config: dict) -> LedgerWriter | None:
         queue_maxsize=int(ledger_cfg.get("queue_maxsize", 10000)),
         warn_after_failures=int(ledger_cfg.get("warn_after_failures", 100)),
     )
+
+
+def _build_slot_scheduler(config: dict) -> SlotScheduler:
+    """[cerebrum] AR022 并行槽调度；默认关闭，启用需 parallel>=2。"""
+    cfg = config.get("cerebrum") or {}
+    enabled = bool(cfg.get("slot_scheduler_enabled", False))
+    try:
+        parallel = int(cfg.get("parallel", 1))
+    except (TypeError, ValueError) as exc:
+        raise JevProtocolError(f"[cerebrum] parallel 配置非法: {exc}") from exc
+    if enabled and parallel < 2:
+        raise JevProtocolError("slot_scheduler_enabled=true 需要 cerebrum.parallel>=2")
+    try:
+        slot_config = SlotSchedulerConfig(
+            enabled=enabled,
+            slots=parallel,
+            max_documents=int(cfg.get("slot_scheduler_max_documents", 1024)),
+        )
+    except (TypeError, ValueError) as exc:
+        raise JevProtocolError(f"[cerebrum] slot_scheduler 配置非法: {exc}") from exc
+    return SlotScheduler(slot_config)
 
 
 def _build_extractor(config: dict) -> GroundedExtractor:

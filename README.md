@@ -148,6 +148,11 @@ uv run jev matrix --config configs/experiments/extractive-quality.toml
 # AR021 GQRA: grounded multi-record numeric reasoning (sum/diff/max/min/which)
 uv run jev matrix --config configs/experiments/quantitative.toml
 # production GPU profile: configs/profiles/latency-best-gpu-grounded.toml
+
+# AR022 PSS: parallel slots / document-affinity throughput (real concurrency)
+uv run python scripts/bench_concurrency.py
+# profiles: configs/profiles/latency-best-gpu-throughput.toml (parallel=4)
+#           configs/profiles/latency-best-gpu-affinity.toml (parallel=2 + id_slot)
 ```
 
 产物目录 `benchmarks/results/<run>/`：

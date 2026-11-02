@@ -852,3 +852,48 @@ GEXA 未启用 GQRA 时保持 0 命中并回退，证明组合开关隔离有效
 - 单测覆盖 6 种操作、关闭隔离、单锚点/歧义/不支持回退；
 - 本机全量 `767 passed`、ruff 零告警；`grounded.py` 覆盖率 91%、kernel 92%；
 - Gitee 干净浅克隆 `764 passed, 3 skipped`，复刻入口无需模型即可跑通逻辑测试。
+
+## AR022 PSS：GPU 并行槽与文档亲和调度
+
+### 1. 背景与真实探测
+
+llama-server 支持 `--parallel N` 与请求级 `id_slot`。真实探测确认指定
+`id_slot=2` 后槽 2 实际接收请求，为并发调度提供基础。
+
+### 2. 真实并发 `ar022-concurrency-20261102-142142`
+
+shared-prefix 12 题、客户端并发 4、ctx 16384、GPU offload：
+
+| 模式 | wall | P50 | req/s | 相对 parallel1 | quality |
+| --- | ---: | ---: | ---: | ---: | --- |
+| parallel=1 | 8152ms | 2702ms | 1.472 | 1.00x | 1.0 |
+| parallel=2 auto | 8218ms | 2698ms | 1.460 | 0.99x | 1.0 |
+| parallel=2 scheduled | 6693ms | 2217ms | 1.793 | **1.22x** | 1.0 |
+| **parallel=4 auto** | **4386ms** | **1445ms** | **2.736** | **1.86x** | **1.0** |
+| parallel=4 scheduled | 4539ms | 1527ms | 2.644 | 1.80x | 1.0 |
+
+结论：纯吞吐优先 `parallel=4 auto`（1.86x）；2 槽且需要文档确定性亲和时
+scheduled 优于 auto（1.22x vs 0.99x）；4 槽同文档场景 auto 已足够好。
+
+### 3. 实现与组合
+
+- `SlotScheduler` 对文档稳定 hash，按文档独立轮转 `id_slot`；计数器
+  `slot_scheduler_max_documents`（默认 1024）做 LRU 淘汰；
+- `ScheduledClient` 透明注入 extra_body，不改内容/usage；
+- `parallel=4` 会分割 ctx，实验用 16384（每槽 4096）；
+- 调度只包装大脑客户端：GEXA/GQRA 命中零模型，不受影响；
+- 与 PPKS 互斥（PPKS 需 parallel=1），同时启用 fail-fast；
+- 默认 `parallel=1 + scheduler off`，单请求行为不变。
+
+### 4. 配置与回退
+
+- 吞吐档：`configs/profiles/latency-best-gpu-throughput.toml`（parallel=4）；
+- 亲和档：`configs/profiles/latency-best-gpu-affinity.toml`（parallel=2+scheduler）；
+- 回退：`parallel=1`、`slot_scheduler_enabled=false`；
+- 服务器按显存选择 N/ctx；14B 未本机实测，不得虚构。
+
+### 5. 验证
+
+- 真实集成 `tests/integration/test_slot_scheduler_real.py`：两次请求落入
+  两个不同 slot，1 passed；
+- 本机全量 `780 passed`、scheduler 覆盖率 97%、ruff 零告警；待浅克隆复验。

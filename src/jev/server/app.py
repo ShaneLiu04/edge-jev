@@ -11,6 +11,7 @@ import time
 from fastapi import FastAPI
 
 from jev.kernel.cerebrum.llama_server import LlamaServerClient
+from jev.kernel.cerebrum.scheduling import ScheduledClient
 from jev.kernel.cerebrum.snapshot import SnapshotClient
 from jev.kernel.cerebrum.tiering import TieredBrain
 from jev.kernel.kernel import Kernel
@@ -53,6 +54,11 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
             brain_client = SnapshotClient(
                 brain_client, snapshot, kernel.snapshot_namespace_large
             )
+    if kernel.slot_scheduler.enabled:
+        if isinstance(brain_client, LlamaServerClient):
+            brain_client = ScheduledClient(brain_client, kernel.slot_scheduler)
+        else:
+            logger.warning("当前大脑客户端类型不支持并行槽调度，本次禁用调度包装")
     tiered_brain = None
     if (
         brain_client is not None

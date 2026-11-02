@@ -27,6 +27,7 @@
 | AR019 | PPKS 持久化前缀 KV 快照 | 重启后首请求 −85.7%（6.13s→0.88s） | 需磁盘 73MB/文档；仅 parallel=1 | 关 |
 | AR020 | GEXA 确定性抽取快答 | 抽取命中零 LLM；shared P50 −84%，needles −99.97% | 仅覆盖有唯一答案的抽取型问题 | 关 |
 | AR021 | GQRA 文档数值推理 | 多记录和/差/最大最小零 LLM；P50 3.8ms，quality 1.0 | 仅覆盖可确定性数值运算的问题 | 关 |
+| AR022 | PSS 并行槽吞吐 | parallel4 并发吞吐 1.86x；quality 1.0 | 需更大 ctx/显存；与 PPKS 互斥 | 关 |
 
 ## 2. 负载 → 最优组合
 
@@ -44,6 +45,7 @@
 | 滚动重启/复现实验（冷启动首请求） | **任一稳态组合 + PPKS**（AR019） | shared-prefix 冷启动 6.13s→0.88s（−85.7%），quality 一致 |
 | 文档抽取问答（编号/校验码/日期等） | **GEXA + GTB_CASC_FAST + GPU**（AR020+AR018+...） | shared P50 175ms、needles 3.7ms，tokens 0，quality 1.0 |
 | 文档多记录数值推理（和/差/最大/最小） | **GQRA + GEXA + CGW/GTB + GPU**（AR021+AR020+...） | numeric_reasoning P50 3.8ms vs CGW 1.31s，quality 1.0 |
+| 多用户并发吞吐（服务器/GPU） | **parallel=4 auto**（AR022）或 **parallel=2 + 文档亲和** | 并发 4：1.86x 吞吐；亲和 1.22x vs auto 0.99x |
 | 无 GPU / 显存不足 | **AGW_CASC_FAST（CPU）** | shared-prefix：P50 1.97s，mean 3.77s，quality 1.0；CGW 未在 CPU 联合矩阵实测 |
 | 重复/近义请求 | **语义缓存**（AR003/AR005 准入） | repeat 10×2：completion token ↓36%，延迟 ↓25% |
 | 高风险降级 | **Conformal 风险门**（AR005） | 无可行阈值时自动 disabled，失败安全 |
@@ -106,6 +108,7 @@ profile = "configs/profiles/aeb.toml"   # 或 prefix-cache / short-qa
 | AR020 服务器 7B/14B | `server-{7b,14b}-extractive-casc.toml` |
 | AR021 数值推理 | `quantitative.toml`；`latency-best-gpu-grounded.toml` |
 | AR021 服务器 7B/14B | `server-{7b,14b}-grounded-casc.toml` |
+| AR022 并发吞吐 | `scripts/bench_concurrency.py`；`latency-best-gpu-{throughput,affinity}.toml` |
 | 服务器 7B/14B（完整 overlay） | `server-{7b,14b}-lcpt-casc.toml` / `server-{7b,14b}-agw-casc.toml` |
 
 ## 5. 选择规则

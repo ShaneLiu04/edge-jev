@@ -30,7 +30,9 @@ gguf_path = "models/qwen/qwen2.5-1.5b-instruct-q4_k_m.gguf"
 ctx_size = 4096
 startup_probe = "/health"
 restart_max = 3
-parallel = 1                             # AR003 多槽：并行请求共享前缀（1=关闭）
+parallel = 1                             # AR003/AR022 多槽：并行请求共享前缀（1=关闭）
+slot_scheduler_enabled = false            # AR022: 按文档轮转 id_slot（需 parallel>=2）
+slot_scheduler_max_documents = 1024       # 调度器保留的文档计数器上限（LRU 淘汰）
 gpu_layers = 0                           # AR016 大脑 GPU 层数（0=CPU；99=全部 offload）
 tier_enabled = false                     # AR018: grounded tiered brain (GTB)
 small_model = "models/qwen/qwen2.5-0.5b-instruct-q4_k_m.gguf"

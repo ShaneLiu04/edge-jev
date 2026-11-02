@@ -312,3 +312,16 @@ benchmarks/results/<run>/
   - 生产档 `configs/profiles/latency-best-gpu-grounded.toml`
   - 服务器 `server-{7b,14b}-grounded-casc.toml`
 - 关闭 `quantitative_enabled` 即完全回退 AR020 GEXA。
+
+## 5.17 AR022 PSS：GPU 并行槽与文档亲和调度
+
+- llama-server `parallel=N` + 请求级 `id_slot`；同文档按独立计数器轮转槽位；
+- 真实并发 4（shared 12 题、ctx 16384）：
+  - parallel1 wall 8152ms / 1.472 req/s；
+  - **parallel4 auto 4386ms / 2.736 req/s（1.86x）**；
+  - parallel2 scheduled 6693ms（1.22x），parallel2 auto 8218ms（0.99x）；
+  - 所有质量 1.0；
+- 纯吞吐档：`configs/profiles/latency-best-gpu-throughput.toml`；
+- 文档亲和档：`configs/profiles/latency-best-gpu-affinity.toml`；
+- `uv run python scripts/bench_concurrency.py` 复刻；
+- 与 PPKS 互斥；GEXA/GQRA 不受影响；默认 parallel=1 回退。

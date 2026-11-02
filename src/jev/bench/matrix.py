@@ -29,6 +29,7 @@ from jev.kernel.cerebrum.llama_server import (
     LlamaServerManager,
     spec_server_args,
 )
+from jev.kernel.cerebrum.scheduling import ScheduledClient, SlotScheduler, SlotSchedulerConfig
 from jev.kernel.cerebrum.snapshot import SnapshotClient, SnapshotConfig
 from jev.kernel.cerebrum.tiering import TierConfig, TieredBrain
 from jev.kernel.extract import ExtractiveConfig, GroundedExtractor
@@ -134,6 +135,9 @@ class MatrixConfig:
     kv_snapshot_dir: str = ""
     kv_snapshot_max_entries: int = 4
     kv_snapshot_min_chars: int = 1000
+    parallel: int = 1
+    slot_scheduler_enabled: bool = False
+    slot_scheduler_max_documents: int = 1024
 
 
 def load_matrix_config(path: Path | str) -> MatrixConfig:
@@ -182,6 +186,11 @@ def load_matrix_config(path: Path | str) -> MatrixConfig:
         kv_snapshot_dir=str(data.get("kv_snapshot_dir", "")),
         kv_snapshot_max_entries=int(data.get("kv_snapshot_max_entries", 4)),
         kv_snapshot_min_chars=int(data.get("kv_snapshot_min_chars", 1000)),
+        parallel=int(data.get("parallel", 1)),
+        slot_scheduler_enabled=bool(data.get("slot_scheduler_enabled", False)),
+        slot_scheduler_max_documents=int(
+            data.get("slot_scheduler_max_documents", 1024)
+        ),
     )
 
 
@@ -238,7 +247,12 @@ def _spawn_brain(
     cudart = DEFAULT_CUDART
     if cudart.is_dir():
         os.environ["PATH"] = str(cudart) + os.pathsep + os.environ["PATH"]
-    extra = ["--n-gpu-layers", str(config.gpu_layers)]
+    extra = [
+        "--n-gpu-layers",
+        str(config.gpu_layers),
+        "--parallel",
+        str(config.parallel),
+    ]
     spec_cfg = ((arm_cfg or {}).get("cerebrum") or {}).get("spec") or {}
     if spec_cfg.get("enabled", False):
         draft = str(spec_cfg.get("draft_model", ""))
@@ -336,6 +350,20 @@ def _build_extractor(config: dict) -> GroundedExtractor:
     return GroundedExtractor(extractive)
 
 
+def _slot_scheduler(config: MatrixConfig) -> SlotScheduler:
+    if config.slot_scheduler_enabled and config.parallel < 2:
+        raise JevProtocolError("slot_scheduler_enabled=true 需要 parallel>=2")
+    try:
+        slot_config = SlotSchedulerConfig(
+            enabled=config.slot_scheduler_enabled,
+            slots=config.parallel,
+            max_documents=config.slot_scheduler_max_documents,
+        )
+    except ValueError as exc:
+        raise JevProtocolError(f"slot_scheduler 配置非法: {exc}") from exc
+    return SlotScheduler(slot_config)
+
+
 def _snapshot_config(config: MatrixConfig) -> SnapshotConfig:
     """AR019：矩阵级快照配置；空目录即关闭。"""
     raw = config.kv_snapshot_dir.strip()
@@ -351,6 +379,18 @@ def _snapshot_config(config: MatrixConfig) -> SnapshotConfig:
         max_entries=config.kv_snapshot_max_entries,
         min_chars=config.kv_snapshot_min_chars,
     )
+
+
+def _validate_snapshot_scheduler(
+    config: MatrixConfig, snapshot_config: SnapshotConfig
+) -> None:
+    """AR022：快照固定 slot 0，必须单槽，且不能与轮转调度叠加。"""
+    if not snapshot_config.enabled:
+        return
+    if config.parallel != 1:
+        raise JevProtocolError("KV 快照需要 parallel=1")
+    if config.slot_scheduler_enabled:
+        raise JevProtocolError("KV 快照与 slot_scheduler 不能同时启用")
 
 
 def _snapshot_namespace(
@@ -647,6 +687,7 @@ def run_matrix(
 ) -> dict:
     config = load_matrix_config(config_path)
     snapshot_config = _snapshot_config(config)
+    _validate_snapshot_scheduler(config, snapshot_config)
     questions = _load_questions(config)
     limit = config.limit if limit is None else limit
     if limit > 0:
@@ -677,6 +718,8 @@ def run_matrix(
                     snapshot_config,
                     _snapshot_namespace(config, base, small=False),
                 )
+            if config.slot_scheduler_enabled:
+                brain = ScheduledClient(brain, _slot_scheduler(config))
         else:
             brain = None  # 每个 arm 独立拉起，避免长跑后 llama-server 假死
 
@@ -716,6 +759,8 @@ def run_matrix(
                         snapshot_config,
                         _snapshot_namespace(config, arm_cfg, small=False),
                     )
+                if config.slot_scheduler_enabled:
+                    arm_brain = ScheduledClient(arm_brain, _slot_scheduler(config))
             small_manager: LlamaServerManager | None = None
             tiered_brain: TieredBrain | None = None
             if _tier_enabled(arm_cfg) and config.small_brain_gguf:
@@ -832,6 +877,8 @@ def run_matrix(
                         snapshot_config,
                         _snapshot_namespace(config, ar_cfg, small=False),
                     )
+                if config.slot_scheduler_enabled:
+                    arm_brain = ScheduledClient(arm_brain, _slot_scheduler(config))
             try:
                 ar_prefill = ar_cfg.get("prefill", {}) or {}
                 ar_evidence = (

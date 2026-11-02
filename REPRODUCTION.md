@@ -338,6 +338,23 @@ uv run jev matrix --config configs/experiments/server-14b-grounded-casc.toml
 - 只支持文档中唯一接地的记录值；平均值/百分比/单位换算未启用，直接 miss；
 - 服务器 slot 路径必须与 `kv_snapshot_dir` 一致；14B 未本机实测，禁止虚构指标。
 
+### 2.14 AR022 并行槽吞吐（端侧/服务器）
+
+```bash
+# 真实并发对照（自动启停 parallel=1/2/4，客户端并发 4）
+uv run python scripts/bench_concurrency.py
+
+# 生产档：
+#   纯吞吐：configs/profiles/latency-best-gpu-throughput.toml（parallel=4, ctx 16384）
+#   文档亲和：configs/profiles/latency-best-gpu-affinity.toml（parallel=2 + scheduler）
+```
+
+- `parallel=N` 会把 ctx 均分给 N 个 slot；共享文档压缩后按每槽容量配置 ctx；
+- `slot_scheduler_enabled=true` 时同一文档按独立计数器轮转 `id_slot`；
+- 与 PPKS 互斥（PPKS 需 parallel=1）；同时启用会 fail-fast；
+- 真实结果：parallel4 auto 1.86x 吞吐，parallel2 scheduled 1.22x（auto 0.99x）；
+- 服务器显存不足时降低 N/ctx；14B 未本机实测，不得虚构。
+
 ## 3. 实验口径
 
 | 方案 | 定义 |

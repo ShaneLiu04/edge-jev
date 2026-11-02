@@ -381,3 +381,20 @@ configs/experiments/quantitative.toml
   tokens 0；GEXA 关闭 GQRA 时 0 命中并回退。
 - **回退**：`quantitative_enabled=false`；生产档
   `latency-best-gpu-grounded.toml`。
+
+## 23. AR022 PSS：GPU 并行槽与文档亲和
+
+```text
+kernel/cerebrum/scheduling.py  SlotScheduler / ScheduledClient / Config
+kernel/kernel.py               [cerebrum] parallel + scheduler + 互斥
+server/app.py                  包装 large brain client
+bench/matrix.py                parallel/scheduler 接线
+scripts/bench_concurrency.py   真实并发对照
+```
+
+- **作用**：仅改变大脑请求的 slot 选择，不改变内容/usage/路由。
+- **调度**：最后 user 文档 sha256 + per-doc 计数器轮转 `0..N-1`；不同文档独立。
+- **实测**：parallel4 auto 1.86x 吞吐；parallel2 scheduled 1.22x（auto 0.99x）；
+  质量 1.0；真实集成确认两个不同 slot 均被使用。
+- **约束**：`--parallel N` 分割 ctx；实验用 16384；与 PPKS（parallel=1）互斥。
+- **回退**：默认 parallel=1 + scheduler off；吞吐档/亲和档为 opt-in profile。

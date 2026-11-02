@@ -378,3 +378,14 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 - **回退**：`quantitative_enabled=false`；生产档
   `latency-best-gpu-grounded.toml`。
 - **服务器**：`server-{7b,14b}-grounded-casc.toml`；14B 未本机实测。
+
+## 27 AR022 PSS：GPU 并行槽与文档亲和调度
+
+- **开关**：`[cerebrum] parallel`、`slot_scheduler_enabled`（默认关；需 parallel>=2）、
+  `slot_scheduler_max_documents`（默认 1024，计数器 LRU 上限）。
+- **实现**：`SlotScheduler` 按文档 hash + 独立计数器轮转 `id_slot`；
+  `ScheduledClient` 透明注入 extra_body，chat/stream 语义不变。
+- **实测**：并发 4：parallel4 auto 1.86x 吞吐；parallel2 scheduled 1.22x
+  （同配置 auto 0.99x），quality 1.0；真实两 slot 集成通过。
+- **约束**：parallel 分割 ctx（实验 16384）；与 PPKS 互斥并 fail-fast。
+- **回退**：parallel=1 + scheduler off；吞吐档/亲和档见 profiles。
