@@ -896,4 +896,6 @@ scheduled 优于 auto（1.22x vs 0.99x）；4 槽同文档场景 auto 已足够�
 
 - 真实集成 `tests/integration/test_slot_scheduler_real.py`：两次请求落入
   两个不同 slot，1 passed；
-- 本机全量 `780 passed`、scheduler 覆盖率 97%、ruff 零告警；待浅克隆复验。
+- 本机全量 `780 passed`、scheduler 覆盖率 97%、ruff 零告警；
+- Gitee 干净浅克隆 `777 passed, 3 skipped`（3 个仅需本机 Laya 资产的用例），
+  `ruff` 零告警。

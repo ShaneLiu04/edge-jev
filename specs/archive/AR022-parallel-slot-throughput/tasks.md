@@ -23,7 +23,8 @@
 - 探测：llama-server 支持 `id_slot`，slot 2 实际接收请求；
 - 并发：parallel4 auto 1.86x；parallel2 scheduled 1.22x（优于 auto 0.99x）；
 - 真实集成：两次请求落到两个不同 slot；
-- 回归：本机全量 780 passed；待浅克隆。
+- 回归：本机全量 780 passed；Gitee 浅克隆 777 passed / 3 skipped；
+- Coverage：scheduling 97%；ruff 零告警。
 
 ## Review 记录
 
