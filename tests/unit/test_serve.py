@@ -7,6 +7,7 @@ Kernel 不再反向依赖 server；/health 契约补齐五字段
 
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from jev.kernel.kernel import Kernel
@@ -28,6 +29,10 @@ _CEREBRUM_KEYS = (
 )
 
 
+@pytest.mark.skipif(
+    not (REPO_ROOT / "models" / "laya" / "laya.onnx").is_file(),
+    reason="缺少本机 Laya 资产（浅克隆未 fetch）",
+)
 class TestServeApp:
     def test_serve_app_mounts_endpoints_and_health(self):
         kernel = Kernel.from_config(REPO_ROOT / "configs" / "jev.toml")

@@ -4,8 +4,11 @@
 真实文件系统与 socket 绑定；断言基于本开发机环境（资产就位/GPU 存在）。
 """
 
+import shutil
 import socket
 from pathlib import Path
+
+import pytest
 
 from jev.cli.doctor import render_checks, run_doctor
 
@@ -45,6 +48,10 @@ dir = "{ledger}"
 class TestDoctor:
     def test_repo_config_green_on_provisioned_machine(self):
         """本机资产就位 + GPU 存在：全项 PASS/WARN、无 FAIL、exit 0。"""
+        if not (REPO_ROOT / "models" / "laya" / "laya.onnx").is_file():
+            pytest.skip("缺少本机 Laya 资产（浅克隆未 fetch）")
+        if shutil.which("nvidia-smi") is None:
+            pytest.skip("当前机器无 nvidia-smi（非 GPU 开发机）")
         checks, exit_code = run_doctor(REPO_ROOT / "configs" / "jev.toml")
         assert exit_code == 0
         by_name = {check.name: check for check in checks}
