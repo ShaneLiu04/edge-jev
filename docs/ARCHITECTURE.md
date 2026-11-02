@@ -314,3 +314,25 @@ configs/experiments/gtb*.toml 真实实验
   quality 1.0；争用环境复跑 P50 0.684s vs 1.035s，mean 持平。
 - **回退**：`tier_enabled=false`；独立文档/mean 优先场景用 CGW profile。
 - **内存**：0.5B q4 约 0.5GB；与 1.5B 分进程，prefix KV 各自维护。
+
+## 20. AR019 PPKS：持久化前缀 KV 快照
+
+```text
+kernel/cerebrum/snapshot.py       SnapshotConfig / SnapshotClient
+kernel/cerebrum/llama_server.py   --slots --slot-save-path + slot save/restore API
+kernel/kernel.py                  [cerebrum] kv_snapshot_* + 模型指纹 namespace
+server/app.py                     large/small client 透明包装
+server/chat.py                    X-Jev-KV-Snapshot
+bench/matrix.py                   kv_snapshot_dir 实验接线
+scripts/bench_ppks.py             真实冷重启 save/restore 对照
+```
+
+- **作用**：只优化 llama-server 重启后的首请求；稳态路由/P50/mean 不变。
+- **键**：`模型路径+ctx+放置+KV 类型` 指纹 + 压缩后文档 sha256；键不含问题，
+  因此同文档新问题可复用。
+- **保存**：首次请求成功后后台线程 save，不阻塞响应；LRU 限制条数。
+- **恢复**：同文档首次请求前 restore（真实 107ms/77MB），随后正常请求；失败/
+  损坏删除文件并回退普通 prefill。
+- **约束**：`parallel=1`（slot 0）；暂不与 supervisor 叠加；目录 gitignored。
+- **实测**：冷启动 6131.7ms → 875.2ms（−85.7%），`prompt_n 2662→16`。
+- **回退**：`kv_snapshot_dir=""` 即与 AR018 行为一致。

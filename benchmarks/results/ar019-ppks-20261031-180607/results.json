@@ -1,0 +1,36 @@
+{
+  "schema": "jev.bench.ppks/1",
+  "created": "20261031-180607",
+  "hardware_note": "Quadro RTX 5000 16GB (clock-limited) + local CPU",
+  "ctx_size": 8192,
+  "gpu_layers": 99,
+  "baseline": {
+    "wall_ms": 6131.7,
+    "prompt_n": 2662,
+    "cache_n": 0,
+    "prompt_ms": 5588.6,
+    "predicted_ms": 536.9,
+    "snapshot": null,
+    "content": "4852"
+  },
+  "ppks": {
+    "wall_ms": 875.2,
+    "prompt_n": 16,
+    "cache_n": 2646,
+    "prompt_ms": 232.2,
+    "predicted_ms": 562.5,
+    "snapshot": "restore",
+    "content": "4852",
+    "seed": {
+      "prompt_n": 2662,
+      "prompt_ms": 5663.9,
+      "snapshot": "save"
+    },
+    "snapshot_file": "ar019-ppks-large-d8f741b0dd3ba65a6af9412d9d9482fa.bin",
+    "snapshot_bytes": 76482932,
+    "document_chars": 3494
+  },
+  "wall_ratio": 0.143,
+  "restored_cache_tokens": 2646,
+  "quality_ok": true
+}

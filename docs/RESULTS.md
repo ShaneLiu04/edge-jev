@@ -671,3 +671,58 @@ AR017 后 shared-prefix 稳态约 1.0s，其中解码约 0.6s。真实对照：
 - 真实双脑集成：`tests/integration/test_tiered_brain_real.py` 1 passed（双 llama-server 真实进程）；
 - Gitee 浅克隆：AR018 相关 67 个纯逻辑用例通过、lint 干净；
 - 无资产环境不运行 `assets+slow` 用例，符合既有测试纪律。
+
+## AR019 PPKS：持久化前缀 KV 快照
+
+### 1. 背景与真实探测
+
+稳态组合已复用 prefix KV，但 llama-server 重启后 KV 丢失，首个长文档请求需完整
+prefill。真实探测（1.5B、8192 ctx、GPU offload）确认 llama-server 原生能力可用：
+
+| 阶段 | 真实结果 |
+| --- | --- |
+| 首次请求 | 6326ms，`prompt_n=2684` |
+| save | 200，`n_saved=2688`，文件 77MB，`save_ms=183` |
+| 重启后 restore | 200，`n_restored=2688`，`restore_ms=107` |
+| 同文档新问题 | **764ms**，`prompt_n=1`、`cache_n=2683`，内容正确 |
+
+### 2. 实现
+
+- `[cerebrum] kv_snapshot_dir`（默认空=关）/`kv_snapshot_max_entries`/
+  `kv_snapshot_min_chars`/`kv_snapshot_slot`；启用时强制 `parallel=1`（slot 0）；
+- `LlamaServerManager` 传 `--slots --slot-save-path`；新增真实
+  `LlamaServerClient.slots/slot_save/slot_restore`；
+- `SnapshotClient` 以“模型/上下文指纹 + 压缩后文档 sha256”为键，首次请求后
+  **异步** save，同文档首请求 restore；LRU 限制条数，损坏自动删除并回退正常
+  prefill；流式透传不启用；
+- 响应头 `X-Jev-KV-Snapshot: restore|save|miss|error`；
+- 仅 opt-in，关闭时与 AR018 字节级一致；快照目录 `data/kv_snapshots/` 已 gitignore。
+
+### 3. 冷重启真实实验 `ar019-ppks-20261031-180607`
+
+`scripts/bench_ppks.py`（真实启动/停止 llama-server，无 mock）：
+
+| 路径 | wall | prompt_n | cache_n | 说明 |
+| --- | --- | --- | --- | --- |
+| baseline 冷启动 | 6131.7ms | 2662 | 0 | 完整 prefill |
+| **PPKS 恢复** | **875.2ms** | **16** | **2646** | restore 200，quality_ok=true |
+| 比值 | **0.143** | — | — | **首请求 −85.7%** |
+
+快照文件 76,482,932 bytes（约 73MB）。恢复后只 prefill 新问题，质量与 baseline 一致。
+
+### 4. 边界与回退
+
+- 指标目标是**冷启动首请求**，稳态 P50/mean 不变；矩阵 smoke 中
+  `X-Jev-KV-Snapshot` 首题 `save`、次题 `restore`、后续 `miss`（已有 prefix cache）；
+- 快照不跨模型/量化/ctx/压缩配置复用；目录不可写或 API 不支持时退化为普通
+  prefill，不产生 5xx；
+- 与 supervisor 暂不叠加（避免双重重启语义），检测到后禁用快照包装并告警；
+- 不启用 `kv_snapshot_dir` 即完全回退 AR018/CGW 组合。
+
+### 5. 验证
+
+- `tests/unit/test_snapshot.py`：键稳定性、异步保存/LRU、损坏兜底、流式透传、配置校验；
+- 真实集成 `tests/integration/test_ppks_real.py`：保存→重启→恢复，
+  `cache_n>1000`、`prompt_n<800`、答案命中 gold，1 passed；
+- 真实矩阵 smoke `configs/experiments/ppks.toml`：CGW/GTB 两 arm 正常，快照头可见；
+- 本机全量：`741 passed`，`ruff` 零告警。

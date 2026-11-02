@@ -334,3 +334,18 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 - **回退**：关闭 tier 或使用 `latency-best.toml`；独立文档推荐 CGW。
 - **配置**：`gtb.toml` / `gtb-casc.toml` / `gtb-needles*.toml`；
   `latency-best-gpu.toml` 启用 GTB。
+
+## 24 AR019 PPKS：持久化前缀 KV 快照
+
+- **开关**：`[cerebrum] kv_snapshot_dir`（默认空=关）、`kv_snapshot_max_entries`、
+  `kv_snapshot_min_chars`、`kv_snapshot_slot`；启用时要求 `parallel=1`。
+- **实现**：manager 传 `--slots --slot-save-path`；`SnapshotClient` 以
+  “模型/上下文指纹 + 压缩后文档 sha256”为键，首次请求后异步 `slot_save`，
+  同文档首请求 `slot_restore`；LRU 限制、损坏删除并回退普通 prefill；
+  streaming 透传。仅优化重启后首请求，稳态不变。
+- **观测**：`X-Jev-KV-Snapshot: restore|save|miss|error`。
+- **实测**：冷重启首请求 6131.7ms → 875.2ms（−85.7%），`prompt_n 2662→16`、
+  `cache_n=2646`，quality 一致；快照约 73MB。
+- **回退**：`kv_snapshot_dir=""`；暂不与 supervisor 叠加。
+- **配置**：`configs/experiments/ppks.toml`；冷重启脚本 `scripts/bench_ppks.py`；
+  快照目录 `data/kv_snapshots/` 已 gitignore。

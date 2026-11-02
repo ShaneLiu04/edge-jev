@@ -133,6 +133,11 @@ uv run jev matrix --config configs/experiments/cgw-casc.toml
 uv run jev matrix --config configs/experiments/gtb.toml
 uv run jev matrix --config configs/experiments/gtb-casc.toml
 # mixed/unique-document workloads: use configs/profiles/latency-best.toml (CGW)
+
+# AR019 PPKS: persistent prefix KV snapshot (cold-restart first request)
+uv run python scripts/bench_ppks.py   # real save -> restart -> restore
+uv run jev matrix --config configs/experiments/ppks.toml
+# snapshots live in data/kv_snapshots/ (gitignored); disabled unless kv_snapshot_dir is set
 ```
 
 产物目录 `benchmarks/results/<run>/`：

@@ -259,3 +259,20 @@ benchmarks/results/<run>/
 - needles force-full：12/12 小模型接地、quality 1.0，P50 14.596s vs 15.489s；
 - 复刻：`uv run jev matrix --config configs/experiments/gtb.toml`、
   `gtb-casc.toml`；稳态统计使用 `drop_first=true`（同时作用于选择器）。
+
+## 5.14 AR019 PPKS：持久化前缀 KV 快照
+
+- 目标：llama-server 重启后的**首请求**，把完整 prefill 换成 slot KV 恢复；
+- 真实探测（1.5B/8192/GPU）：首请求 6326ms → save 77MB/183ms → 重启 restore
+  107ms → 同文档新问题 **764ms**，`prompt_n=1`、`cache_n=2683`；
+- 冷重启对照 `scripts/bench_ppks.py`：baseline **6131.7ms**
+  （`prompt_n=2662`）vs PPKS **875.2ms**（`prompt_n=16`、`cache_n=2646`），
+  **−85.7%**，quality_ok=true；
+- 键 = 模型/上下文指纹 + 压缩后文档 sha256；首次请求后异步保存，LRU 最多 4 条，
+  损坏自动删除并回退普通 prefill；
+- 复刻：
+  - 冷重启：`uv run python scripts/bench_ppks.py`
+  - 稳态/头观测：`uv run jev matrix --config configs/experiments/ppks.toml`
+  - 目录：`data/kv_snapshots/`（gitignored，默认关闭）
+- 注意：只优化冷启动首请求，稳态 P50/mean 不变；不支持 `parallel>1`，
+  暂不与 supervisor 叠加。

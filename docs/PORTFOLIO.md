@@ -24,6 +24,7 @@
 | AR016 | GSP GPU 服务放置 | GPU offload mean −11.8%，P50 1.75s | 无 GPU/显存不足需回退 CPU | 关 |
 | AR017 | CGW 级联门控窗口 | 联合 P50 1.00s（相对 AGW −39.6%） | 需 int8 资产；窗口为空退化为单窗 | 关 |
 | AR018 | GTB 证据接地双脑级联 | 交互 P50 0.68–0.72s；quality 1.0 | mean 与 CGW 基本持平，独立文档回退 CGW | 关 |
+| AR019 | PPKS 持久化前缀 KV 快照 | 重启后首请求 −85.7%（6.13s→0.88s） | 需磁盘 73MB/文档；仅 parallel=1 | 关 |
 
 ## 2. 负载 → 最优组合
 
@@ -38,6 +39,7 @@
 | 端侧综合最优（token+mean） | **CGW_CASC_FAST + GPU offload**（AR017+AR016+AR015+AR014+AR013+AR012+AR011+AR010+AR009+AR007） | shared-prefix：P50 1.00s，mean 2.06s，tokens 1079，quality 1.0 |
 | 交互 P50 最优（重复/共享文档） | **GTB_CASC_FAST + GPU offload**（AR018+AR017+...+AR007） | shared-prefix：P50 0.68–0.72s，quality 1.0，9/12 走 0.5B、3 次安全升级 |
 | 纯延迟最优（不压缩上下文） | **GTB_CACHE + GPU offload**（AR018+AR017+...+AR007） | shared-prefix：P50 0.87–1.37s；CASC 更省 token，通常优先 GTB_CASC |
+| 滚动重启/复现实验（冷启动首请求） | **任一稳态组合 + PPKS**（AR019） | shared-prefix 冷启动 6.13s→0.88s（−85.7%），quality 一致 |
 | 无 GPU / 显存不足 | **AGW_CASC_FAST（CPU）** | shared-prefix：P50 1.97s，mean 3.77s，quality 1.0；CGW 未在 CPU 联合矩阵实测 |
 | 重复/近义请求 | **语义缓存**（AR003/AR005 准入） | repeat 10×2：completion token ↓36%，延迟 ↓25% |
 | 高风险降级 | **Conformal 风险门**（AR005） | 无可行阈值时自动 disabled，失败安全 |
@@ -94,6 +96,7 @@ profile = "configs/profiles/aeb.toml"   # 或 prefix-cache / short-qa
 | AR016 GPU 放置 | `ar016-gpu-cpu.toml` / `ar016-gpu-offload.toml`；`latency-best-gpu.toml` |
 | AR017 级联门控窗口 | `cgw.toml` / `cgw-casc.toml` |
 | AR018 双脑级联 | `gtb.toml` / `gtb-casc.toml` / `gtb-needles*.toml`；`latency-best-gpu.toml` |
+| AR019 持久化 KV 快照 | `ppks.toml`；冷重启对照 `scripts/bench_ppks.py` |
 | 服务器 7B/14B（完整 overlay） | `server-{7b,14b}-lcpt-casc.toml` / `server-{7b,14b}-agw-casc.toml` |
 
 ## 5. 选择规则
