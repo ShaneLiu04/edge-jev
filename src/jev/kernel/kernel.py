@@ -43,6 +43,7 @@ from jev.kernel.cerebrum.supervisor import BrainSupervisor
 from jev.kernel.cerebrum.tiering import TierConfig
 from jev.kernel.decisions.calibration import Calibration, load_calibration
 from jev.kernel.decisions.framework import DecisionPoint, DecisionRegistry
+from jev.kernel.extract import ExtractiveConfig, GroundedExtractor
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
 from jev.kernel.prefill.evidence import EvidenceConfig, EvidenceSelector
 from jev.kernel.prefill.planner import PrefillConfig
@@ -98,6 +99,7 @@ class Kernel(CerebellumBackend):
         snapshot_config: SnapshotConfig | None = None,
         snapshot_namespace_large: str = "large",
         snapshot_namespace_small: str = "small",
+        extractor: GroundedExtractor | None = None,
     ) -> None:
         self._cerebellum = cerebellum
         self._registry = registry
@@ -133,6 +135,11 @@ class Kernel(CerebellumBackend):
         )
         self._snapshot_namespace_large = snapshot_namespace_large
         self._snapshot_namespace_small = snapshot_namespace_small
+        self._extractor = (
+            extractor
+            if extractor is not None
+            else GroundedExtractor(ExtractiveConfig())
+        )
 
     # ------------------------------------------------------------------
     # 组合根：configs/jev.toml 单源装配
@@ -191,6 +198,7 @@ class Kernel(CerebellumBackend):
         brain = _build_brain_manager(config, snapshot_config)
         snapshot_namespace_large = _snapshot_namespace(config, small=False)
         snapshot_namespace_small = _snapshot_namespace(config, small=True)
+        extractor = _build_extractor(config)
         ledger = _build_ledger(config)
         cascade_cfg = config.get("cascade", {})
         laya_cfg = cerebellum_cfg.get("laya_onnx", {})
@@ -281,6 +289,7 @@ class Kernel(CerebellumBackend):
             snapshot_config=snapshot_config,
             snapshot_namespace_large=snapshot_namespace_large,
             snapshot_namespace_small=snapshot_namespace_small,
+            extractor=extractor,
         )
 
     # ------------------------------------------------------------------
@@ -321,6 +330,11 @@ class Kernel(CerebellumBackend):
     def snapshot_config(self) -> SnapshotConfig:
         """AR019：持久化 KV 快照配置（默认关闭）。"""
         return self._snapshot_config
+
+    @property
+    def extractor(self) -> GroundedExtractor:
+        """AR020：确定性抽取快答（默认 disabled）。"""
+        return self._extractor
 
     @property
     def snapshot_namespace_large(self) -> str:
@@ -513,6 +527,19 @@ def _build_ledger(config: dict) -> LedgerWriter | None:
         dir=ledger_dir,
         queue_maxsize=int(ledger_cfg.get("queue_maxsize", 10000)),
         warn_after_failures=int(ledger_cfg.get("warn_after_failures", 100)),
+    )
+
+
+def _build_extractor(config: dict) -> GroundedExtractor:
+    """[extractive] AR020 确定性抽取快答；默认 disabled。"""
+    cfg = config.get("extractive") or {}
+    return GroundedExtractor(
+        ExtractiveConfig(
+            enabled=bool(cfg.get("enabled", False)),
+            min_document_chars=int(cfg.get("min_document_chars", 200)),
+            max_answer_chars=int(cfg.get("max_answer_chars", 64)),
+            max_anchor_occurrences=int(cfg.get("max_anchor_occurrences", 64)),
+        )
     )
 
 

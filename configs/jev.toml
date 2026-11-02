@@ -17,6 +17,12 @@ int8_model_path = "models/laya/laya_int8.onnx"  # AR014 ???jev prepare-laya-int8
 serve_url = "http://127.0.0.1:8311"     # kev.serve 子进程端点
 model_path = "models/kev/kev-0.8B"
 
+[extractive]
+enabled = false                          # AR020: grounded deterministic extractive fast path
+min_document_chars = 200                 # 文档短于该值不尝试抽取
+max_answer_chars = 64                    # 抽取答案最大字符数
+max_anchor_occurrences = 64              # 单个锚点最多扫描次数（防超长文档滥用）
+
 [cerebrum]
 llama_server_bin = "models/llama-server/bin/llama-server.exe"
 gguf_path = "models/qwen/qwen2.5-1.5b-instruct-q4_k_m.gguf"

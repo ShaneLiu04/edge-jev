@@ -93,6 +93,7 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
             decision_int8=kernel.decision_int8,
             decision_int8_gates=kernel.decision_int8_gates,
             tiered_brain=tiered_brain,
+            extractor=kernel.extractor,
         )
     )
 

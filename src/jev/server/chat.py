@@ -66,6 +66,7 @@ from jev.kernel.decisions.framework import (
     minimize_points,
 )
 from jev.kernel.decisions.probes import apply_permutation_budget
+from jev.kernel.extract import GroundedExtractor
 from jev.kernel.ledger.writer import LedgerEntry, LedgerWriter
 from jev.kernel.prefill.evidence import EvidenceSelector
 from jev.kernel.prefill.stable import StableCompressor, StableResult
@@ -319,6 +320,7 @@ class _CascadeContext:
         decision_int8: CerebellumBackend | None = None,
         decision_int8_gates: list[CerebellumBackend] | None = None,
         tiered_brain: TieredBrain | None = None,
+        extractor: GroundedExtractor | None = None,
     ) -> None:
         self.cerebellum = cerebellum
         self.brain = brain
@@ -352,6 +354,7 @@ class _CascadeContext:
             or ([decision_int8] if decision_int8 is not None else [])
         )
         self.tiered_brain = tiered_brain
+        self.extractor = extractor
         self.stable_result: StableResult | None = None
         self.prefix_cache_active = False
         self.prefix_cache_hits = 0
@@ -1065,6 +1068,7 @@ def create_chat_router(
     decision_int8: CerebellumBackend | None = None,
     decision_int8_gates: list[CerebellumBackend] | None = None,
     tiered_brain: TieredBrain | None = None,
+    extractor: GroundedExtractor | None = None,
 ) -> APIRouter:
     """构建 /v1/chat/completions 路由。
 
@@ -1143,6 +1147,7 @@ def create_chat_router(
                 decision_int8=decision_int8,
                 decision_int8_gates=decision_int8_gates,
                 tiered_brain=tiered_brain,
+                extractor=extractor,
             )
             if stream:
                 return _stream_response(context)
@@ -1205,6 +1210,44 @@ def _handle_chat_passthrough(
 # ---------------------------------------------------------------------------
 
 
+def _try_extractive(
+    context: _CascadeContext, route: str
+) -> JSONResponse | None:
+    """AR020：full 路由的确定性抽取快答；命中且 POST accept 才直接返回。"""
+    if route != "full" or context.extractor is None or not context.extractor.enabled:
+        return None
+    try:
+        result = context.extractor.answer(context.messages)
+    except Exception as exc:  # noqa: BLE001 - 抽取异常不得影响正常请求
+        logger.warning("抽取快答异常，回退级联: %s", exc)
+        return None
+    if not result.hit:
+        return None
+    usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    verdict, _degraded, content, reviewed_usage = _post_review(
+        context, result.answer, usage, allow_retry=False
+    )
+    if verdict is not PostVerdict.ACCEPT:
+        logger.info(
+            "抽取快答 POST 未接受（request_id=%s, verdict=%s），回退级联",
+            context.request_id,
+            verdict.value,
+        )
+        return None
+    context.last_runtime["decision"]["extract"] = result.header_value
+    context.log_answer(content, verdict.value, 0)
+    context.cache_store(content, route)
+    logger.info(
+        "抽取快答命中（request_id=%s, kind=%s, anchor=%s）",
+        context.request_id,
+        result.kind,
+        result.anchor,
+    )
+    return _json_response(
+        context, content, reviewed_usage, degraded=False, route=route
+    )
+
+
 def _handle_chat_cascade(context: _CascadeContext) -> JSONResponse:
     # AR003：语义缓存先于判定（命中直接返回，tokens=0）
     hit = context.cache_lookup()
@@ -1233,6 +1276,10 @@ def _handle_chat_cascade(context: _CascadeContext) -> JSONResponse:
         return _json_response(
             context, content, empty_usage, degraded=False, route=route
         )
+
+    extracted = _try_extractive(context, route)
+    if extracted is not None:
+        return extracted
 
     light_messages = context.prepare_prompt(pre, full_route=False)
     full_messages = (
@@ -1561,9 +1608,13 @@ def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
             )
             headers["X-Jev-Stable-Cache"] = str(stable.get("cache", "off"))
             headers["X-Jev-Stable-Ms"] = f"{float(stable.get('ms', 0.0)):.1f}"
-    snapshot = (context.last_runtime.get("decision") or {}).get("kv_snapshot")
+    decision = context.last_runtime.get("decision") or {}
+    snapshot = decision.get("kv_snapshot")
     if snapshot:
         headers["X-Jev-KV-Snapshot"] = str(snapshot)
+    extract = decision.get("extract")
+    if extract:
+        headers["X-Jev-Extract"] = str(extract)
     compute = context.last_runtime.get("compute") or {}
     if compute.get("prompt_ms"):
         headers["X-Jev-Prefill-Ms"] = f"{float(compute['prompt_ms']):.0f}"

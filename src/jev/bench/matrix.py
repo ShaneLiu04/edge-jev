@@ -31,6 +31,7 @@ from jev.kernel.cerebrum.llama_server import (
 )
 from jev.kernel.cerebrum.snapshot import SnapshotClient, SnapshotConfig
 from jev.kernel.cerebrum.tiering import TierConfig, TieredBrain
+from jev.kernel.extract import ExtractiveConfig, GroundedExtractor
 from jev.kernel.kernel import (
     Kernel,
     _build_admission,
@@ -315,6 +316,19 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
+def _build_extractor(config: dict) -> GroundedExtractor:
+    """AR020：arm 级抽取快答配置；默认 disabled。"""
+    cfg = config.get("extractive") or {}
+    return GroundedExtractor(
+        ExtractiveConfig(
+            enabled=bool(cfg.get("enabled", False)),
+            min_document_chars=int(cfg.get("min_document_chars", 200)),
+            max_answer_chars=int(cfg.get("max_answer_chars", 64)),
+            max_anchor_occurrences=int(cfg.get("max_anchor_occurrences", 64)),
+        )
+    )
+
+
 def _snapshot_config(config: MatrixConfig) -> SnapshotConfig:
     """AR019：矩阵级快照配置；空目录即关闭。"""
     raw = config.kv_snapshot_dir.strip()
@@ -421,6 +435,7 @@ def _build_client(
     force_full: bool = False,
     evidence: EvidenceSelector | None = None,
     tiered_brain: TieredBrain | None = None,
+    extractor: GroundedExtractor | None = None,
 ) -> TestClient:
     runtime_config, cache = _build_runtime(config)
     embeddings = embedding_service
@@ -448,6 +463,7 @@ def _build_client(
             decision_int8=kernel.decision_int8,
             decision_int8_gates=_arm_gate_backends(kernel, runtime_config),
             tiered_brain=tiered_brain,
+            extractor=extractor,
         )
     )
     return TestClient(app)
@@ -648,6 +664,12 @@ def run_matrix(
             )
             if not brain.health():
                 raise JevError(f"外部大脑不可用: {config.brain_base_url}")
+            if snapshot_config.enabled:
+                brain = SnapshotClient(
+                    brain,
+                    snapshot_config,
+                    _snapshot_namespace(config, base, small=False),
+                )
         else:
             brain = None  # 每个 arm 独立拉起，避免长跑后 llama-server 假死
 
@@ -740,6 +762,7 @@ def run_matrix(
                     force_full=(config.force_full or arm == "B0"),
                     evidence=arm_evidence,
                     tiered_brain=tiered_brain,
+                    extractor=_build_extractor(arm_cfg),
                 )
                 raw[arm] = _run_questions(
                     client, questions, arm=arm, seed=config.seed,
@@ -822,6 +845,7 @@ def run_matrix(
                     profile_name="AR005",
                     evidence=ar_evidence,
                     force_full=config.force_full,
+                    extractor=_build_extractor(ar_cfg),
                 )
                 raw["AR005"] = _run_questions(
                     client, questions, arm="AR005", seed=config.seed,
