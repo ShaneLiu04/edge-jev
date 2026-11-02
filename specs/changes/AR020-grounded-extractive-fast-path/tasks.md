@@ -16,7 +16,7 @@
 | T2003 | Kernel/app/chat 接线 + POST 校验 + `X-Jev-Extract` | T2001 | passing | full 非流式 |
 | T2004 | Matrix 接线 + `extractive.toml` 真实实验 | T2003 | passing | tokens=0 |
 | T2005 | 真实集成（无大脑也可抽取）+ 全量回归 | T2004 | passing | 752 unit + 2 real |
-| T2006 | 文档/README/REPRODUCTION/服务器复刻说明 | T2005 | passing | 待提交 |
+| T2006 | 文档/README/REPRODUCTION/服务器复刻说明 | T2005 | passing | 已推送 + 浅克隆验证 |
 
 ## 状态说明
 
