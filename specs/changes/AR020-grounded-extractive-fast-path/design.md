@@ -24,13 +24,17 @@ alt 非抽取型 / 无锚点 / 多候选
   C -> B : 原级联生成
 else 唯一候选命中
   E --> C : hit(type,value,anchor)
-  C -> P : review(value)
-  alt POST accept
-    P --> C : accept
+  alt strict(decision_post=true)
+    C -> P : review(question+answer)
+    alt POST accept
+      P --> C : accept
+      C --> Client : value, usage=0, X-Jev-Extract
+    else POST 拒绝
+      P --> C : downgrade/retry
+      C -> B : 回退原级联
+    end
+  else fast(decision_post=false)
     C --> Client : value, usage=0, X-Jev-Extract
-  else POST 拒绝
-    P --> C : downgrade/retry
-    C -> B : 回退原级联
   end
 end
 @enduml
@@ -51,8 +55,10 @@ end
 ## 4.1 思路
 
 抽取式问题的答案通常与问题锚点出现在**同一句**，且句子包含答案类型线索。
-因此不需要模型：定位锚点 → 取所在句 → 只按答案类型抽取 → 排除锚点自身 →
-所有命中句候选必须完全一致 → 输出原值。任何不确定都 miss。
+因此不需要模型：定位锚点 → 取所在句 → **只在线索之后**按答案类型抽取 →
+排除锚点自身 span（numeric/date）→ 所有命中句候选必须完全一致 → 输出原值。
+任一含线索句候选为空即 `no-candidate`，不得静默跳到其他句；任何不确定都 miss。
+命中结果写入现有语义缓存（与 direct 路径一致），不新增独立缓存层。
 
 ## 4.2 流程图
 
@@ -98,7 +104,11 @@ class ExtractionResult:
     answer: str = ""
     kind: str = ""
     anchor: str = ""
-    reason: str = ""
+    reason: str = "miss"
+
+    @property
+    def header_value(self) -> str:
+        return f"hit:{self.kind}" if self.hit else f"miss:{self.reason}"
 
 class GroundedExtractor:
     def __init__(self, config: ExtractiveConfig) -> None: ...
@@ -119,10 +129,13 @@ src/jev/kernel/kernel.py              [extractive] → Kernel.extractor
 src/jev/server/app.py                 注入 create_chat_router
 src/jev/server/chat.py                full 前置快答 + POST + X-Jev-Extract
 src/jev/bench/matrix.py               arm 级 extractive 接线
-tests/unit/test_grounded_extractor.py
-tests/unit/test_chat_extractive.py
-tests/integration/test_extractive_real.py
+tests/unit/test_grounded_extractor.py  抽取器 + full 路由门控
+tests/integration/test_extractive_real.py 真实 Laya + 无大脑命中
 configs/experiments/extractive.toml
+configs/experiments/extractive-needles.toml
+configs/experiments/extractive-quality.toml
+configs/experiments/server-{7b,14b}-extractive-casc.toml
+configs/profiles/latency-best-gpu-extractive.toml
 ```
 
 # 5 重构设计

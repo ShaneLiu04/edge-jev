@@ -77,8 +77,9 @@ Grounded Extractive Answerer（GEXA）：
 
 ### FR20-3 唯一候选抽取与接地验证
 
-**描述：** 在所有锚点出现的句子中，按答案类型与线索抽取候选；排除锚点自身
-数字；要求所有命中句的候选**完全一致**，且答案长度/类型合法。
+**描述：** 在所有锚点出现的句子中，**只在线索之后**按答案类型抽取候选；
+numeric/date 均排除锚点自身 span；含线索句无候选即 miss；要求所有命中句的
+候选**完全一致**，且答案长度/类型合法。
 
 **验收：**
 - Given 目标句唯一且候选唯一, Then hit，返回原样值；
@@ -89,13 +90,16 @@ Grounded Extractive Answerer（GEXA）：
 ### FR20-4 与级联/POST 的组合
 
 **描述：** 仅在 full 路由、非流式路径、prompt 压缩前尝试；命中后构造零 usage
-响应，先经 POST 安全校验；POST accept 才直接返回，否则丢弃抽取结果并走原
-full 生成。
+响应。POST 行为遵循运行时 `decision_post`：
+- **strict 档**（`decision_post=true`）：用问题+答案的紧凑 state 做 POST 安全
+  校验，accept 才直接返回，否则回退原 full 生成；
+- **fast 档**（`decision_post=false`）：跳过 Laya POST，以抽取器自身的
+  锚点/类型/唯一候选确定性边界作为安全门（本 AR 的 0 误答验证覆盖此档）。
 
 **验收：**
-- Given 抽取命中且 POST accept, Then 不调用大脑，`usage=0`，header
+- Given 抽取命中且 fast/strict 通过, Then 不调用大脑，`usage=0`，header
   `X-Jev-Extract: hit:<type>`；
-- Given POST 拒绝, Then 回退级联，最终质量不受影响；
+- Given strict POST 拒绝, Then 回退级联，最终质量不受影响；
 - Given 抽取 miss, Then 完全走 AR019 级联，无额外语义变化；
 - streaming/direct/light 不启用抽取。
 

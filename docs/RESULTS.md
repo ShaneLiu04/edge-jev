@@ -748,29 +748,34 @@ Grounded Extractive Answerer：定位问题强锚点所在句 → 按答案类�
 
 生成型问题被 `non-extractive` 门控拒绝；普通短问答 `no-doc` 拒绝。
 
-### 3. shared-prefix 联合矩阵 `ar020-extractive-20261102-090653`
+### 3. shared-prefix 联合矩阵 `ar020-extractive-20261102-104742`
 
 | arm | quality | mean | P50 | tokens | 抽取命中 |
 | --- | --- | --- | --- | --- | --- |
-| B1 | 1.000 | 33.984s | 33.985s | 2662+5 | — |
-| CGW_CASC_FAST | 1.000 | 0.966s | 0.937s | 1079+5 | — |
-| GTB_CASC_FAST | 1.000 | 0.841s | 0.471s | 1079+5 | — |
-| **GEXA_CGW_CASC_FAST** | **1.000** | **0.177s** | **0.177s** | **0** | **12/12** |
-| **GEXA_GTB_CASC_FAST** | **1.000** | **0.176s** | **0.176s** | **0** | **12/12** |
+| B1 | 1.000 | 34.026s | 33.988s | 2662+5 | — |
+| CGW_CASC_FAST | 1.000 | 1.090s | 1.101s | 1079+5 | — |
+| GTB_CASC_FAST | 1.000 | 1.110s | 0.614s | 1079+5 | — |
+| **GEXA_CGW_CASC_FAST** | **1.000** | **0.176s** | **0.175s** | **0** | **12/12** |
+| GEXA_GTB_CASC_FAST | 1.000 | 0.178s | 0.179s | 0 | 12/12 |
 
-选择器 adopt `GEXA_GTB_CASC_FAST`，utility 下界 0.6462。
-相对 CGW：P50 **−81.1%**、mean **−81.7%**、token **−100%**；相对 GTB
-P50 **−62.6%**；相对 B1 P50 **−99.5%**。质量与输出一致性均 1.0。
+选择器 adopt `GEXA_CGW_CASC_FAST`，utility 下界 0.6460。
+相对 CGW：P50 **−84.1%**、mean **−83.9%**、token **−100%**；相对 B1
+P50 **−99.5%**。质量与输出一致性均 1.0。GEXA_GTB 与 GEXA_CGW 命中路径
+相同（GTB 仅影响 miss），差异在噪声内。
 
-### 4. needles 联合矩阵 `ar020-extractive-needles-20261102-091540`
+> **strict POST 可选**：同一配置把 `decision_post=true` 后，命中走紧凑
+> question+answer POST，`ar020-extractive-20261102-103257` 观测 P50 739ms；
+> fast 档（`decision_post=false`）使用确定性锚点/类型/唯一候选边界，P50 175ms。
+
+### 4. needles 联合矩阵 `ar020-extractive-needles-20261102-105656`
 
 | arm | quality | mean | P50 | tokens |
 | --- | --- | --- | --- | --- |
-| B1 | 1.000 | 30.569s | 30.547s | 1839+5 |
-| CGW_CASC_FAST | 1.000 | 12.606s | 10.158s | 754+5 |
-| **GEXA_CGW_CASC_FAST** | **1.000** | **0.0039s** | **0.0039s** | **0** |
+| B1 | 1.000 | 32.243s | 32.246s | 1839+5 |
+| CGW_CASC_FAST | 1.000 | 15.603s | 13.089s | 754+5 |
+| **GEXA_CGW_CASC_FAST** | **1.000** | **0.0038s** | **0.0037s** | **0** |
 
-P50 相对 CGW **−99.96%**；12/12 抽取命中（离线全量 30/30），0 误答。
+P50 相对 CGW **−99.97%**；12/12 抽取命中（离线全量 30/30），0 误答。
 
 ### 5. 普通问答非回归 `ar020-extractive-quality-20261102-092519`
 
@@ -780,8 +785,9 @@ CGW 与 GEXA 均 quality 0.207、prompt tokens 77.3、completion 9.4、P50
 
 ### 6. 组合与回退
 
-- 组合：**GEXA + GTB/CGW + CASC + GPU**；抽取命中走零模型快路径，miss 仍走
-  原双脑/级联，因此保留 GTB 对非抽取文档的 P50 优势；
+- 组合：**GEXA + CGW/GTB + CASC + GPU**；抽取命中走零模型快路径，miss 仍走
+  原双脑/级联；本轮选择器 adopt `GEXA_CGW_CASC_FAST`，GTB 版本保留给
+  非抽取文档 P50 敏感场景；
 - 生产 profile：`configs/profiles/latency-best-gpu-extractive.toml`；
 - 回退：`[extractive] enabled=false` 即完全回到 AR019/CGW/GTB；
 - 服务器：`server-{7b,14b}-extractive-casc.toml` 支持 external brain +
@@ -793,6 +799,6 @@ CGW 与 GEXA 均 quality 0.207、prompt tokens 77.3、completion 9.4、P50
   generation 0 误命中；
 - 真实集成 `tests/integration/test_extractive_real.py`：真实 Laya + **不启动
   llama-server**，命中答案正确、`total_tokens=0`、`X-Jev-Extract: hit:numeric`；
-- 本机全量：`752 passed`，`ruff` 零告警；真实集成 AR019+AR020 2 passed；
-- Gitee 干净浅克隆：`749 passed, 3 skipped`（3 个本机资产/GPU 体检用例按预期
+- 本机全量：`759 passed`，`ruff` 零告警；真实集成 AR019+AR020 2 passed；
+- Gitee 干净浅克隆：`756 passed, 3 skipped`（3 个本机资产/GPU 体检用例按预期
   跳过），`ruff` 零告警，复刻入口无需模型即可跑通逻辑测试。

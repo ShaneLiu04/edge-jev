@@ -354,8 +354,10 @@ configs/experiments/extractive*.toml
 - **接地**：锚点所在句必须包含线索；按 numeric/date 抽取并排除锚点自身；
   所有命中句候选必须完全一致，否则 `ambiguous`/`no-candidate`。
 - **安全**：生成/解释/详细说明类问题直接 `non-extractive`；答案长度受限；
-  命中后仍走 POST，拒绝则回退；抽取异常捕获后 miss。
-- **实测**：shared P50 176ms、tokens 0、quality 1.0（CGW 937ms）；
-  needles P50 3.9ms（CGW 10.16s）；quality/generation 0 误命中。
+  strict 档（`decision_post=true`）用 question+answer 紧凑 state 做 POST，
+  拒绝则回退；fast 档以确定性唯一候选/类型/锚点边界为准；异常捕获后 miss。
+- **实测**：shared P50 175ms、tokens 0、quality 1.0（CGW 1.101s）；
+  needles P50 3.7ms（CGW 13.089s）；quality/generation 0 误命中；
+  strict POST 下 shared P50 739ms。
 - **回退**：`extractive.enabled=false`；生产开关见
   `latency-best-gpu-extractive.toml`。

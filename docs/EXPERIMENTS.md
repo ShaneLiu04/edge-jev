@@ -283,9 +283,11 @@ benchmarks/results/<run>/
   邻近句唯一候选，任何歧义/生成型请求 miss；
 - 离线真实数据集：shared 12/12、needles 30/30、quality 0 误命中、
   shared-generation 0 误命中；
-- shared 联合：GEXA_GTB **P50 0.176s / mean 0.176s / tokens 0 / quality 1.0**
-  vs CGW 0.937s（−81.1%）vs GTB 0.471s（−62.6%）vs B1 33.985s；
-- needles：GEXA P50 **0.0039s** vs CGW 10.158s（−99.96%），quality 1.0；
+- shared 联合：GEXA_CGW **P50 0.175s / mean 0.176s / tokens 0 / quality 1.0**
+  vs CGW 1.101s（−84.1%）vs GTB P50 0.614s（−71.5%）vs B1 33.988s；
+- needles：GEXA P50 **0.0037s** vs CGW 13.089s（−99.97%），quality 1.0；
+- strict POST（`decision_post=true`）：shared P50 0.739s，仍 −33% vs CGW；
+  fast 档确定性边界为默认高性能档；
 - 普通问答：GEXA 与 CGW 同质量/同 tokens，P50 噪声内；选择器 rollback；
 - 复刻：
   - `uv run jev matrix --config configs/experiments/extractive.toml`
