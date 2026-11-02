@@ -793,4 +793,6 @@ CGW 与 GEXA 均 quality 0.207、prompt tokens 77.3、completion 9.4、P50
   generation 0 误命中；
 - 真实集成 `tests/integration/test_extractive_real.py`：真实 Laya + **不启动
   llama-server**，命中答案正确、`total_tokens=0`、`X-Jev-Extract: hit:numeric`；
-- 本机全量：`752 passed`，`ruff` 零告警；真实集成 AR019+AR020 2 passed。
+- 本机全量：`752 passed`，`ruff` 零告警；真实集成 AR019+AR020 2 passed；
+- Gitee 干净浅克隆：`749 passed, 3 skipped`（3 个本机资产/GPU 体检用例按预期
+  跳过），`ruff` 零告警，复刻入口无需模型即可跑通逻辑测试。
