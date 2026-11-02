@@ -1,0 +1,61 @@
+﻿# AR021 server reproduction: 7B external brain (8388) + external embedding (8389).
+# Start llama-server with --slots --slot-save-path data/kv_snapshots/server if using
+# kv_snapshot_dir; otherwise remove that key. See REPRODUCTION.md 搂2.12.
+name = "ar021-server-7b-grounded-casc"
+seed = 20261026
+lambda_cost = 0.15
+lambda_latency = 0.50
+limit = 30
+dataset = "shared_prefix"
+brain = "external"
+brain_base_url = "http://127.0.0.1:8388"
+embedding = "external"
+embedding_base_url = "http://127.0.0.1:8389"
+ctx_size = 16384
+max_tokens = 128
+timeout_s = 600.0
+prompt_prefix = ""
+prompt_cache = true
+force_full = false
+kv_snapshot_dir = "data/kv_snapshots/server"
+kv_snapshot_max_entries = 8
+kv_snapshot_min_chars = 1000
+arms = ["B1", "LCPT_CACHE_FAST", "GQRA_LCPT_CACHE_FAST"]
+
+[overlays.LCPT_CACHE_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = []
+
+[overlays.GQRA_LCPT_CACHE_FAST.runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = []
+
+[overlays.GQRA_LCPT_CACHE_FAST.extractive]
+enabled = true
+min_document_chars = 200
+max_answer_chars = 128
+max_anchor_occurrences = 64
+quantitative_enabled = true
+

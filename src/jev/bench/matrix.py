@@ -186,6 +186,10 @@ def load_matrix_config(path: Path | str) -> MatrixConfig:
 
 
 def _load_questions(config: MatrixConfig):
+    if config.dataset == "numeric_reasoning":
+        from jev.bench.numeric_reasoning import build_numeric_reasoning
+
+        return build_numeric_reasoning(max(12, config.limit or 12))
     if config.dataset == "needles":
         from jev.bench.needles import build_needles
 
@@ -325,6 +329,7 @@ def _build_extractor(config: dict) -> GroundedExtractor:
             min_document_chars=int(cfg.get("min_document_chars", 200)),
             max_answer_chars=int(cfg.get("max_answer_chars", 64)),
             max_anchor_occurrences=int(cfg.get("max_anchor_occurrences", 64)),
+            quantitative_enabled=bool(cfg.get("quantitative_enabled", False)),
         )
     except (TypeError, ValueError) as exc:
         raise JevProtocolError(f"[extractive] 配置非法: {exc}") from exc

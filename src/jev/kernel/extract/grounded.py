@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from jev.kernel.cerebrum.tiering import split_question_document
@@ -51,6 +52,32 @@ def _has_cue(cue: str, text: str) -> bool:
     return cue in text
 
 
+def _operation(question: str) -> str | None:
+    if any(word in question for word in ("哪个", "哪一个", "哪条", "which")):
+        max_words = ("更大", "较大", "最大", "最高", "larger", "largest")
+        min_words = ("更小", "较小", "最小", "最低", "smaller", "smallest")
+        if any(word in question for word in max_words):
+            return "which_max"
+        if any(word in question for word in min_words):
+            return "which_min"
+    operations = (
+        ("sum", ("之和", "总和", "合计", "相加", "加起来", "sum", "total")),
+        ("diff", ("相差", "差额", "之差", "difference", "差多少")),
+        ("max", ("较大", "最大", "最高", "largest", "maximum")),
+        ("min", ("较小", "最小", "最低", "smallest", "minimum")),
+    )
+    for name, cues in operations:
+        if any(cue in question for cue in cues):
+            return name
+    return None
+
+
+def _format_decimal(value: Decimal) -> str:
+    if value == value.to_integral_value():
+        return str(int(value))
+    return format(value.normalize(), "f")
+
+
 def _first_cue_end(sentence: str, cues: list[str]) -> int | None:
     lowered = sentence.lower()
     ends: list[int] = []
@@ -73,6 +100,7 @@ class ExtractiveConfig:
     min_document_chars: int = 200
     max_answer_chars: int = 64
     max_anchor_occurrences: int = 64
+    quantitative_enabled: bool = False
 
     def __post_init__(self) -> None:
         if self.min_document_chars < 0:
@@ -117,6 +145,10 @@ class GroundedExtractor:
         if any(word in lowered for word in _NON_EXTRACTIVE):
             return ExtractionResult(False, reason="non-extractive")
 
+        arithmetic = self._arithmetic(document, question, lowered)
+        if arithmetic is not None:
+            return arithmetic
+
         kind, cues = self._answer_type(lowered)
         if kind is None:
             return ExtractionResult(False, reason="no-type")
@@ -150,6 +182,79 @@ class GroundedExtractor:
         if len(value) > self._config.max_answer_chars:
             return ExtractionResult(False, reason="answer-too-long")
         return ExtractionResult(True, answer=value, kind=kind, anchor=anchors[0], reason="hit")
+
+    def _arithmetic(
+        self, document: str, question: str, lowered: str
+    ) -> ExtractionResult | None:
+        if not self._config.quantitative_enabled:
+            return None
+        operation = _operation(lowered)
+        if operation is None:
+            return None
+        kind, cues = self._answer_type(lowered)
+        if kind != "numeric" or not cues:
+            return ExtractionResult(False, reason="arithmetic-no-cue")
+        anchors = self._anchors(question)
+        if len(anchors) < 2:
+            return ExtractionResult(False, reason="arithmetic-anchors")
+        values: list[tuple[str, Decimal]] = []
+        for anchor in anchors:
+            value = self._resolve_anchor(document, anchor, cues)
+            if value is None:
+                return ExtractionResult(False, reason="arithmetic-unresolved")
+            try:
+                values.append((anchor, Decimal(value)))
+            except InvalidOperation:
+                return ExtractionResult(False, reason="arithmetic-invalid")
+        if operation == "sum":
+            result = sum((value for _, value in values), Decimal(0))
+            answer, answer_kind = _format_decimal(result), "numeric-sum"
+        elif operation == "diff":
+            if len(values) != 2:
+                return ExtractionResult(False, reason="arithmetic-anchors")
+            answer = _format_decimal(abs(values[0][1] - values[1][1]))
+            answer_kind = "numeric-diff"
+        elif operation in {"which_max", "which_min"}:
+            pick = max if operation == "which_max" else min
+            anchor, _value = pick(values, key=lambda item: item[1])
+            answer, answer_kind = anchor, "id-max" if operation == "which_max" else "id-min"
+        else:
+            pick = max if operation == "max" else min
+            _anchor, value = pick(values, key=lambda item: item[1])
+            answer, answer_kind = _format_decimal(value), f"numeric-{operation}"
+        if len(answer) > self._config.max_answer_chars:
+            return ExtractionResult(False, reason="answer-too-long")
+        return ExtractionResult(
+            True,
+            answer=answer,
+            kind=answer_kind,
+            anchor=",".join(anchor for anchor, _ in values),
+            reason="hit",
+        )
+
+    def _resolve_anchor(
+        self, document: str, anchor: str, cues: list[str]
+    ) -> str | None:
+        candidates: set[str] = set()
+        occurrences = 0
+        for match in re.finditer(re.escape(anchor), document, flags=re.IGNORECASE):
+            occurrences += 1
+            if occurrences > self._config.max_anchor_occurrences:
+                return None
+            left, _right, sentence = self._sentence_at(
+                document, match.start(), match.end()
+            )
+            if not any(_has_cue(cue, sentence.lower()) for cue in cues):
+                continue
+            values = self._values(
+                "numeric", sentence, left, match.start(), match.end(), cues
+            )
+            if not values:
+                return None
+            candidates.update(values)
+            if len(candidates) > 1:
+                return None
+        return next(iter(candidates)) if len(candidates) == 1 else None
 
     @staticmethod
     def _last_user(messages: list[dict[str, Any]]) -> str:
