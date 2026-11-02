@@ -49,6 +49,7 @@ class LlamaServerManager:
         restart_max: int = 3,
         restart_backoff_s: Sequence[float] = (2.0, 4.0, 8.0),
         extra_args: Sequence[str] | None = None,
+        slot_save_path: Path | None = None,
     ) -> None:
         self._bin = Path(llama_server_bin)
         self._gguf = Path(gguf_path)
@@ -61,6 +62,7 @@ class LlamaServerManager:
         # tuple 固化，防外部序列被篡改；测试注入小退避加速重启链
         self._backoff = tuple(restart_backoff_s)
         self._extra_args = tuple(extra_args or ())
+        self._slot_save_path = Path(slot_save_path) if slot_save_path else None
         self._proc: subprocess.Popen | None = None
 
     @property
@@ -157,7 +159,7 @@ class LlamaServerManager:
     # ------------------------------------------------------------------
 
     def _build_cmd(self) -> list[str]:
-        return [
+        cmd = [
             str(self._bin),
             "-m",
             str(self._gguf),
@@ -169,6 +171,11 @@ class LlamaServerManager:
             str(self._ctx_size),
             *self._extra_args,
         ]
+        if self._slot_save_path is not None:
+            if "--parallel" not in self._extra_args:
+                cmd.extend(["--parallel", "1"])
+            cmd.extend(["--slots", "--slot-save-path", str(self._slot_save_path)])
+        return cmd
 
     def _spawn_and_probe(self) -> None:
         """拉起一次子进程并探测健康；成功则接管 self._proc，失败抛 BrainStartupError。"""
@@ -287,6 +294,68 @@ class LlamaServerClient:
     def close(self) -> None:
         """释放 HTTP 连接池（幂等）。"""
         self._client.close()
+
+    def slots(self, timeout_s: float = 30.0) -> list[dict[str, Any]]:
+        """GET /slots，返回真实槽位状态（AR019 冷启动/快照诊断）。"""
+        try:
+            response = self._client.get(f"{self._base_url}/slots", timeout=timeout_s)
+        except httpx.HTTPError as exc:
+            raise JevUnavailableError(f"槽位查询不可达（{self._base_url}）: {exc}") from exc
+        if not 200 <= response.status_code < 300:
+            raise JevProtocolError(
+                f"槽位查询错误（{self._base_url}）: "
+                f"HTTP {response.status_code} {response.text[:200]}"
+            )
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise JevProtocolError(f"槽位响应不是合法 JSON: {response.text[:200]}") from exc
+        if not isinstance(data, list):
+            raise JevProtocolError(f"槽位响应不是数组: {str(data)[:200]}")
+        return data
+
+    def slot_save(
+        self, filename: str, *, slot_id: int = 0, timeout_s: float = 120.0
+    ) -> dict[str, Any]:
+        """POST /slots/{id}?action=save，持久化槽位 KV 到 --slot-save-path。"""
+        return self._slot_action("save", filename, slot_id=slot_id, timeout_s=timeout_s)
+
+    def slot_restore(
+        self, filename: str, *, slot_id: int = 0, timeout_s: float = 120.0
+    ) -> dict[str, Any]:
+        """POST /slots/{id}?action=restore，从持久化文件恢复槽位 KV。"""
+        return self._slot_action(
+            "restore", filename, slot_id=slot_id, timeout_s=timeout_s
+        )
+
+    def _slot_action(
+        self, action: str, filename: str, *, slot_id: int, timeout_s: float
+    ) -> dict[str, Any]:
+        try:
+            response = self._client.post(
+                f"{self._base_url}/slots/{slot_id}",
+                params={"action": action},
+                json={"filename": filename},
+                timeout=timeout_s,
+            )
+        except httpx.HTTPError as exc:
+            raise JevUnavailableError(
+                f"槽位 {action} 不可达（{self._base_url}）: {exc}"
+            ) from exc
+        if not 200 <= response.status_code < 300:
+            raise JevProtocolError(
+                f"槽位 {action} 错误（{self._base_url}）: "
+                f"HTTP {response.status_code} {response.text[:200]}"
+            )
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise JevProtocolError(
+                f"槽位 {action} 响应不是合法 JSON: {response.text[:200]}"
+            ) from exc
+        if not isinstance(data, dict):
+            raise JevProtocolError(f"槽位 {action} 响应不是对象: {str(data)[:200]}")
+        return data
 
     def chat(
         self,

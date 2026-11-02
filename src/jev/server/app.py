@@ -5,15 +5,19 @@ Kernel 不依赖 server（依赖倒置）；完整服务（systemone + chat + /h
 `{status, cerebellum, cerebrum, breaker, uptime}`。
 """
 
+import logging
 import time
 
 from fastapi import FastAPI
 
 from jev.kernel.cerebrum.llama_server import LlamaServerClient
+from jev.kernel.cerebrum.snapshot import SnapshotClient
 from jev.kernel.cerebrum.tiering import TieredBrain
 from jev.kernel.kernel import Kernel
 from jev.server.chat import create_chat_router
 from jev.server.systemone import create_app
+
+logger = logging.getLogger(__name__)
 
 
 def build_systemone_app(kernel: Kernel) -> FastAPI:
@@ -40,17 +44,31 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
             else None
         )
     )
+    snapshot = kernel.snapshot_config
+    snapshot_enabled = snapshot.enabled and kernel.supervisor is None
+    if snapshot.enabled and kernel.supervisor is not None:
+        logger.warning("KV 快照与 supervisor 暂不叠加，本次禁用快照包装")
+    elif snapshot_enabled:
+        if isinstance(brain_client, LlamaServerClient):
+            brain_client = SnapshotClient(
+                brain_client, snapshot, kernel.snapshot_namespace_large
+            )
     tiered_brain = None
     if (
         brain_client is not None
         and kernel.small_brain is not None
         and kernel.small_brain.is_running()
     ):
-        small_client = LlamaServerClient(
+        small_client: LlamaServerClient = LlamaServerClient(
             kernel.small_brain.base_url,
             cache_prompt=kernel.runtime_config.prefix_cache,
         )
-        tiered_brain = TieredBrain(brain_client, small_client, kernel.tier_config)
+        snapshot_client: LlamaServerClient = small_client
+        if snapshot_enabled:
+            snapshot_client = SnapshotClient(
+                small_client, snapshot, kernel.snapshot_namespace_small
+            )
+        tiered_brain = TieredBrain(brain_client, snapshot_client, kernel.tier_config)
     app.include_router(
         create_chat_router(
             kernel,

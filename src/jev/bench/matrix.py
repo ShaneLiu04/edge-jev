@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import os
 import time
@@ -28,6 +29,7 @@ from jev.kernel.cerebrum.llama_server import (
     LlamaServerManager,
     spec_server_args,
 )
+from jev.kernel.cerebrum.snapshot import SnapshotClient, SnapshotConfig
 from jev.kernel.cerebrum.tiering import TierConfig, TieredBrain
 from jev.kernel.kernel import (
     Kernel,
@@ -128,6 +130,9 @@ class MatrixConfig:
     small_brain_gguf: str = ""
     small_gpu_layers: int = 0
     drop_first: bool = False
+    kv_snapshot_dir: str = ""
+    kv_snapshot_max_entries: int = 4
+    kv_snapshot_min_chars: int = 1000
 
 
 def load_matrix_config(path: Path | str) -> MatrixConfig:
@@ -173,6 +178,9 @@ def load_matrix_config(path: Path | str) -> MatrixConfig:
         small_brain_gguf=str(data.get("small_brain_gguf", "")),
         small_gpu_layers=int(data.get("small_gpu_layers", 0)),
         drop_first=bool(data.get("drop_first", False)),
+        kv_snapshot_dir=str(data.get("kv_snapshot_dir", "")),
+        kv_snapshot_max_entries=int(data.get("kv_snapshot_max_entries", 4)),
+        kv_snapshot_min_chars=int(data.get("kv_snapshot_min_chars", 1000)),
     )
 
 
@@ -256,6 +264,11 @@ def _spawn_brain(
         probe_timeout_s=180.0,
         restart_max=0,
         extra_args=extra,
+        slot_save_path=(
+            _snapshot_config(config).directory
+            if _snapshot_config(config).enabled
+            else None
+        ),
     )
     manager.start()
     return manager
@@ -300,6 +313,42 @@ def _free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
+
+
+def _snapshot_config(config: MatrixConfig) -> SnapshotConfig:
+    """AR019：矩阵级快照配置；空目录即关闭。"""
+    raw = config.kv_snapshot_dir.strip()
+    if not raw:
+        return SnapshotConfig()
+    directory = Path(raw)
+    if not directory.is_absolute():
+        directory = REPO_ROOT / directory
+    directory.mkdir(parents=True, exist_ok=True)
+    return SnapshotConfig(
+        enabled=True,
+        directory=directory,
+        max_entries=config.kv_snapshot_max_entries,
+        min_chars=config.kv_snapshot_min_chars,
+    )
+
+
+def _snapshot_namespace(
+    config: MatrixConfig, arm_cfg: dict, *, small: bool
+) -> str:
+    cerebrum = arm_cfg.get("cerebrum") or {}
+    if small:
+        model = config.small_brain_gguf
+        gpu_layers = config.small_gpu_layers
+    else:
+        model = config.brain_gguf or str(DEFAULT_BRAIN_GGUF)
+        gpu_layers = config.gpu_layers
+    fingerprint = (
+        f"{model}|{config.ctx_size}|{gpu_layers}|"
+        f"{cerebrum.get('cache_type_k', '')}|{cerebrum.get('cache_type_v', '')}|"
+        f"{cerebrum.get('flash_attn', '')}"
+    )
+    digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:16]
+    return f"{'small' if small else 'large'}-{digest}"
 
 
 def _arm_gate_backends(kernel: Kernel, runtime_config) -> list:
@@ -352,6 +401,11 @@ def _spawn_small_brain(config: MatrixConfig, arm_cfg: dict) -> LlamaServerManage
         probe_timeout_s=180.0,
         restart_max=0,
         extra_args=["--n-gpu-layers", str(config.small_gpu_layers)],
+        slot_save_path=(
+            _snapshot_config(config).directory
+            if _snapshot_config(config).enabled
+            else None
+        ),
     )
     manager.start()
     return manager
@@ -569,6 +623,7 @@ def run_matrix(
     write_profile: bool = False,
 ) -> dict:
     config = load_matrix_config(config_path)
+    snapshot_config = _snapshot_config(config)
     questions = _load_questions(config)
     limit = config.limit if limit is None else limit
     if limit > 0:
@@ -626,6 +681,12 @@ def run_matrix(
                         (arm_cfg.get("runtime") or {}).get("prefix_cache", False)
                     ),
                 )
+                if snapshot_config.enabled:
+                    arm_brain = SnapshotClient(
+                        arm_brain,
+                        snapshot_config,
+                        _snapshot_namespace(config, arm_cfg, small=False),
+                    )
             small_manager: LlamaServerManager | None = None
             tiered_brain: TieredBrain | None = None
             if _tier_enabled(arm_cfg) and config.small_brain_gguf:
@@ -637,6 +698,12 @@ def run_matrix(
                         (arm_cfg.get("runtime") or {}).get("prefix_cache", False)
                     ),
                 )
+                if snapshot_config.enabled:
+                    small_client = SnapshotClient(
+                        small_client,
+                        snapshot_config,
+                        _snapshot_namespace(config, arm_cfg, small=True),
+                    )
                 tiered_brain = TieredBrain(
                     arm_brain, small_client, _arm_tier_config(config, arm_cfg)
                 )
@@ -729,6 +796,12 @@ def run_matrix(
                         (ar_cfg.get("runtime") or {}).get("prefix_cache", False)
                     ),
                 )
+                if snapshot_config.enabled:
+                    arm_brain = SnapshotClient(
+                        arm_brain,
+                        snapshot_config,
+                        _snapshot_namespace(config, ar_cfg, small=False),
+                    )
             try:
                 ar_prefill = ar_cfg.get("prefill", {}) or {}
                 ar_evidence = (

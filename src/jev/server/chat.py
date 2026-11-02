@@ -1344,6 +1344,8 @@ def _generate_full(
             stop=context.stop,
             timeout_s=context.remaining_s(),
         )
+    if isinstance(response, dict) and response.get("_jev_snapshot"):
+        context.last_runtime["decision"]["kv_snapshot"] = response["_jev_snapshot"]
     context.record_server_timings(response.get("timings") or {})
     return _content_of(response), _usage_of(response)
 
@@ -1559,6 +1561,9 @@ def _route_headers(context: _CascadeContext, route: str) -> dict[str, str]:
             )
             headers["X-Jev-Stable-Cache"] = str(stable.get("cache", "off"))
             headers["X-Jev-Stable-Ms"] = f"{float(stable.get('ms', 0.0)):.1f}"
+    snapshot = (context.last_runtime.get("decision") or {}).get("kv_snapshot")
+    if snapshot:
+        headers["X-Jev-KV-Snapshot"] = str(snapshot)
     compute = context.last_runtime.get("compute") or {}
     if compute.get("prompt_ms"):
         headers["X-Jev-Prefill-Ms"] = f"{float(compute['prompt_ms']):.0f}"

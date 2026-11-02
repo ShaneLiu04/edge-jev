@@ -32,6 +32,10 @@ small_port = 0                           # 0=auto free port
 tier_ground_window = 600
 tier_max_answer_chars = 64
 tier_prewarm = true
+kv_snapshot_dir = ""                     # AR019: PPKS 快照目录（空=关闭；需 parallel=1）
+kv_snapshot_max_entries = 4              # 每模型最多保留快照数（LRU）
+kv_snapshot_min_chars = 1000             # 文档短于该字符数不写快照
+kv_snapshot_slot = 0                     # 快照槽位（parallel=1 时为 0）
 supervisor_enabled = false               # AR006 大脑自愈监督（默认关闭）
 health_interval_s = 30.0                 # 健康探针最小间隔
 health_timeout_s = 3.0                   # 探针超时（秒）

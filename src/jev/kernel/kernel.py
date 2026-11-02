@@ -12,6 +12,7 @@ backend_fallback=true（kind=fallback 独立条目——Kernel 层无聊天请�
 上下文，request_id 为事件自身 id）。
 """
 
+import hashlib
 import logging
 import socket
 import time
@@ -37,6 +38,7 @@ from jev.kernel.cerebrum.llama_server import (
     slot_server_args,
     spec_server_args,
 )
+from jev.kernel.cerebrum.snapshot import SnapshotConfig
 from jev.kernel.cerebrum.supervisor import BrainSupervisor
 from jev.kernel.cerebrum.tiering import TierConfig
 from jev.kernel.decisions.calibration import Calibration, load_calibration
@@ -93,6 +95,9 @@ class Kernel(CerebellumBackend):
         decision_int8_gates: list[CerebellumBackend] | None = None,
         small_brain: LlamaServerManager | None = None,
         tier_config: TierConfig | None = None,
+        snapshot_config: SnapshotConfig | None = None,
+        snapshot_namespace_large: str = "large",
+        snapshot_namespace_small: str = "small",
     ) -> None:
         self._cerebellum = cerebellum
         self._registry = registry
@@ -123,6 +128,11 @@ class Kernel(CerebellumBackend):
         ))
         self._small_brain = small_brain
         self._tier_config = tier_config if tier_config is not None else TierConfig()
+        self._snapshot_config = (
+            snapshot_config if snapshot_config is not None else SnapshotConfig()
+        )
+        self._snapshot_namespace_large = snapshot_namespace_large
+        self._snapshot_namespace_small = snapshot_namespace_small
 
     # ------------------------------------------------------------------
     # 组合根：configs/jev.toml 单源装配
@@ -177,7 +187,10 @@ class Kernel(CerebellumBackend):
         )
         registry = DecisionRegistry.from_toml(points_path)
 
-        brain = _build_brain_manager(config)
+        snapshot_config = _build_snapshot_config(config)
+        brain = _build_brain_manager(config, snapshot_config)
+        snapshot_namespace_large = _snapshot_namespace(config, small=False)
+        snapshot_namespace_small = _snapshot_namespace(config, small=True)
         ledger = _build_ledger(config)
         cascade_cfg = config.get("cascade", {})
         laya_cfg = cerebellum_cfg.get("laya_onnx", {})
@@ -222,7 +235,7 @@ class Kernel(CerebellumBackend):
         )
         supervisor = _build_supervisor(config, brain)
         tier_config = _build_tier_config(config)
-        small_brain = _build_small_brain_manager(config)
+        small_brain = _build_small_brain_manager(config, snapshot_config)
         gate_tokens = runtime_config.decision_long_context_gate_tokens or None
         windows = runtime_config.decision_long_context_gate_windows
         base_int8 = create_laya_int8(config_file)
@@ -265,6 +278,9 @@ class Kernel(CerebellumBackend):
             decision_int8_gates=decision_int8_gates,
             small_brain=small_brain,
             tier_config=tier_config,
+            snapshot_config=snapshot_config,
+            snapshot_namespace_large=snapshot_namespace_large,
+            snapshot_namespace_small=snapshot_namespace_small,
         )
 
     # ------------------------------------------------------------------
@@ -300,6 +316,21 @@ class Kernel(CerebellumBackend):
     def tier_config(self) -> TierConfig:
         """AR018：级联策略配置。"""
         return self._tier_config
+
+    @property
+    def snapshot_config(self) -> SnapshotConfig:
+        """AR019：持久化 KV 快照配置（默认关闭）。"""
+        return self._snapshot_config
+
+    @property
+    def snapshot_namespace_large(self) -> str:
+        """AR019：大模型快照文件名空间。"""
+        return self._snapshot_namespace_large
+
+    @property
+    def snapshot_namespace_small(self) -> str:
+        """AR019：小模型快照文件名空间。"""
+        return self._snapshot_namespace_small
 
     @property
     def ledger(self) -> LedgerWriter | None:
@@ -485,7 +516,57 @@ def _build_ledger(config: dict) -> LedgerWriter | None:
     )
 
 
-def _build_brain_manager(config: dict) -> LlamaServerManager | None:
+def _build_snapshot_config(config: dict) -> SnapshotConfig:
+    """[cerebrum] AR019 快照配置；默认关闭，启用时校验 parallel=1。"""
+    cerebrum_cfg = config.get("cerebrum") or {}
+    raw_dir = str(cerebrum_cfg.get("kv_snapshot_dir", "") or "").strip()
+    enabled = bool(raw_dir)
+    if enabled and int(cerebrum_cfg.get("parallel", 1)) != 1:
+        raise JevProtocolError("kv_snapshot_dir 仅支持 parallel=1（slot 0）")
+    directory = _cerebrum_path(raw_dir) if raw_dir else None
+    if directory is not None:
+        if directory.exists() and not directory.is_dir():
+            raise JevProtocolError(f"kv_snapshot_dir 不是目录: {directory}")
+        directory.mkdir(parents=True, exist_ok=True)
+    return SnapshotConfig(
+        enabled=enabled,
+        directory=directory,
+        max_entries=int(cerebrum_cfg.get("kv_snapshot_max_entries", 4)),
+        min_chars=int(cerebrum_cfg.get("kv_snapshot_min_chars", 1000)),
+        slot_id=int(cerebrum_cfg.get("kv_snapshot_slot", 0)),
+    )
+
+
+def _snapshot_namespace(config: dict, *, small: bool) -> str:
+    """模型/上下文/缓存配置指纹；不同模型或量化不得复用快照。"""
+    cerebrum_cfg = config.get("cerebrum") or {}
+    if small:
+        model = str(cerebrum_cfg.get("small_model", ""))
+        gpu_layers = int(cerebrum_cfg.get("small_gpu_layers", 0))
+    else:
+        model = str(
+            cerebrum_cfg.get("gguf_path", "models/qwen/qwen2.5-1.5b-instruct-q4_k_m.gguf")
+        )
+        gpu_layers = int(cerebrum_cfg.get("gpu_layers", 0))
+    ctx = int(cerebrum_cfg.get("ctx_size", 4096))
+    fingerprint = "|".join(
+        [
+            model,
+            str(ctx),
+            str(gpu_layers),
+            str(cerebrum_cfg.get("cache_type_k", "")),
+            str(cerebrum_cfg.get("cache_type_v", "")),
+            str(cerebrum_cfg.get("flash_attn", "")),
+        ]
+    )
+    prefix = "small" if small else "large"
+    digest = hashlib.sha256(fingerprint.encode("utf-8")).hexdigest()[:16]
+    return f"{prefix}-{digest}"
+
+
+def _build_brain_manager(
+    config: dict, snapshot_config: SnapshotConfig | None = None
+) -> LlamaServerManager | None:
     """[cerebrum] 存在则构造大脑管理器（不启动）；相对路径以仓库根解析。"""
     cerebrum_cfg = config.get("cerebrum")
     if not cerebrum_cfg:
@@ -526,6 +607,11 @@ def _build_brain_manager(config: dict) -> LlamaServerManager | None:
         startup_probe=cerebrum_cfg.get("startup_probe", "/health"),
         restart_max=int(cerebrum_cfg.get("restart_max", 3)),
         extra_args=extra_args,
+        slot_save_path=(
+            snapshot_config.directory
+            if snapshot_config is not None and snapshot_config.enabled
+            else None
+        ),
     )
 
 
@@ -560,7 +646,9 @@ def _build_tier_config(config: dict) -> TierConfig:
     )
 
 
-def _build_small_brain_manager(config: dict) -> LlamaServerManager | None:
+def _build_small_brain_manager(
+    config: dict, snapshot_config: SnapshotConfig | None = None
+) -> LlamaServerManager | None:
     """AR018：真实小模型管理器（不启动）；未启用返回 None。"""
     tier_config = _build_tier_config(config)
     if not tier_config.enabled or tier_config.small_model is None:
@@ -585,6 +673,11 @@ def _build_small_brain_manager(config: dict) -> LlamaServerManager | None:
         startup_probe=str(cerebrum_cfg.get("startup_probe", "/health")),
         restart_max=0,
         extra_args=extra_args,
+        slot_save_path=(
+            snapshot_config.directory
+            if snapshot_config is not None and snapshot_config.enabled
+            else None
+        ),
     )
 
 

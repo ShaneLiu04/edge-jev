@@ -19,6 +19,7 @@ models/
 
 # 运行时数据（台账等）
 data/ledger/
+data/kv_snapshots/
 
 # IDE
 .idea/
@@ -27,3 +28,4 @@ data/ledger/
 # OS
 Thumbs.db
 .DS_Store
+benchmarks/results/**/kv_snapshots/
