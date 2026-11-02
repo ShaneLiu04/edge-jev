@@ -850,4 +850,5 @@ GEXA 未启用 GQRA 时保持 0 命中并回退，证明组合开关隔离有效
 
 - 真实 Laya + 无大脑集成：`X-Jev-Extract: hit:numeric-sum`、tokens=0；
 - 单测覆盖 6 种操作、关闭隔离、单锚点/歧义/不支持回退；
-- 本机全量 `767 passed`、ruff 零告警；`grounded.py` 覆盖率 91%、kernel 92%。
+- 本机全量 `767 passed`、ruff 零告警；`grounded.py` 覆盖率 91%、kernel 92%；
+- Gitee 干净浅克隆 `764 passed, 3 skipped`，复刻入口无需模型即可跑通逻辑测试。

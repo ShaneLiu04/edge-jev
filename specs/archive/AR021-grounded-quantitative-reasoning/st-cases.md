@@ -95,7 +95,7 @@ B1 36.608s、CGW 1.310s、GEXA 1.225s；adopt，utility 下界 0.9754。
 **步骤：** 本机全量；Gitee 浅克隆全量。
 **期望：** 本机全绿；浅克隆仅 3 个资产/GPU 体检 skip。
 **实际：** 本机 `767 passed`；`extract/grounded.py` 覆盖率 91%、kernel 92%
-（目标 ≥85%）；Gitee 浅克隆在归档后复验。
+（目标 ≥85%）；Gitee 干净浅克隆 `764 passed, 3 skipped`。
 **状态：** PASS
 
 ## ST 执行报告
