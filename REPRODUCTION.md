@@ -287,6 +287,41 @@ uv run jev matrix --config configs/experiments/server-14b-lcpt-casc.toml
 - 服务器配置为完整 runtime overlay（修正早期 CADP 服务器配置只写
   `decision_staged` 导致开关未生效的问题）。
 
+### 2.12 AR019 PPKS / AR020 GEXA（端侧 + 服务器）
+
+**端侧（本机 1.5B）**
+
+```bash
+# AR019：真实保存→重启→恢复，冷启动首请求对照
+uv run python scripts/bench_ppks.py
+
+# AR020：抽取快答 + CGW/GTB 联合（shared-prefix）
+uv run jev matrix --config configs/experiments/extractive.toml
+# AR020：needles（unique identifier + numeric）
+uv run jev matrix --config configs/experiments/extractive-needles.toml
+# 普通问答非回归（应 0 命中、质量/成本不变）
+uv run jev matrix --config configs/experiments/extractive-quality.toml
+```
+
+**高速服务器（7B/14B external brain）**
+
+```bash
+# 1) 按 §2.2 启动 7B/14B brain，并额外开启 slot 快照：
+llama-server -m /models/qwen2.5-7b-instruct-q4_k_m.gguf \
+  --host 0.0.0.0 --port 8388 --ctx-size 16384 --n-gpu-layers 99 \
+  --parallel 1 --slots --slot-save-path /data/kv_snapshots/server
+# 2) embedding 按 §2.2 启动 8389
+# 3) 运行服务端组合实验（14B 用 server-14b-*，资产缺失时必须失败）
+uv run jev matrix --config configs/experiments/server-7b-extractive-casc.toml
+uv run jev matrix --config configs/experiments/server-14b-extractive-casc.toml
+```
+
+- 服务器实验中 `kv_snapshot_dir` 必须与 llama-server 的 `--slot-save-path`
+  **完全一致**；external brain 也由 `SnapshotClient` 包装；
+- GEXA 在服务器上仍是零模型调用；非抽取问题回退 LCPT/CGW 路径；
+- 观测：`X-Jev-Extract`、`X-Jev-KV-Snapshot`、`X-Jev-Prefix-Cache`；
+- 14B 未在本机实测时，不得宣称 14B 指标；服务器资源/显存不足按 §2.2 回退。
+
 ## 3. 实验口径
 
 | 方案 | 定义 |

@@ -138,6 +138,12 @@ uv run jev matrix --config configs/experiments/gtb-casc.toml
 uv run python scripts/bench_ppks.py   # real save -> restart -> restore
 uv run jev matrix --config configs/experiments/ppks.toml
 # snapshots live in data/kv_snapshots/ (gitignored); disabled unless kv_snapshot_dir is set
+
+# AR020 GEXA: deterministic grounded extractive fast path (zero brain calls on hit)
+uv run jev matrix --config configs/experiments/extractive.toml
+uv run jev matrix --config configs/experiments/extractive-needles.toml
+uv run jev matrix --config configs/experiments/extractive-quality.toml
+# production GPU profile: configs/profiles/latency-best-gpu-extractive.toml
 ```
 
 产物目录 `benchmarks/results/<run>/`：

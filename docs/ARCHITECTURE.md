@@ -336,3 +336,26 @@ scripts/bench_ppks.py             真实冷重启 save/restore 对照
 - **约束**：`parallel=1`（slot 0）；暂不与 supervisor 叠加；目录 gitignored。
 - **实测**：冷启动 6131.7ms → 875.2ms（−85.7%），`prompt_n 2662→16`。
 - **回退**：`kv_snapshot_dir=""` 即与 AR018 行为一致。
+
+## 21. AR020 GEXA：确定性抽取快答
+
+```text
+kernel/extract/grounded.py    ExtractiveConfig / ExtractionResult / GroundedExtractor
+kernel/kernel.py              [extractive] → Kernel.extractor
+server/chat.py                full 前置快答 + POST + X-Jev-Extract
+bench/matrix.py               arm 级 extractive 接线
+configs/experiments/extractive*.toml
+```
+
+- **作用**：只拦截 full 路由中“文档已有唯一答案”的抽取型问题；direct/light/
+  streaming 不变；miss 完全回退原级联。
+- **识别**：最后 user 文本拆文档/问题；强锚点（含数字标识符/长数字/引号/
+  稀有中文片段）+ 答案类型线索（校验码/日期/数量…）。
+- **接地**：锚点所在句必须包含线索；按 numeric/date 抽取并排除锚点自身；
+  所有命中句候选必须完全一致，否则 `ambiguous`/`no-candidate`。
+- **安全**：生成/解释/详细说明类问题直接 `non-extractive`；答案长度受限；
+  命中后仍走 POST，拒绝则回退；抽取异常捕获后 miss。
+- **实测**：shared P50 176ms、tokens 0、quality 1.0（CGW 937ms）；
+  needles P50 3.9ms（CGW 10.16s）；quality/generation 0 误命中。
+- **回退**：`extractive.enabled=false`；生产开关见
+  `latency-best-gpu-extractive.toml`。

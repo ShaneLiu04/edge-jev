@@ -276,3 +276,21 @@ benchmarks/results/<run>/
   - 目录：`data/kv_snapshots/`（gitignored，默认关闭）
 - 注意：只优化冷启动首请求，稳态 P50/mean 不变；不支持 `parallel>1`，
   暂不与 supervisor 叠加。
+
+## 5.15 AR020 GEXA：确定性抽取快答
+
+- 思路：文档中已有唯一答案的抽取型问题，不调用 LLM；锚点 + 答案类型线索 +
+  邻近句唯一候选，任何歧义/生成型请求 miss；
+- 离线真实数据集：shared 12/12、needles 30/30、quality 0 误命中、
+  shared-generation 0 误命中；
+- shared 联合：GEXA_GTB **P50 0.176s / mean 0.176s / tokens 0 / quality 1.0**
+  vs CGW 0.937s（−81.1%）vs GTB 0.471s（−62.6%）vs B1 33.985s；
+- needles：GEXA P50 **0.0039s** vs CGW 10.158s（−99.96%），quality 1.0；
+- 普通问答：GEXA 与 CGW 同质量/同 tokens，P50 噪声内；选择器 rollback；
+- 复刻：
+  - `uv run jev matrix --config configs/experiments/extractive.toml`
+  - `uv run jev matrix --config configs/experiments/extractive-needles.toml`
+  - `uv run jev matrix --config configs/experiments/extractive-quality.toml`
+  - 生产档 `configs/profiles/latency-best-gpu-extractive.toml`
+  - 服务器 `server-{7b,14b}-extractive-casc.toml`（需 external brain/embedding，
+    服务器 slot 路径与 `kv_snapshot_dir` 一致）

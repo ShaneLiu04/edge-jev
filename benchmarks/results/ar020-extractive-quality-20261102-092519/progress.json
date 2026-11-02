@@ -1,0 +1,52 @@
+{
+  "schema": "jev.matrix.progress/1",
+  "completed_arms": [
+    "CGW_CASC_FAST",
+    "GEXA_CGW_CASC_FAST"
+  ],
+  "remaining": [],
+  "metrics": {
+    "CGW_CASC_FAST": {
+      "count": 29,
+      "quality": 0.206897,
+      "mean_completion_tokens": 9.379,
+      "mean_prompt_tokens": 77.276,
+      "mean_latency_ms": 3217.774,
+      "p50_latency_ms": 1581.17,
+      "routes": {
+        "direct": 17,
+        "light": 9,
+        "full": 3
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 12,
+      "mean_cache_n": 20.586,
+      "mean_prefill_ms": 69.172,
+      "mean_decode_tps": 2.276,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": null
+    },
+    "GEXA_CGW_CASC_FAST": {
+      "count": 29,
+      "quality": 0.206897,
+      "mean_completion_tokens": 9.379,
+      "mean_prompt_tokens": 77.276,
+      "mean_latency_ms": 3204.92,
+      "p50_latency_ms": 1547.048,
+      "routes": {
+        "direct": 17,
+        "light": 9,
+        "full": 3
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 12,
+      "mean_cache_n": 20.586,
+      "mean_prefill_ms": 67.586,
+      "mean_decode_tps": 2.3,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": null
+    }
+  }
+}

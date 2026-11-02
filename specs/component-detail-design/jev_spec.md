@@ -349,3 +349,18 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 - **回退**：`kv_snapshot_dir=""`；暂不与 supervisor 叠加。
 - **配置**：`configs/experiments/ppks.toml`；冷重启脚本 `scripts/bench_ppks.py`；
   快照目录 `data/kv_snapshots/` 已 gitignore。
+
+## 25 AR020 GEXA：确定性抽取快答
+
+- **开关**：`[extractive] enabled`（默认 false）、`min_document_chars`、
+  `max_answer_chars`、`max_anchor_occurrences`。
+- **实现**：`GroundedExtractor` 在 full 路由、prompt 压缩前解析最后 user 文档；
+  强锚点 + 答案类型线索 + 锚点所在句；numeric/date 候选排除锚点自身，要求所有
+  命中句候选完全一致；生成/解释类问题与歧义直接 miss。
+- **组合**：命中后走 POST 安全校验，accept 才返回零 usage；拒绝/异常回退原
+  CGW/GTB 级联；`X-Jev-Extract: hit:<type>`。
+- **实测**：shared P50 176ms vs CGW 937ms（−81.1%）、needles 3.9ms vs 10.16s
+  （−99.96%），tokens 0、quality 1.0；普通问答/生成题 0 误命中。
+- **回退**：`enabled=false`；生产档 `latency-best-gpu-extractive.toml`。
+- **服务器**：`server-{7b,14b}-extractive-casc.toml`，external brain + 快照
+  slot 路径需与 `kv_snapshot_dir` 一致；14B 未本机实测不宣称。

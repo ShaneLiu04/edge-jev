@@ -726,3 +726,71 @@ prefill。真实探测（1.5B、8192 ctx、GPU offload）确认 llama-server 原
   `cache_n>1000`、`prompt_n<800`、答案命中 gold，1 passed；
 - 真实矩阵 smoke `configs/experiments/ppks.toml`：CGW/GTB 两 arm 正常，快照头可见；
 - 本机全量：`741 passed`，`ruff` 零告警。
+
+## AR020 GEXA：确定性抽取快答
+
+### 1. 背景与创新点
+
+shared-prefix/needles 中大量请求的答案在文档中**唯一存在**。参考 RAG
+retrieve-then-read、抽取式 QA、answer-type guardrail 与程序化快路径，新增
+Grounded Extractive Answerer：定位问题强锚点所在句 → 按答案类型/线索抽取 →
+排除锚点自身 → 所有命中候选必须完全一致；任何歧义/生成型请求 miss。
+命中时**不调用任何 LLM**，但仍经 POST 安全校验，拒绝则回退原级联。
+
+### 2. 真实离线验证（真实数据集，无 mock）
+
+| 数据集 | 题数 | 命中 | 正确 | 误答 |
+| --- | --- | --- | --- | --- |
+| shared-prefix | 12 | 12 | 12 | 0 |
+| needles | 30 | 30 | 30 | 0 |
+| quality（普通问答） | 30 | 0 | — | 0 |
+| shared-generation（详细说明） | 8 | 0 | — | 0 |
+
+生成型问题被 `non-extractive` 门控拒绝；普通短问答 `no-doc` 拒绝。
+
+### 3. shared-prefix 联合矩阵 `ar020-extractive-20261102-090653`
+
+| arm | quality | mean | P50 | tokens | 抽取命中 |
+| --- | --- | --- | --- | --- | --- |
+| B1 | 1.000 | 33.984s | 33.985s | 2662+5 | — |
+| CGW_CASC_FAST | 1.000 | 0.966s | 0.937s | 1079+5 | — |
+| GTB_CASC_FAST | 1.000 | 0.841s | 0.471s | 1079+5 | — |
+| **GEXA_CGW_CASC_FAST** | **1.000** | **0.177s** | **0.177s** | **0** | **12/12** |
+| **GEXA_GTB_CASC_FAST** | **1.000** | **0.176s** | **0.176s** | **0** | **12/12** |
+
+选择器 adopt `GEXA_GTB_CASC_FAST`，utility 下界 0.6462。
+相对 CGW：P50 **−81.1%**、mean **−81.7%**、token **−100%**；相对 GTB
+P50 **−62.6%**；相对 B1 P50 **−99.5%**。质量与输出一致性均 1.0。
+
+### 4. needles 联合矩阵 `ar020-extractive-needles-20261102-091540`
+
+| arm | quality | mean | P50 | tokens |
+| --- | --- | --- | --- | --- |
+| B1 | 1.000 | 30.569s | 30.547s | 1839+5 |
+| CGW_CASC_FAST | 1.000 | 12.606s | 10.158s | 754+5 |
+| **GEXA_CGW_CASC_FAST** | **1.000** | **0.0039s** | **0.0039s** | **0** |
+
+P50 相对 CGW **−99.96%**；12/12 抽取命中（离线全量 30/30），0 误答。
+
+### 5. 普通问答非回归 `ar020-extractive-quality-20261102-092519`
+
+CGW 与 GEXA 均 quality 0.207、prompt tokens 77.3、completion 9.4、P50
+1547ms vs 1581ms（噪声内）；选择器 rollback CGW（无正下界）。说明 GEXA
+在无文档/非抽取请求上不改语义、不增加可测成本。
+
+### 6. 组合与回退
+
+- 组合：**GEXA + GTB/CGW + CASC + GPU**；抽取命中走零模型快路径，miss 仍走
+  原双脑/级联，因此保留 GTB 对非抽取文档的 P50 优势；
+- 生产 profile：`configs/profiles/latency-best-gpu-extractive.toml`；
+- 回退：`[extractive] enabled=false` 即完全回到 AR019/CGW/GTB；
+- 服务器：`server-{7b,14b}-extractive-casc.toml` 支持 external brain +
+  slot 快照；14B 未本机实测，禁止虚构指标。
+
+### 7. 验证
+
+- 离线真实数据集：shared 12/12、needles 30/30、quality 0 误命中、
+  generation 0 误命中；
+- 真实集成 `tests/integration/test_extractive_real.py`：真实 Laya + **不启动
+  llama-server**，命中答案正确、`total_tokens=0`、`X-Jev-Extract: hit:numeric`；
+- 本机全量：`752 passed`，`ruff` 零告警；真实集成 AR019+AR020 2 passed。
