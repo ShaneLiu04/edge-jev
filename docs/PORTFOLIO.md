@@ -119,3 +119,99 @@ profile = "configs/profiles/aeb.toml"   # 或 prefix-cache / short-qa
 4. 效用 = `quality − λ_tokens·tokens − λ_latency·latency`（延迟敏感场景 λ_latency=0.5）；
 5. 无正下界 / 质量降 >1pt → `rollback`，不更新 profile；
 6. 结果落 `benchmarks/results/<run>/` 与 `docs/RESULTS.md`，不得手改。
+
+## 6. AR001–AR022 最终综合最优叠加方案
+
+### 6.1 结论：一个公共前栈，两个 miss 档
+
+不存在“所有负载上全域支配”的单一配置。最终方案固定公共前栈，在**非命中路径**
+按目标二选一，其余能力按部署模式叠加：
+
+```text
+GQRA + GEXA（零大脑 LLM 快路径，位于 Laya 路由后）
+  └─ miss → CASC + prefix KV + session affinity + LADS/CADP/RDMP/LCPT/CGW
+             └─ 0.5B GTB（交互 P50 档） 或 1.5B CGW（平均/独立文档档）
+                └─ GPU offload
+部署叠加：PPKS（冷启动，parallel=1） / parallel=4（多用户吞吐）
+```
+
+- **F1 交互默认（推荐）**：`GQRA+GEXA+GTB_CASC_FAST+GPU`
+  → `configs/profiles/latency-best-gpu-grounded.toml`；
+- **F2 平均/独立文档**：`GQRA+GEXA+CGW_CASC_FAST+GPU`
+  → 同档设置 `tier_enabled=false`；mean 更稳，独立长文档回退 CGW；
+- **F3 多用户吞吐**：`GTB_CASC_FAST + parallel=4`（ctx 16384，scheduler off）
+  → `latency-best-gpu-throughput.toml`；文档亲和改 `parallel=2+scheduler`；
+- **F4 冷启动**：`GTB/CGW_CASC_FAST + PPKS`（parallel=1，`--slots --slot-save-path`）
+  → `ppks.toml` / `scripts/bench_ppks.py`；与 F3 互斥；
+- **F5 无 GPU**：`CGW_CASC_FAST`（CPU 基础档）
+  → `latency-best.toml`；CGW 未在 CPU 联合矩阵单独实测；
+- **F6 一次性长文**：`AEB`（可选叠加 GEXA/GQRA；独立 profile，不与前缀缓存叠加）。
+
+> F3/F4/F5/F6 的 profile 默认未开启 GEXA/GQRA；需要零大脑快答时额外开启
+> `[extractive] enabled=true, quantitative_enabled=true`。
+
+选择规则：交互助手/短输出优先 F1；批处理/独立长文档/mean 优先 F2；并发服务用 F3；
+滚动重启或实验冷启动加 F4。**F1 与 F2 是 Pareto 档，不是互相替代的“谁绝对更好”。**
+
+### 6.2 最终组合的分层实测
+
+| 层 | 能力 | 最终栈指标 | 对照 |
+| --- | --- | --- | --- |
+| 零大脑 LLM 命中 | GEXA 单事实抽取 | shared P50 **175ms**、needles **3.7ms**、tokens **0**、quality 1.0 | CGW shared 1.101s / needles 13.089s |
+| 零大脑 LLM 命中 | GQRA 多记录数值 | numeric P50 **3.8ms**、tokens **0**、quality **1.0** | CGW P50 1.310s、quality 0.545 |
+| miss + 压缩 | CASC + prefix KV | shared tokens 2662→**1079（−59.5%）**、cache 11/12 | B1 cache 0/12 |
+| miss + 决策 | LADS fast + ADB/CADP/RDMP + LCPT + CGW | shared P50 **1.00s**（CGW）；门控 w128 | B1 36.6–52.6s |
+| miss + 双脑 | GTB 0.5B 接地验证 | shared P50 **0.72s**，9 small / 3 escalate，0 错误接受 | CGW P50 1.00s |
+| 放置 | GPU offload | mean −11.8%、P50 −13.7% | CPU decode |
+| 冷启动 | PPKS | 6.13s→**0.88s（−85.7%）** | 冷重启无快照 |
+| 并发 | parallel=4 auto | 吞吐 **1.86x**、quality 1.0 | parallel=1 |
+| 质量 | 全栈 | 各数据集 **1.0**（numeric B1 0.364→1.0） | — |
+
+> 组合口径：GEXA/GQRA 命中不调用任何大脑 LLM；未命中才进入 CASC/双脑级联。
+> F1 的 shared miss 指标来自 GTB_CASC_FAST，F2 来自 CGW_CASC_FAST。
+
+### 6.3 全部 AR 在最终方案中的去留
+
+| AR | 能力 | 最终角色 | 依据/边界 |
+| --- | --- | --- | --- |
+| AR001 | 双系统骨架 | **保留** | 快慢分流基础 |
+| AR002 | 能力门控/验证器/草稿 | **保留门控**；verifier/draft 关 | 高品质路由；草稿未稳定增益 |
+| AR003 | 语义缓存/记忆/prefill | **可选**：`[cache] enabled=true` 仅重复负载 | 记忆/验证器长 prompt 本机假死；默认关 |
+| AR004 | 学习与复现基建 | **流程工具**，不进请求路径 | 飞轮/矩阵/复现 |
+| AR005 | Conformal/JCBA | **可选风险门**；JCBA 被 CASC 取代 | 无可行阈值时失败安全；长文预算由 AEB/CASC 覆盖 |
+| AR006 | AEB 证据预算 | **专项**：一次性长文 F6 | 与前缀缓存冲突（命中 0/4） |
+| AR007 | 前缀 KV/会话亲和 | **保留** | prefill 8.8×，端到端 −16.3% |
+| AR008 | 异构投机解码 | **拒绝** | 本机 tps 反降，默认关 |
+| AR009 | CASC 稳定压缩 | **保留** | tokens −59.5%，质量 1.0 |
+| AR010 | LADS fast | **保留** | 跳过 shadow/POST，−54.4% |
+| AR011 | ADB perm=1 | **保留** | PRE 2×，路由 100% 一致 |
+| AR012 | CADP 分阶段 | **保留** | 联合再降 26% |
+| AR013 | RDMP 最小 wave1 | **保留** | P50 −28%，保守翻转 |
+| AR014 | LCPT 长文 int8 | **保留** | 长文决策 2.1×，路由 16/16 一致 |
+| AR015 | AGW w384 | **保留为 CGW 输入** | 单窗收益小，CGW 在其基础上 −39.6% |
+| AR016 | GPU 放置 | **保留**（有 GPU） | P50 −13.7%；无 GPU 回退 CPU |
+| AR017 | CGW 级联窗口 | **保留**（F2 miss 档） | w128，P50 −39.6% |
+| AR018 | GTB 双脑接地 | **保留**（F1 交互档） | P50 −51.7%，0 错误接受；独立文档回退 CGW |
+| AR019 | PPKS 快照 | **F4 冷启动专项** | 与 parallel>1 互斥，磁盘 73MB/文档 |
+| AR020 | GEXA 抽取 | **保留前栈** | 命中零大脑 LLM，0 误答 |
+| AR021 | GQRA 数值推理 | **保留前栈** | numeric quality 0.364→1.0 |
+| AR022 | PSS 并行槽 | **F3 并发专项** | 1.86x；与 PPKS 互斥 |
+
+### 6.4 明确禁止/不默认叠加
+
+1. **GEXA/GQRA 与生成型请求**：只接唯一答案/可确定性运算，其余必须 miss 回退；
+2. **AEB + 前缀缓存/CASC**：查询相关选块破坏前缀稳定性；
+3. **PPKS + parallel>1 或 slot_scheduler**：快照固定 slot 0，代码 fail-fast；
+4. **GTB 用于一次性独立长文档**：needles mean +8.3%，回退 CGW；
+5. **投机解码、GPU Laya、全量决策点、head+tail 状态、多探针同行**：已实测负收益/安全翻转；
+6. **fast 模式 + 依赖 Laya POST 的安全复核**：fast 明确跳过 shadow/POST，需严格复核时用
+   `decision_post=true`（抽取命中也走 POST，P50 739ms）。
+
+### 6.5 诚实边界
+
+- 7B/14B 仅有配置与复现步骤，**未本机实测，禁止外推指标**；
+- AR022 的 1.86x 是**裸大脑并发**结果；`parallel=4 + GTB + GEXA/GQRA + CASC`
+  的完整应用级并发尚未单独矩阵验证；
+- F1/F2 的 shared/numeric 指标来自不同矩阵轮次，绝对值受本机 645MHz GPU
+  与外部争用影响；相对结论和 quality 一致；
+- 任何新增叠加仍按 §5 选择器复验，无正下界即回退。
