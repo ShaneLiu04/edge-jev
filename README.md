@@ -144,6 +144,10 @@ uv run jev matrix --config configs/experiments/extractive.toml
 uv run jev matrix --config configs/experiments/extractive-needles.toml
 uv run jev matrix --config configs/experiments/extractive-quality.toml
 # production GPU profile: configs/profiles/latency-best-gpu-extractive.toml
+
+# AR021 GQRA: grounded multi-record numeric reasoning (sum/diff/max/min/which)
+uv run jev matrix --config configs/experiments/quantitative.toml
+# production GPU profile: configs/profiles/latency-best-gpu-grounded.toml
 ```
 
 产物目录 `benchmarks/results/<run>/`：

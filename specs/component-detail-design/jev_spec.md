@@ -366,3 +366,15 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 - **回退**：`enabled=false`；生产档 `latency-best-gpu-extractive.toml`。
 - **服务器**：`server-{7b,14b}-extractive-casc.toml`，external brain + 快照
   slot 路径需与 `kv_snapshot_dir` 一致；14B 未本机实测不宣称。
+
+## 26 AR021 GQRA：文档接地数值推理
+
+- **开关**：`[extractive] quantitative_enabled`（默认 false）。
+- **实现**：GEXA 操作型分支；≥2 锚点，每个锚点按线索解析唯一数值；支持
+  sum/diff/max/min/which_max/which_min（Decimal）；任一锚点缺失/歧义整体 miss。
+- **组合**：命中复用 AR020 zero-usage、fast/strict POST、`X-Jev-Extract`。
+- **实测**：numeric_reasoning 12/12，quality 1.0、P50 3.8ms vs CGW 1.310s，
+  tokens 0；原 GEXA 0/12 并回退，证明开关隔离。
+- **回退**：`quantitative_enabled=false`；生产档
+  `latency-best-gpu-grounded.toml`。
+- **服务器**：`server-{7b,14b}-grounded-casc.toml`；14B 未本机实测。

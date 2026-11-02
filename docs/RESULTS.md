@@ -803,3 +803,51 @@ CGW 与 GEXA 均 quality 0.207、prompt tokens 77.3、completion 9.4、P50
 - `jev.kernel` 总覆盖率 **88%**（`extract/grounded.py` 92%，目标 ≥85%）；
 - Gitee 干净浅克隆：`756 passed, 3 skipped`（3 个本机资产/GPU 体检用例按预期
   跳过），`ruff` 零告警，复刻入口无需模型即可跑通逻辑测试。
+
+## AR021 GQRA：文档接地的确定性数值推理
+
+### 1. 背景与创新点
+
+GEXA 覆盖单事实抽取，但跨记录数值问题（和/差/最大/最小/哪条更大）仍需模型。
+GQRA 将“解析一个唯一值”扩展为“解析多个锚点的唯一值”，再按问题操作做 Decimal
+运算；任一锚点缺失/歧义/操作不支持则整体 miss，回退 CGW/GTB。
+
+### 2. 离线真实数据
+
+新数据集 `numeric_reasoning`（同一文档 16 条记录、60 段、12 题）：
+
+| 路径 | 命中 | 正确 | 误答 |
+| --- | --- | --- | --- |
+| 原 GEXA（quantitative off） | 0/12（ambiguous） | — | 0 |
+| **GQRA** | **12/12** | **12/12** | **0** |
+
+覆盖 sum/diff/max/min/which_max/which_min；原 GEXA 单事实 shared 结果不变。
+
+### 3. 真实联合矩阵 `ar021-quantitative-20261102-123236`
+
+force_full，B1/CGW/GEXA/GQRA 同文档同题：
+
+| arm | quality | mean | P50 | tokens |
+| --- | --- | --- | --- | --- |
+| B1 | 0.364 | 38.407s | 36.608s | 3065+9 |
+| CGW_CASC_FAST | 0.545 | 1.594s | 1.310s | 1132+9 |
+| GEXA_CGW_CASC_FAST | 0.545 | 1.565s | 1.225s | 1132+9 |
+| **GQRA_CGW_CASC_FAST** | **1.000** | **0.0039s** | **0.0038s** | **0** |
+
+选择器 adopt GQRA，utility 下界 0.9754。相对 B1：质量 0.364→1.000，
+P50 **−99.99%**；相对 CGW：P50 **−99.7%**，tokens **−100%**，质量 +45.5pt。
+GEXA 未启用 GQRA 时保持 0 命中并回退，证明组合开关隔离有效。
+
+### 4. 组合与回退
+
+- 组合：**GQRA + GEXA + CGW/GTB + CASC + GPU**；单事实命中由 GEXA，
+  跨记录数值命中由 GQRA，其他问题回退原级联；
+- 生产档：`configs/profiles/latency-best-gpu-grounded.toml`；
+- 回退：`[extractive] quantitative_enabled=false` 即回到 AR020 GEXA；
+- 服务器：`server-{7b,14b}-grounded-casc.toml`；14B 未本机实测。
+
+### 5. 验证
+
+- 真实 Laya + 无大脑集成：`X-Jev-Extract: hit:numeric-sum`、tokens=0；
+- 单测覆盖 6 种操作、关闭隔离、单锚点/歧义/不支持回退；
+- 本机全量 `767 passed`、ruff 零告警；`grounded.py` 覆盖率 91%、kernel 92%。

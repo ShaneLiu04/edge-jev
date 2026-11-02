@@ -361,3 +361,23 @@ configs/experiments/extractive*.toml
   strict POST 下 shared P50 739ms。
 - **回退**：`extractive.enabled=false`；生产开关见
   `latency-best-gpu-extractive.toml`。
+
+## 22. AR021 GQRA：文档接地数值推理
+
+```text
+kernel/extract/grounded.py    _arithmetic / _resolve_anchor / Decimal 运算
+bench/numeric_reasoning.py    多记录文档数值推理数据集
+bench/matrix.py               dataset=numeric_reasoning
+configs/experiments/quantitative.toml
+```
+
+- **作用**：GEXA 之上的操作型分支；`quantitative_enabled=false` 时行为不变。
+- **解析**：≥2 个锚点，每个锚点在线索句解析唯一数值；任一 unresolved/歧义
+  整体 miss，不返回部分结果。
+- **运算**：sum/diff/max/min 返回数值；which_max/which_min 返回记录编号；
+  Decimal 计算，整数格式无小数点。
+- **组合**：命中复用 AR020 的 zero-usage、fast/strict POST、`X-Jev-Extract`。
+- **实测**：numeric_reasoning quality 1.0、P50 3.8ms vs CGW 1.310s；
+  tokens 0；GEXA 关闭 GQRA 时 0 命中并回退。
+- **回退**：`quantitative_enabled=false`；生产档
+  `latency-best-gpu-grounded.toml`。

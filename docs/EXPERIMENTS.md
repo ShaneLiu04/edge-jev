@@ -296,3 +296,19 @@ benchmarks/results/<run>/
   - 生产档 `configs/profiles/latency-best-gpu-extractive.toml`
   - 服务器 `server-{7b,14b}-extractive-casc.toml`（需 external brain/embedding，
     服务器 slot 路径与 `kv_snapshot_dir` 一致）
+
+## 5.16 AR021 GQRA：文档接地数值推理
+
+- 在 GEXA 之上增加多锚点 Decimal 运算：sum/diff/max/min/which_max/which_min；
+- 任一锚点 unresolved/歧义/操作不支持整体 miss，回退 CGW/GTB；
+- 离线 numeric_reasoning：原 GEXA 0/12（ambiguous）→ **GQRA 12/12**；
+- 真实矩阵 `ar021-quantitative-20261102-123236`（force_full 12 题）：
+  - B1 quality 0.364 / P50 36.608s；
+  - CGW quality 0.545 / P50 1.310s；
+  - **GQRA quality 1.000 / P50 0.0038s / tokens 0**；
+  - 选择器 adopt，utility 下界 0.9754；
+- 复刻：
+  - `uv run jev matrix --config configs/experiments/quantitative.toml`
+  - 生产档 `configs/profiles/latency-best-gpu-grounded.toml`
+  - 服务器 `server-{7b,14b}-grounded-casc.toml`
+- 关闭 `quantitative_enabled` 即完全回退 AR020 GEXA。

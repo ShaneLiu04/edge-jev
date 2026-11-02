@@ -1,0 +1,88 @@
+{
+  "schema": "jev.matrix.progress/1",
+  "completed_arms": [
+    "B1",
+    "CGW_CASC_FAST",
+    "GEXA_CGW_CASC_FAST",
+    "GQRA_CGW_CASC_FAST"
+  ],
+  "remaining": [],
+  "metrics": {
+    "B1": {
+      "count": 11,
+      "quality": 0.363636,
+      "mean_completion_tokens": 9.273,
+      "mean_prompt_tokens": 3064.545,
+      "mean_latency_ms": 38407.123,
+      "p50_latency_ms": 36608.361,
+      "routes": {
+        "full": 11
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 8743.455,
+      "mean_decode_tps": 4.682,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 1.0
+    },
+    "CGW_CASC_FAST": {
+      "count": 11,
+      "quality": 0.545455,
+      "mean_completion_tokens": 8.727,
+      "mean_prompt_tokens": 1131.636,
+      "mean_latency_ms": 1593.569,
+      "p50_latency_ms": 1310.296,
+      "routes": {
+        "full": 11
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 1106.0,
+      "mean_prefill_ms": 255.182,
+      "mean_decode_tps": 5.818,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 0.3636
+    },
+    "GEXA_CGW_CASC_FAST": {
+      "count": 11,
+      "quality": 0.545455,
+      "mean_completion_tokens": 8.727,
+      "mean_prompt_tokens": 1131.636,
+      "mean_latency_ms": 1565.25,
+      "p50_latency_ms": 1224.838,
+      "routes": {
+        "full": 11
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 11,
+      "mean_cache_n": 1106.0,
+      "mean_prefill_ms": 252.455,
+      "mean_decode_tps": 5.927,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 0.3636
+    },
+    "GQRA_CGW_CASC_FAST": {
+      "count": 11,
+      "quality": 1.0,
+      "mean_completion_tokens": 0.0,
+      "mean_prompt_tokens": 0.0,
+      "mean_latency_ms": 3.909,
+      "p50_latency_ms": 3.819,
+      "routes": {
+        "full": 11
+      },
+      "cache_hits": 0,
+      "risk_denies": 0,
+      "cache_prompt_hits": 0,
+      "mean_cache_n": 0.0,
+      "mean_prefill_ms": 0.0,
+      "mean_decode_tps": 0.0,
+      "spec_accept_rate": 0.0,
+      "outputs_identical": 0.3636
+    }
+  }
+}

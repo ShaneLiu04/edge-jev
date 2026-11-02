@@ -322,6 +322,22 @@ uv run jev matrix --config configs/experiments/server-14b-extractive-casc.toml
 - 观测：`X-Jev-Extract`、`X-Jev-KV-Snapshot`、`X-Jev-Prefix-Cache`；
 - 14B 未在本机实测时，不得宣称 14B 指标；服务器资源/显存不足按 §2.2 回退。
 
+### 2.13 AR021 GQRA（端侧 + 服务器）
+
+```bash
+# 端侧：多记录数值推理（和/差/最大/最小/哪条更大）
+uv run jev matrix --config configs/experiments/quantitative.toml
+
+# 服务器：external brain/embedding + slot 快照，启动方式同 §2.12
+uv run jev matrix --config configs/experiments/server-7b-grounded-casc.toml
+uv run jev matrix --config configs/experiments/server-14b-grounded-casc.toml
+```
+
+- `[extractive] quantitative_enabled=true` 才启用；关闭即回退 AR020 GEXA；
+- 观测：`X-Jev-Extract: hit:numeric-sum|numeric-diff|numeric-max|numeric-min|id-max|id-min`；
+- 只支持文档中唯一接地的记录值；平均值/百分比/单位换算未启用，直接 miss；
+- 服务器 slot 路径必须与 `kv_snapshot_dir` 一致；14B 未本机实测，禁止虚构指标。
+
 ## 3. 实验口径
 
 | 方案 | 定义 |

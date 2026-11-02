@@ -25,7 +25,8 @@
 | AR017 | CGW 级联门控窗口 | 联合 P50 1.00s（相对 AGW −39.6%） | 需 int8 资产；窗口为空退化为单窗 | 关 |
 | AR018 | GTB 证据接地双脑级联 | 交互 P50 0.68–0.72s；quality 1.0 | mean 与 CGW 基本持平，独立文档回退 CGW | 关 |
 | AR019 | PPKS 持久化前缀 KV 快照 | 重启后首请求 −85.7%（6.13s→0.88s） | 需磁盘 73MB/文档；仅 parallel=1 | 关 |
-| AR020 | GEXA 确定性抽取快答 | 抽取命中零 LLM；shared P50 −81%，needles −99.96% | 仅覆盖有唯一答案的抽取型问题 | 关 |
+| AR020 | GEXA 确定性抽取快答 | 抽取命中零 LLM；shared P50 −84%，needles −99.97% | 仅覆盖有唯一答案的抽取型问题 | 关 |
+| AR021 | GQRA 文档数值推理 | 多记录和/差/最大最小零 LLM；P50 3.8ms，quality 1.0 | 仅覆盖可确定性数值运算的问题 | 关 |
 
 ## 2. 负载 → 最优组合
 
@@ -41,7 +42,8 @@
 | 交互 P50 最优（重复/共享文档） | **GTB_CASC_FAST + GPU offload**（AR018+AR017+...+AR007） | shared-prefix：P50 0.68–0.72s，quality 1.0，9/12 走 0.5B、3 次安全升级 |
 | 纯延迟最优（不压缩上下文） | **GTB_CACHE + GPU offload**（AR018+AR017+...+AR007） | shared-prefix：P50 0.87–1.37s；CASC 更省 token，通常优先 GTB_CASC |
 | 滚动重启/复现实验（冷启动首请求） | **任一稳态组合 + PPKS**（AR019） | shared-prefix 冷启动 6.13s→0.88s（−85.7%），quality 一致 |
-| 文档抽取问答（编号/校验码/日期等） | **GEXA + GTB_CASC_FAST + GPU**（AR020+AR018+...） | shared P50 176ms、needles 3.9ms，tokens 0，quality 1.0 |
+| 文档抽取问答（编号/校验码/日期等） | **GEXA + GTB_CASC_FAST + GPU**（AR020+AR018+...） | shared P50 175ms、needles 3.7ms，tokens 0，quality 1.0 |
+| 文档多记录数值推理（和/差/最大/最小） | **GQRA + GEXA + CGW/GTB + GPU**（AR021+AR020+...） | numeric_reasoning P50 3.8ms vs CGW 1.31s，quality 1.0 |
 | 无 GPU / 显存不足 | **AGW_CASC_FAST（CPU）** | shared-prefix：P50 1.97s，mean 3.77s，quality 1.0；CGW 未在 CPU 联合矩阵实测 |
 | 重复/近义请求 | **语义缓存**（AR003/AR005 准入） | repeat 10×2：completion token ↓36%，延迟 ↓25% |
 | 高风险降级 | **Conformal 风险门**（AR005） | 无可行阈值时自动 disabled，失败安全 |
@@ -102,6 +104,8 @@ profile = "configs/profiles/aeb.toml"   # 或 prefix-cache / short-qa
 | AR019 持久化 KV 快照 | `ppks.toml`；冷重启对照 `scripts/bench_ppks.py` |
 | AR020 抽取快答 | `extractive.toml` / `extractive-needles.toml` / `extractive-quality.toml`；`latency-best-gpu-extractive.toml` |
 | AR020 服务器 7B/14B | `server-{7b,14b}-extractive-casc.toml` |
+| AR021 数值推理 | `quantitative.toml`；`latency-best-gpu-grounded.toml` |
+| AR021 服务器 7B/14B | `server-{7b,14b}-grounded-casc.toml` |
 | 服务器 7B/14B（完整 overlay） | `server-{7b,14b}-lcpt-casc.toml` / `server-{7b,14b}-agw-casc.toml` |
 
 ## 5. 选择规则
