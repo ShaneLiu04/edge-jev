@@ -325,3 +325,20 @@ benchmarks/results/<run>/
 - 文档亲和档：`configs/profiles/latency-best-gpu-affinity.toml`；
 - `uv run python scripts/bench_concurrency.py` 复刻；
 - 与 PPKS 互斥；GEXA/GQRA 不受影响；默认 parallel=1 回退。
+- **AR023 已解除该互斥**：多槽快照见 §5.18。
+
+## 5.18 AR023 MSPP：多槽持久化前缀快照
+
+- 快照按请求 `id_slot` 恢复/保存；`(document, slot)` 独立状态；同槽恢复串行。
+- 每个模式：预热保存 → 重启 llama-server → 冷启动第一轮 + 稳态第二轮。
+- 真实 GPU 并发 4（shared 12 题、ctx 16384，run `ar023-mspp-20261106-013505`）：
+  - parallel1 cold 10719.5ms → parallel1+MSPP 6612.7ms（1.62x）；
+  - parallel4 auto cold 20959.0ms；
+  - **parallel4+scheduler+MSPP cold 3123.4ms（相对 auto 6.7x）**；
+  - restore=4，steady P50 896.0ms，quality 1.0；重复 run 冷启动 3149.6ms（6.67x）。
+- 复刻：
+  - `uv run python scripts/bench_multislot_snapshot.py`
+  - CPU 无 GPU 时：`$env:JEV_AR023_GPU_LAYERS="0"`
+  - 生产档：`configs/profiles/latency-best-gpu-mspp.toml`
+  - 实验档：`configs/experiments/ar023-mspp.toml`
+- 关闭 `kv_snapshot_dir` 或 `slot_scheduler_enabled` 即回退 AR022/AR019。

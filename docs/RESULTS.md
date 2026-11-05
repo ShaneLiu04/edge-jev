@@ -882,7 +882,7 @@ scheduled 优于 auto（1.22x vs 0.99x）；4 槽同文档场景 auto 已足够�
 - `ScheduledClient` 透明注入 extra_body，不改内容/usage；
 - `parallel=4` 会分割 ctx，实验用 16384（每槽 4096）；
 - 调度只包装大脑客户端：GEXA/GQRA 命中零模型，不受影响；
-- 与 PPKS 互斥（PPKS 需 parallel=1），同时启用 fail-fast；
+- 单槽 PPKS 仍需 parallel=1；**AR023 已通过 MSPP 解除“快照 vs 并行槽”限制**；
 - 默认 `parallel=1 + scheduler off`，单请求行为不变。
 
 ### 4. 配置与回退
@@ -899,3 +899,53 @@ scheduled 优于 auto（1.22x vs 0.99x）；4 槽同文档场景 auto 已足够�
 - 本机全量 `780 passed`、scheduler 覆盖率 97%、ruff 零告警；
 - Gitee 干净浅克隆 `777 passed, 3 skipped`（3 个仅需本机 Laya 资产的用例），
   `ruff` 零告警。
+
+## AR023 MSPP：多槽持久化前缀快照
+
+### 1. 背景与创新
+
+AR019 提供 KV 快照，但固定 `slot 0 + parallel=1`；AR022 提供并行槽，但两者被
+代码互斥。MSPP 把快照恢复/保存绑定到请求实际使用的 `id_slot`，并记录
+`(document, slot)` 恢复状态；同一快照文件可被多个槽复用。由此首次把
+**冷启动前缀复用**与**并发吞吐**组合起来，而不是二选一。
+
+实现同时修复了 llama-server 子进程 `stderr` 管道无人读取导致长跑阻塞的可靠性缺陷。
+
+### 2. 真实 GPU 冷重启并发（两次复现）
+
+shared-prefix 12 题、客户端并发 4、ctx 16384、GPU offload；每个模式先预热保存，
+再重启 llama-server，测冷启动第一轮与稳态第二轮。两次独立运行：
+
+| 运行 | 模式 | 冷启动 wall | 冷启动 P50 | restore | 稳态 P50 | vs p1 | vs p4 auto | quality |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 013505 | parallel=1 | 10719.5ms | 2185.6ms | 0 | 2151.8ms | 1.00x | 1.96x | 1.0 |
+| 013505 | parallel=1 + MSPP | 6612.7ms | 2157.0ms | 1 | 2109.8ms | 1.62x | 3.17x | 1.0 |
+| 013505 | parallel=4 auto | 20959.0ms | 1381.6ms | 0 | 949.1ms | 0.51x | 1.00x | 1.0 |
+| 013505 | parallel=4 scheduler | 20236.0ms | 1192.1ms | 0 | 914.8ms | 0.53x | 1.04x | 1.0 |
+| **013505** | **parallel=4 + scheduler + MSPP** | **3123.4ms** | **1056.6ms** | **4** | **896.0ms** | **3.43x** | **6.71x** | **1.0** |
+| 013110 | parallel=4 auto | 21021.5ms | 1404.5ms | 0 | 957.9ms | 0.51x | 1.00x | 1.0 |
+| 013110 | **parallel=4 + scheduler + MSPP** | **3149.6ms** | **1001.3ms** | **4** | **1045.9ms** | **3.38x** | **6.67x** | **1.0** |
+
+结论：
+
+- 冷启动相对 `parallel=4 auto` **6.67–6.71x**，相对单槽 **3.38–3.43x**；
+- 4 个槽全部完成恢复（restore=4），quality 12/12；
+- 稳态 P50 896.0ms / 1045.9ms，对比 auto 949.1ms / 957.9ms，处于同轮噪声内，
+  未观察到稳定回归；
+- AR022 scheduler 的“每轮换槽导致新槽冷 prefill”问题被快照恢复直接消除。
+
+### 3. 组合与回退
+
+- 组合：`GQRA + GEXA + GTB_CASC_FAST + GPU + parallel4 + MSPP`；
+- 生产档：`configs/profiles/latency-best-gpu-mspp.toml`；
+- 复现：`uv run python scripts/bench_multislot_snapshot.py`（GPU 默认 99；
+  CPU 可设 `JEV_AR023_GPU_LAYERS=0`）；
+- 回退：关闭 `slot_scheduler_enabled` 或 `kv_snapshot_dir`，即回到 AR022/AR019；
+- 单槽行为保持 AR019 不变；快照失败自动回退正常 prefill。
+
+### 4. 验证
+
+- 本机全量 `789 passed`，ruff 零告警；
+- 真实集成 `test_multislot_snapshot_real.py`：parallel=2，重启后两个槽均 restore；
+- 新增单测覆盖请求槽、每槽状态、同槽恢复所有权、忙槽跳过、LRU 失效、
+  serve 包装顺序、失败不删文件、配置兼容。

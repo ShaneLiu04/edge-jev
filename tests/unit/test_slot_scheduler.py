@@ -142,12 +142,9 @@ def test_concurrent_requests_round_robin_without_duplicates() -> None:
     assert sorted(slots) == [0, 0, 1, 1, 2, 2, 3, 3]
 
 
-def test_matrix_rejects_snapshot_with_parallel_or_scheduler(tmp_path) -> None:
-    from jev.bench.matrix import MatrixConfig, _validate_snapshot_scheduler
-    from jev.errors import JevProtocolError
-    from jev.kernel.cerebrum.snapshot import SnapshotConfig
+def test_matrix_snapshot_combines_with_parallel_and_scheduler(tmp_path) -> None:
+    from jev.bench.matrix import MatrixConfig, _snapshot_config
 
-    snapshot = SnapshotConfig(enabled=True, directory=tmp_path)
     base = {
         "name": "t",
         "seed": 1,
@@ -166,14 +163,13 @@ def test_matrix_rejects_snapshot_with_parallel_or_scheduler(tmp_path) -> None:
         "repeat": 1,
         "dataset": "shared",
         "overlays": {},
+        "kv_snapshot_dir": str(tmp_path / "snap"),
+        "parallel": 4,
+        "slot_scheduler_enabled": True,
     }
-    _validate_snapshot_scheduler(MatrixConfig(**base), snapshot)
-    with pytest.raises(JevProtocolError, match="parallel"):
-        _validate_snapshot_scheduler(MatrixConfig(**base, parallel=2), snapshot)
-    with pytest.raises(JevProtocolError, match="slot_scheduler"):
-        _validate_snapshot_scheduler(
-            MatrixConfig(**base, parallel=1, slot_scheduler_enabled=True), snapshot
-        )
+    snapshot = _snapshot_config(MatrixConfig(**base))
+    assert snapshot.enabled
+    assert snapshot.per_request_slot
 
 
 def test_config_validation() -> None:

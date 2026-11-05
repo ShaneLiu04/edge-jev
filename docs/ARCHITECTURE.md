@@ -333,7 +333,8 @@ scripts/bench_ppks.py             真实冷重启 save/restore 对照
 - **保存**：首次请求成功后后台线程 save，不阻塞响应；LRU 限制条数。
 - **恢复**：同文档首次请求前 restore（真实 107ms/77MB），随后正常请求；失败/
   损坏删除文件并回退普通 prefill。
-- **约束**：`parallel=1`（slot 0）；暂不与 supervisor 叠加；目录 gitignored。
+- **约束**：单槽实现为 `parallel=1`（slot 0）；多槽扩展见 AR023；暂不与 supervisor
+  叠加；目录 gitignored。
 - **实测**：冷启动 6131.7ms → 875.2ms（−85.7%），`prompt_n 2662→16`。
 - **回退**：`kv_snapshot_dir=""` 即与 AR018 行为一致。
 
@@ -396,5 +397,22 @@ scripts/bench_concurrency.py   真实并发对照
 - **调度**：最后 user 文档 sha256 + per-doc 计数器轮转 `0..N-1`；不同文档独立。
 - **实测**：parallel4 auto 1.86x 吞吐；parallel2 scheduled 1.22x（auto 0.99x）；
   质量 1.0；真实集成确认两个不同 slot 均被使用。
-- **约束**：`--parallel N` 分割 ctx；实验用 16384；与 PPKS（parallel=1）互斥。
+- **约束**：`--parallel N` 分割 ctx；实验用 16384；单槽 PPKS 仍不能直接叠加。
 - **回退**：默认 parallel=1 + scheduler off；吞吐档/亲和档为 opt-in profile。
+
+## 24. AR023 MSPP：多槽持久化前缀快照
+
+```text
+kernel/cerebrum/snapshot.py    per_request_slot + (document,slot) 状态
+kernel/cerebrum/scheduling.py  外层选择 id_slot
+kernel/kernel.py               移除快照/调度互斥
+kernel/cerebrum/llama_server.py stderr 持续排空（防长跑管道阻塞）
+scripts/bench_multislot_snapshot.py  冷重启并发对照
+```
+
+- **作用**：同一文档快照可恢复到请求实际 `id_slot`，把 AR019 冷启动与 AR022 并发组合；
+- **并发安全**：同槽只允许一个恢复者，其他同槽请求等待/跳过；忙槽不保存；
+- **实测**：4 槽冷启动 20.96s→**3.12s（6.7x）**，restore=4，
+  steady P50 0.90–1.05s，quality 1.0；
+- **可靠性**：恢复失败只回退正常 prefill，不删可能有效文件；stderr 持续排空；
+- **回退**：关闭 `kv_snapshot_dir` 或 `slot_scheduler_enabled` 即回到 AR019/AR022。

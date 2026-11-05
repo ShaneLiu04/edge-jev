@@ -4,7 +4,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/unit-780%20passed-brightgreen)](#测试与质量)
+[![Tests](https://img.shields.io/badge/unit-789%20passed-brightgreen)](#测试与质量)
 [![Backends](https://img.shields.io/badge/backends-real%20only-orange)](#设计原则)
 
 ## 目录
@@ -36,7 +36,7 @@
 - **上下文复用**：前缀 KV + 会话亲和 + 查询无关稳定压缩 + 压缩 LRU。
 - **级联决策压缩**：LADS fast、ADB 预算、CADP 分阶段、RDMP 最小探针、LCPT 长文 int8、CGW 级联门控。
 - **双脑接地**：0.5B 小模型先答，确定性证据验证通过才接受，否则升级 1.5B。
-- **服务化能力**：GPU offload、持久化 KV 快照、并行槽/文档亲和、熔断与自愈。
+- **服务化能力**：GPU offload、持久化 KV 快照、并行槽/文档亲和、多槽快照、熔断与自愈。
 - **可复现**：`jev matrix` 在真实后端跑对照，产出原始 JSON、报告、环境指纹，选择器自动 `adopt/rollback`。
 
 ## 设计原则
@@ -120,7 +120,8 @@ GQRA + GEXA（零大脑 LLM 快路径，位于 Laya 路由后）
              └─ F1: 0.5B GTB（交互 P50 档）
              └─ F2: 1.5B CGW（平均/独立文档档）
                 └─ GPU offload
-部署：F4 PPKS 冷启动（parallel=1） / F3 parallel=4 并发（与 PPKS 互斥）
+部署：F4 PPKS 单槽冷启动 / F3 parallel=4 并发
+      / MSPP 多槽快照（冷启动 + 并发同时受益，AR023）
 ```
 
 | 档位 | 组合 | 适用负载 | 入口 |
@@ -129,19 +130,19 @@ GQRA + GEXA（零大脑 LLM 快路径，位于 Laya 路由后）
 | **F2 平均稳定** | GQRA + GEXA + CGW_CASC_FAST + GPU | 批处理、独立长文档、mean 优先 | 同档 `tier_enabled=false` |
 | **F3 多用户吞吐** | GTB_CASC_FAST + `parallel=4`（ctx 16384） | 并发服务 | `latency-best-gpu-throughput.toml` |
 | **F3b 文档亲和** | GTB_CASC_FAST + `parallel=2` + `id_slot` 轮转 | 同文档并发 | `latency-best-gpu-affinity.toml` |
-| **F4 冷启动** | GTB/CGW_CASC_FAST + PPKS 快照 | 滚动重启/实验冷启动 | `configs/experiments/ppks.toml` |
+| **F4 冷启动** | 单槽 PPKS；并发冷启动用 **MSPP** | 滚动重启/实验冷启动 | `configs/experiments/ppks.toml` / `latency-best-gpu-mspp.toml` |
 | **F5 无 GPU** | CGW_CASC_FAST（CPU 基础档） | CPU-only / 显存不足 | `configs/profiles/latency-best.toml` |
 | **F6 一次性长文** | AEB（可选叠加 GEXA/GQRA） | 单次长文、token 成本优先 | `configs/profiles/aeb.toml` |
 
 > F3/F4/F5/F6 的 profile 默认未开启 GEXA/GQRA；如需零大脑快答，额外设置
-> `[extractive] enabled=true, quantitative_enabled=true`。F3 的 1.86x 是裸大脑并发实测，
-> 完整应用级并发尚未单独矩阵验证。
+> `[extractive] enabled=true, quantitative_enabled=true`。F3 的 1.86x 与 F4 的
+> 6.7x 是裸大脑/快照路径实测，完整应用级并发尚未单独矩阵验证。
 
 明确不默认叠加：
 
 - GEXA/GQRA 只接**唯一答案/可确定性运算**，生成型请求必须 miss 回退；
 - AEB 与前缀缓存/CASC 冲突（查询相关选块破坏前缀稳定性）；
-- PPKS 与 `parallel>1` / `slot_scheduler` 互斥（快照固定 slot 0）；
+- **单槽 PPKS** 仍固定 slot 0，不要直接叠加 `parallel>1`；并发冷启动请用 **MSPP**；
 - GTB 用于一次性独立长文档时 mean 变差，回退 CGW；
 - 投机解码、GPU Laya、全量决策点、head+tail 状态、多探针同行均已实测负收益/安全翻转。
 
@@ -278,7 +279,7 @@ quantitative_enabled = false         # AR021 GQRA
 gpu_layers = 0                       # 0=CPU；99=尽量 offload
 parallel = 1                         # AR022；>1 会分割 ctx
 slot_scheduler_enabled = false       # 文档亲和 id_slot
-kv_snapshot_dir = ""                 # AR019；空=关闭；需 parallel=1
+kv_snapshot_dir = ""                 # AR019/AR023；空=关闭；调度开启时按请求槽
 tier_enabled = false                 # AR018 GTB
 
 [runtime]
@@ -299,8 +300,10 @@ profile = ""                         # 指向生产 profile
 
 约束：
 
-- `slot_scheduler_enabled=true` 需要 `parallel>=2`；与 `kv_snapshot_dir` 互斥；
-- KV 快照需要 `parallel=1`，并让 llama-server 使用 `--slots --slot-save-path`；
+- `slot_scheduler_enabled=true` 需要 `parallel>=2`；
+- `kv_snapshot_dir` + `slot_scheduler_enabled` 进入 MSPP 多槽模式；单槽模式仍用
+  `kv_snapshot_slot`（默认 0）；
+- 快照需要 llama-server `--slots --slot-save-path`（嵌入式管理器自动添加）；
 - `parallel=N` 会把 `ctx_size` 分给 N 个 slot；
 - 非法组合与越界配置会 `fail-fast`，不静默降级。
 
@@ -336,6 +339,7 @@ uv run jev matrix --config configs/experiments/ar005.toml
 | 抽取 / 数值 | `extractive*.toml`、`quantitative.toml` | hit 率 / tokens |
 | 冷启动 | `scripts/bench_ppks.py`、`ppks.toml` | 首请求延迟 |
 | 并发 | `scripts/bench_concurrency.py` | wall / req/s |
+| 多槽冷启动 | `scripts/bench_multislot_snapshot.py`、`ar023-mspp.toml` | restore / 冷启动 wall |
 | 服务器 7B/14B | `server-{7b,14b}-*.toml` | 本机未跑；按服务器显存执行 |
 
 矩阵产物在 `benchmarks/results/<run>/`：
@@ -361,9 +365,13 @@ uv run jev matrix --config configs/experiments/ar005.toml
 | 交互 miss 路径 | GTB_CASC_FAST + GPU | P50 **0.61–0.72s**，quality 1.0 | B1 36–52s |
 | 平均/独立文档 miss | CGW_CASC_FAST + GPU | P50 **1.00–1.49s**，tokens 1079 | B1 2662 tokens |
 | 共享文档压缩 | CASC + prefix KV | tokens 2662→**1079（−59.5%）**，cache 11/12 | B1 cache 0/12 |
-| 冷启动首请求 | PPKS | 6.13s→**0.88s（−85.7%）** | 无快照冷重启 |
+| 冷启动首请求 | PPKS（单槽） | 6.13s→**0.88s（−85.7%）** | 无快照冷重启 |
+| 冷启动 + 并发 4 | **MSPP** | 20.96s→**3.12s（6.7x）**，restore 4，quality 1.0 | parallel4 auto |
 | 并发 4 | parallel=4 | 吞吐 **1.86x**，quality 1.0 | parallel=1 |
 | 前缀复用 | prefix KV | prefill 8202→927ms（**8.8×**） | 无缓存 |
+
+> MSPP 的 6.7x 口径为**冷启动首轮 + 单一共享文档 + 客户端并发 4**，不含 GTB；
+> 小模型仍单槽，不参与多槽快照。
 
 负结果同样保留：AR008 投机解码、GPU Laya、全量决策点、head+tail 状态窗口等均因**无稳定收益或安全翻转**回退。
 
@@ -393,11 +401,12 @@ uv run jev matrix --config configs/experiments/ar005.toml
 | AR020 | GEXA 抽取快答 | 已归档 | 公共前栈 |
 | AR021 | GQRA 数值推理 | 已归档 | 公共前栈 |
 | AR022 | PSS 并行槽吞吐 | 已归档 | F3 并发 |
+| AR023 | MSPP 多槽持久化前缀 | 已归档 | F4 并发冷启动 |
 
 ## 测试与质量
 
 ```bash
-uv run pytest tests/unit -q                 # 纯逻辑，无需资产：780 passed
+uv run pytest tests/unit -q                 # 纯逻辑，无需资产：789 passed
 uv run pytest -m assets                     # 真实资产集成
 uv run pytest -m "assets and slow"          # 端到端 / 长耗时
 uv run pytest --cov                         # kernel 目标 >=85%
@@ -406,8 +415,8 @@ uv run ruff check .                         # 零告警
 
 当前基线：
 
-- 本机全量 **780 passed**；`ruff` 零告警；
-- Gitee 干净浅克隆 **777 passed, 3 skipped**（3 个仅需本机 Laya 资产）；
+- 本机全量 **789 passed**；`ruff` 零告警；
+- Gitee 干净浅克隆 **786 passed, 3 skipped**（3 个仅需本机 Laya 资产；待本次推送后复验）；
 - `kernel/extract/grounded.py` 覆盖率 91–92%；`kernel` 约 92%；
 - 测试纪律：**严禁 mock 后端**；纯逻辑单测不触后端；真实后端用例打 `@pytest.mark.assets`。
 
@@ -433,7 +442,7 @@ configs/
 tests/unit|integration
 specs/                  SDD 需求/设计/任务/归档
 benchmarks/results/     真实矩阵产物
-scripts/                PPKS / 并发等专项脚本
+scripts/                PPKS / 并发 / MSPP 多槽快照专项脚本
 ```
 
 ## 文档地图
@@ -452,7 +461,10 @@ scripts/                PPKS / 并发等专项脚本
 ## 诚实边界
 
 - 7B/14B 仅提供配置与复现步骤，**未在本机实测，禁止外推指标**；
-- AR022 的 1.86x 是**裸大脑并发**结果；`parallel=4 + GTB + GEXA/GQRA + CASC` 的完整应用级并发尚未单独矩阵验证；
+- AR022 的 1.86x 与 AR023 的 6.7x 是**裸大脑/快照路径**结果；
+  `parallel=4 + GTB + GEXA/GQRA + CASC` 的完整应用级并发尚未单独矩阵验证；
+- AR023 冷启动收益来自快照恢复；首次无快照运行仍走正常 prefill；
+- supervisor 存在时快照/调度包装会告警降级（与既有 AR019 边界一致）；
 - 本机 GPU 被硬限制在 645MHz，绝对延迟不代表正常服务器 GPU；
 - GEXA/GQRA 只覆盖可确定性回答的问题，不接管生成/解释/歧义请求；
 - 所有新增叠加必须按选择器复验；无正下界或质量下降即回退，不更新默认 profile。

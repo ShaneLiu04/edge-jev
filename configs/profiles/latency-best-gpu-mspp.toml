@@ -1,0 +1,58 @@
+# AR023 MSPP GPU 档：GQRA+GEXA + GTB_CASC_FAST + GPU + parallel4 + 多槽快照
+# 真实 12 题冷重启并发4：cold wall 3.12s vs parallel4 auto 20.96s（6.7x），quality 1.0。
+# 6.7x 口径：冷启动首轮、单一共享文档、客户端并发4；不含 GTB；
+# 0.5B 小模型仍单槽，不参与 MSPP。
+# 快照目录需可写；首次运行保存，重启后每个文档按请求槽恢复。
+[portfolio]
+name = "latency-best-gpu-mspp"
+
+[extractive]
+enabled = true
+min_document_chars = 200
+max_answer_chars = 64
+max_anchor_occurrences = 64
+quantitative_enabled = true
+
+[runtime]
+enabled = true
+verifier_enabled = false
+memory_enabled = false
+allocator_enabled = false
+prefix_cache = true
+session_affinity = true
+decision_shadow = false
+decision_post = false
+decision_permutations = 1
+decision_staged = true
+decision_staged_minimal = true
+decision_long_context_tokens = 4000
+decision_long_context_gate_tokens = 384
+decision_long_context_gate_windows = [128, 384]
+stable_compression = true
+stable_compression_ratio = 0.4
+stable_compression_block_tokens = 128
+stable_compression_min_tokens = 512
+stable_compression_cache_entries = 64
+stable_compression_embed_batch = 16
+
+[prefill]
+enabled = false
+evidence = false
+adaptive = false
+
+[cerebrum]
+ctx_size = 16384
+parallel = 4
+slot_scheduler_enabled = true
+slot_scheduler_max_documents = 1024
+kv_snapshot_dir = "data/kv_snapshots/mspp"
+kv_snapshot_max_entries = 8
+kv_snapshot_min_chars = 1000
+gpu_layers = 99
+tier_enabled = true
+small_model = "models/qwen/qwen2.5-0.5b-instruct-q4_k_m.gguf"
+small_gpu_layers = 99
+small_port = 0
+tier_ground_window = 600
+tier_max_answer_chars = 64
+tier_prewarm = true

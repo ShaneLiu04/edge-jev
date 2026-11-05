@@ -11,7 +11,7 @@ import time
 from fastapi import FastAPI
 
 from jev.kernel.cerebrum.llama_server import LlamaServerClient
-from jev.kernel.cerebrum.scheduling import ScheduledClient
+from jev.kernel.cerebrum.scheduling import ScheduledClient, SlotScheduler
 from jev.kernel.cerebrum.snapshot import SnapshotClient
 from jev.kernel.cerebrum.tiering import TieredBrain
 from jev.kernel.kernel import Kernel
@@ -24,6 +24,18 @@ logger = logging.getLogger(__name__)
 def build_systemone_app(kernel: Kernel) -> FastAPI:
     """挂载 /v1/systemone 的应用（kernel 即熔断内嵌的后端门面）。"""
     return create_app(kernel)
+
+
+def _wrap_with_scheduler(brain_client, scheduler: SlotScheduler):
+    """快照/普通客户端都可作为调度内层；不支持的类型保持原样并告警。"""
+    if not scheduler.enabled or brain_client is None:
+        if scheduler.enabled:
+            logger.warning("当前大脑客户端不支持并行槽调度，本次禁用调度包装")
+        return brain_client
+    if isinstance(brain_client, (LlamaServerClient, SnapshotClient)):
+        return ScheduledClient(brain_client, scheduler)
+    logger.warning("当前大脑客户端不支持并行槽调度，本次禁用调度包装")
+    return brain_client
 
 
 def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
@@ -54,11 +66,7 @@ def build_serve_app(kernel: Kernel, *, max_concurrency: int = 8) -> FastAPI:
             brain_client = SnapshotClient(
                 brain_client, snapshot, kernel.snapshot_namespace_large
             )
-    if kernel.slot_scheduler.enabled:
-        if isinstance(brain_client, LlamaServerClient):
-            brain_client = ScheduledClient(brain_client, kernel.slot_scheduler)
-        else:
-            logger.warning("当前大脑客户端类型不支持并行槽调度，本次禁用调度包装")
+    brain_client = _wrap_with_scheduler(brain_client, kernel.slot_scheduler)
     tiered_brain = None
     if (
         brain_client is not None

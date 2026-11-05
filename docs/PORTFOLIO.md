@@ -24,10 +24,11 @@
 | AR016 | GSP GPU 服务放置 | GPU offload mean −11.8%，P50 1.75s | 无 GPU/显存不足需回退 CPU | 关 |
 | AR017 | CGW 级联门控窗口 | 联合 P50 1.00s（相对 AGW −39.6%） | 需 int8 资产；窗口为空退化为单窗 | 关 |
 | AR018 | GTB 证据接地双脑级联 | 交互 P50 0.68–0.72s；quality 1.0 | mean 与 CGW 基本持平，独立文档回退 CGW | 关 |
-| AR019 | PPKS 持久化前缀 KV 快照 | 重启后首请求 −85.7%（6.13s→0.88s） | 需磁盘 73MB/文档；仅 parallel=1 | 关 |
+| AR019 | PPKS 持久化前缀 KV 快照 | 重启后首请求 −85.7%（6.13s→0.88s） | 需磁盘 73MB/文档；单槽基础实现 | 关 |
 | AR020 | GEXA 确定性抽取快答 | 抽取命中零 LLM；shared P50 −84%，needles −99.97% | 仅覆盖有唯一答案的抽取型问题 | 关 |
 | AR021 | GQRA 文档数值推理 | 多记录和/差/最大最小零 LLM；P50 3.8ms，quality 1.0 | 仅覆盖可确定性数值运算的问题 | 关 |
-| AR022 | PSS 并行槽吞吐 | parallel4 并发吞吐 1.86x；quality 1.0 | 需更大 ctx/显存；与 PPKS 互斥 | 关 |
+| AR022 | PSS 并行槽吞吐 | parallel4 并发吞吐 1.86x；quality 1.0 | 需更大 ctx/显存；轮转换槽会冷 prefill | 关 |
+| AR023 | MSPP 多槽持久化前缀 | 冷重启并发 6.7x；稳态不劣化；quality 1.0 | 需快照目录；首轮写盘 | 关 |
 
 ## 2. 负载 → 最优组合
 
@@ -42,10 +43,10 @@
 | 端侧综合最优（token+mean） | **CGW_CASC_FAST + GPU offload**（AR017+AR016+AR015+AR014+AR013+AR012+AR011+AR010+AR009+AR007） | shared-prefix：P50 1.00s，mean 2.06s，tokens 1079，quality 1.0 |
 | 交互 P50 最优（重复/共享文档） | **GTB_CASC_FAST + GPU offload**（AR018+AR017+...+AR007） | shared-prefix：P50 0.68–0.72s，quality 1.0，9/12 走 0.5B、3 次安全升级 |
 | 纯延迟最优（不压缩上下文） | **GTB_CACHE + GPU offload**（AR018+AR017+...+AR007） | shared-prefix：P50 0.87–1.37s；CASC 更省 token，通常优先 GTB_CASC |
-| 滚动重启/复现实验（冷启动首请求） | **任一稳态组合 + PPKS**（AR019） | shared-prefix 冷启动 6.13s→0.88s（−85.7%），quality 一致 |
+| 滚动重启/复现实验（冷启动首请求） | 单槽 **任一稳态组合 + PPKS**（AR019）；并发 **+ MSPP**（AR023） | 单槽 6.13s→0.88s；4 槽冷启动 20.96s→3.12s（6.7x） |
 | 文档抽取问答（编号/校验码/日期等） | **GEXA + GTB_CASC_FAST + GPU**（AR020+AR018+...） | shared P50 175ms、needles 3.7ms，tokens 0，quality 1.0 |
 | 文档多记录数值推理（和/差/最大/最小） | **GQRA + GEXA + CGW/GTB + GPU**（AR021+AR020+...） | numeric_reasoning P50 3.8ms vs CGW 1.31s，quality 1.0 |
-| 多用户并发吞吐（服务器/GPU） | **parallel=4 auto**（AR022）或 **parallel=2 + 文档亲和** | 并发 4：1.86x 吞吐；亲和 1.22x vs auto 0.99x |
+| 多用户并发吞吐（服务器/GPU） | **parallel=4 auto**（AR022）、**parallel=2 + 文档亲和**；冷启动叠加 **MSPP**（AR023） | 并发 4：1.86x；冷重启 4 槽 6.7x，稳态不劣化 |
 | 无 GPU / 显存不足 | **AGW_CASC_FAST（CPU）** | shared-prefix：P50 1.97s，mean 3.77s，quality 1.0；CGW 未在 CPU 联合矩阵实测 |
 | 重复/近义请求 | **语义缓存**（AR003/AR005 准入） | repeat 10×2：completion token ↓36%，延迟 ↓25% |
 | 高风险降级 | **Conformal 风险门**（AR005） | 无可行阈值时自动 disabled，失败安全 |
@@ -132,7 +133,8 @@ GQRA + GEXA（零大脑 LLM 快路径，位于 Laya 路由后）
   └─ miss → CASC + prefix KV + session affinity + LADS/CADP/RDMP/LCPT/CGW
              └─ 0.5B GTB（交互 P50 档） 或 1.5B CGW（平均/独立文档档）
                 └─ GPU offload
-部署叠加：PPKS（冷启动，parallel=1） / parallel=4（多用户吞吐）
+部署叠加：PPKS（单槽冷启动） / parallel=4（多用户吞吐）
+          / MSPP（parallel4 + scheduler + 多槽快照，冷启动与并发同时受益）
 ```
 
 - **F1 交互默认（推荐）**：`GQRA+GEXA+GTB_CASC_FAST+GPU`
@@ -141,8 +143,10 @@ GQRA + GEXA（零大脑 LLM 快路径，位于 Laya 路由后）
   → 同档设置 `tier_enabled=false`；mean 更稳，独立长文档回退 CGW；
 - **F3 多用户吞吐**：`GTB_CASC_FAST + parallel=4`（ctx 16384，scheduler off）
   → `latency-best-gpu-throughput.toml`；文档亲和改 `parallel=2+scheduler`；
-- **F4 冷启动**：`GTB/CGW_CASC_FAST + PPKS`（parallel=1，`--slots --slot-save-path`）
-  → `ppks.toml` / `scripts/bench_ppks.py`；与 F3 互斥；
+- **F4 冷启动**：单槽 `GTB/CGW_CASC_FAST + PPKS`（parallel=1）
+  → `ppks.toml` / `scripts/bench_ppks.py`；并发冷启动用
+  **MSPP**（parallel4+scheduler+多槽快照，AR023）→ `latency-best-gpu-mspp.toml`；
+  单槽 PPKS 与 F3 仍不叠加，但 MSPP 已解除“快照 vs 并行槽”的限制；
 - **F5 无 GPU**：`CGW_CASC_FAST`（CPU 基础档）
   → `latency-best.toml`；CGW 未在 CPU 联合矩阵单独实测；
 - **F6 一次性长文**：`AEB`（可选叠加 GEXA/GQRA；独立 profile，不与前缀缓存叠加）。
@@ -163,7 +167,8 @@ GQRA + GEXA（零大脑 LLM 快路径，位于 Laya 路由后）
 | miss + 决策 | LADS fast + ADB/CADP/RDMP + LCPT + CGW | shared P50 **1.00s**（CGW）；门控 w128 | B1 36.6–52.6s |
 | miss + 双脑 | GTB 0.5B 接地验证 | shared P50 **0.72s**，9 small / 3 escalate，0 错误接受 | CGW P50 1.00s |
 | 放置 | GPU offload | mean −11.8%、P50 −13.7% | CPU decode |
-| 冷启动 | PPKS | 6.13s→**0.88s（−85.7%）** | 冷重启无快照 |
+| 冷启动 | PPKS（单槽） | 6.13s→**0.88s（−85.7%）** | 冷重启无快照 |
+| 冷启动+并发 | MSPP（4 槽） | 20959.0ms→**3123.4ms（6.7x）**，restore 4，quality 1.0 | parallel4 auto |
 | 并发 | parallel=4 auto | 吞吐 **1.86x**、quality 1.0 | parallel=1 |
 | 质量 | 全栈 | 各数据集 **1.0**（numeric B1 0.364→1.0） | — |
 
@@ -192,16 +197,17 @@ GQRA + GEXA（零大脑 LLM 快路径，位于 Laya 路由后）
 | AR016 | GPU 放置 | **保留**（有 GPU） | P50 −13.7%；无 GPU 回退 CPU |
 | AR017 | CGW 级联窗口 | **保留**（F2 miss 档） | w128，P50 −39.6% |
 | AR018 | GTB 双脑接地 | **保留**（F1 交互档） | P50 −51.7%，0 错误接受；独立文档回退 CGW |
-| AR019 | PPKS 快照 | **F4 冷启动专项** | 与 parallel>1 互斥，磁盘 73MB/文档 |
+| AR019 | PPKS 快照 | **F4 单槽冷启动** | 单槽基础实现；多槽由 AR023 扩展 |
 | AR020 | GEXA 抽取 | **保留前栈** | 命中零大脑 LLM，0 误答 |
 | AR021 | GQRA 数值推理 | **保留前栈** | numeric quality 0.364→1.0 |
-| AR022 | PSS 并行槽 | **F3 并发专项** | 1.86x；与 PPKS 互斥 |
+| AR022 | PSS 并行槽 | **F3 并发专项** | 1.86x；轮转换槽冷 prefill 由 AR023 消除 |
+| AR023 | MSPP 多槽快照 | **F4 并发冷启动** | 4 槽冷启动 6.7x；稳态不劣化；quality 1.0 |
 
 ### 6.4 明确禁止/不默认叠加
 
 1. **GEXA/GQRA 与生成型请求**：只接唯一答案/可确定性运算，其余必须 miss 回退；
 2. **AEB + 前缀缓存/CASC**：查询相关选块破坏前缀稳定性；
-3. **PPKS + parallel>1 或 slot_scheduler**：快照固定 slot 0，代码 fail-fast；
+3. **单槽 PPKS + parallel>1**：仍使用 slot 0；并发冷启动请用 MSPP，不要直接叠加；
 4. **GTB 用于一次性独立长文档**：needles mean +8.3%，回退 CGW；
 5. **投机解码、GPU Laya、全量决策点、head+tail 状态、多探针同行**：已实测负收益/安全翻转；
 6. **fast 模式 + 依赖 Laya POST 的安全复核**：fast 明确跳过 shadow/POST，需严格复核时用
@@ -210,8 +216,9 @@ GQRA + GEXA（零大脑 LLM 快路径，位于 Laya 路由后）
 ### 6.5 诚实边界
 
 - 7B/14B 仅有配置与复现步骤，**未本机实测，禁止外推指标**；
-- AR022 的 1.86x 是**裸大脑并发**结果；`parallel=4 + GTB + GEXA/GQRA + CASC`
-  的完整应用级并发尚未单独矩阵验证；
+- AR022 的 1.86x 与 AR023 的 6.7x 均为**裸大脑/快照路径**结果；
+  `parallel=4 + GTB + GEXA/GQRA + CASC` 的完整应用级并发尚未单独矩阵验证；
+- AR023 的冷启动收益来自快照恢复；首次无快照运行仍走正常 prefill；
 - F1/F2 的 shared/numeric 指标来自不同矩阵轮次，绝对值受本机 645MHz GPU
   与外部争用影响；相对结论和 quality 一致；
 - 任何新增叠加仍按 §5 选择器复验，无正下界即回退。

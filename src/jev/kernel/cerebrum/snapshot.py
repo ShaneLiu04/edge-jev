@@ -33,6 +33,7 @@ class SnapshotConfig:
     max_entries: int = 4
     min_chars: int = 1000
     slot_id: int = 0
+    per_request_slot: bool = False
 
     def __post_init__(self) -> None:
         if self.max_entries < 1:
@@ -74,10 +75,14 @@ class SnapshotClient:
         self._namespace = _SAFE_NAME.sub("-", namespace)[:48] or "default"
         self._directory = Path(config.directory)
         self._directory.mkdir(parents=True, exist_ok=True)
-        self._restored: set[str] = set()
+        self._restored: set[tuple[str, int]] = set()
         self._saved: set[str] = set()
         self._inflight: set[str] = set()
+        self._active: dict[int, int] = {}
+        self._active_keys: dict[tuple[int, str], int] = {}
         self._lock = threading.Lock()
+        self._restore_cond = threading.Condition(self._lock)
+        self._restoring: set[int] = set()
 
     @property
     def base_url(self) -> str:
@@ -101,43 +106,62 @@ class SnapshotClient:
         extra_body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         key = document_key(messages, min_chars=self._config.min_chars)
+        slot = self._slot_for(extra_body)
+        key_id = key or ""
+        self._enter(slot, key_id)
+        self._wait_slot_idle(slot)
         status = "off"
         if key is not None:
             filename = self._filename(key)
             path = self._directory / filename
-            if key not in self._restored and path.exists():
-                status = self._try_restore(key, filename, path)
+            if path.exists() and self._acquire_restore(key, slot):
+                try:
+                    status = self._try_restore(key, filename, path, slot)
+                finally:
+                    self._release_restore(slot)
             else:
                 status = "miss"
 
-        data = self._inner.chat(
-            messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            stop=stop,
-            timeout_s=timeout_s,
-            extra_body=extra_body,
-        )
+        try:
+            data = self._inner.chat(
+                messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                stop=stop,
+                timeout_s=timeout_s,
+                extra_body=extra_body,
+            )
+        finally:
+            self._leave(slot, key_id)
         if key is not None:
             path = self._directory / self._filename(key)
-            if (
-                not path.exists()
-                and key not in self._saved
-                and status not in {"save", "error"}
-            ):
-                with self._lock:
-                    launch = key not in self._inflight
+            if not path.exists() and status not in {"save", "error"}:
+                with self._restore_cond:
+                    launch = (
+                        key not in self._saved
+                        and key not in self._inflight
+                        and self._active.get(slot, 0) == 0
+                        and slot not in self._restoring
+                    )
                     if launch:
                         self._inflight.add(key)
+                        self._restoring.add(slot)
                 if launch:
                     status = "save"
                     thread = threading.Thread(
                         target=self._save_async,
-                        args=(key, self._filename(key)),
+                        args=(key, self._filename(key), slot),
                         name=f"jev-kv-save-{self._namespace}",
                         daemon=True,
                     )
-                    thread.start()
+                    try:
+                        thread.start()
+                    except RuntimeError:
+                        with self._restore_cond:
+                            self._inflight.discard(key)
+                            self._restoring.discard(slot)
+                            self._restore_cond.notify_all()
+                        status = "error"
         if isinstance(data, dict) and status != "off":
             data["_jev_snapshot"] = status
         return data
@@ -162,20 +186,75 @@ class SnapshotClient:
             extra_body=extra_body,
         )
 
+    def _slot_for(self, extra_body: dict[str, Any] | None) -> int:
+        if self._config.per_request_slot and extra_body is not None:
+            requested = extra_body.get("id_slot")
+            if isinstance(requested, int) and requested >= 0:
+                return requested
+        return self._config.slot_id
+
+    def _enter(self, slot: int, key: str) -> None:
+        with self._lock:
+            self._active[slot] = self._active.get(slot, 0) + 1
+            pair = (slot, key)
+            self._active_keys[pair] = self._active_keys.get(pair, 0) + 1
+
+    def _leave(self, slot: int, key: str) -> None:
+        with self._lock:
+            remaining = self._active.get(slot, 0) - 1
+            if remaining <= 0:
+                self._active.pop(slot, None)
+            else:
+                self._active[slot] = remaining
+            pair = (slot, key)
+            key_remaining = self._active_keys.get(pair, 0) - 1
+            if key_remaining <= 0:
+                self._active_keys.pop(pair, None)
+            else:
+                self._active_keys[pair] = key_remaining
+
+    def _wait_slot_idle(self, slot: int) -> None:
+        """等待该槽的异步保存/恢复结束，避免新请求读到半写快照。"""
+        with self._restore_cond:
+            while slot in self._restoring:
+                self._restore_cond.wait(timeout=30.0)
+
+    def _acquire_restore(self, key: str, slot: int) -> bool:
+        """仅当该槽只承载当前请求时恢复；同槽其它在途请求一律跳过。"""
+        with self._restore_cond:
+            while slot in self._restoring:
+                self._restore_cond.wait(timeout=30.0)
+            if (key, slot) in self._restored:
+                return False
+            other_document = any(
+                active_slot == slot and active_key != key and count > 0
+                for (active_slot, active_key), count in self._active_keys.items()
+            )
+            if other_document:
+                return False
+            self._restoring.add(slot)
+            return True
+
+    def _release_restore(self, slot: int) -> None:
+        with self._restore_cond:
+            self._restoring.discard(slot)
+            self._restore_cond.notify_all()
+
     def _filename(self, key: str) -> str:
         return f"{self._namespace}-{key[:32]}.bin"
 
-    def _try_restore(self, key: str, filename: str, path: Path) -> str:
+    def _try_restore(
+        self, key: str, filename: str, path: Path, slot: int
+    ) -> str:
         try:
-            result = self._inner.slot_restore(
-                filename, slot_id=self._config.slot_id
-            )
+            result = self._inner.slot_restore(filename, slot_id=slot)
         except JevProtocolError as exc:
-            logger.warning("KV 快照恢复失败，删除并回退正常 prefill：%s", exc)
-            try:
-                path.unlink(missing_ok=True)
-            except OSError:
-                pass
+            logger.warning("KV 快照恢复失败，回退正常 prefill：%s", exc)
+            if not self._config.per_request_slot:
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    pass
             return "error"
         except Exception as exc:  # noqa: BLE001 - 任何快照异常都不得阻断正常请求
             logger.warning("KV 快照恢复异常，回退正常 prefill：%s", exc)
@@ -183,18 +262,19 @@ class SnapshotClient:
         if result.get("n_restored", 0) <= 0:
             return "error"
         with self._lock:
-            self._restored.add(key)
+            self._restored.add((key, slot))
         logger.info(
-            "KV 快照已恢复 namespace=%s tokens=%s restore_ms=%s",
+            "KV 快照已恢复 namespace=%s slot=%s tokens=%s restore_ms=%s",
             self._namespace,
+            slot,
             result.get("n_restored"),
             (result.get("timings") or {}).get("restore_ms"),
         )
         return "restore"
 
-    def _save_async(self, key: str, filename: str) -> None:
+    def _save_async(self, key: str, filename: str, slot: int) -> None:
         try:
-            result = self._inner.slot_save(filename, slot_id=self._config.slot_id)
+            result = self._inner.slot_save(filename, slot_id=slot)
             n_saved = int(result.get("n_saved", 0))
             if n_saved <= 0:
                 logger.warning("KV 快照保存未写入 token：%s", filename)
@@ -202,8 +282,9 @@ class SnapshotClient:
             with self._lock:
                 self._saved.add(key)
             logger.info(
-                "KV 快照已保存 namespace=%s file=%s tokens=%s save_ms=%s",
+                "KV 快照已保存 namespace=%s slot=%s file=%s tokens=%s save_ms=%s",
                 self._namespace,
+                slot,
                 filename,
                 n_saved,
                 (result.get("timings") or {}).get("save_ms"),
@@ -212,19 +293,37 @@ class SnapshotClient:
         except Exception as exc:  # noqa: BLE001 - 后台保存失败不影响请求
             logger.warning("KV 快照后台保存失败 %s：%s", filename, exc)
         finally:
-            with self._lock:
+            with self._restore_cond:
                 self._inflight.discard(key)
+                self._restoring.discard(slot)
+                self._restore_cond.notify_all()
 
     def _evict(self) -> None:
-        files = sorted(
-            self._directory.glob(f"{self._namespace}-*.bin"),
-            key=lambda item: item.stat().st_mtime,
-        )
-        for stale in files[: max(0, len(files) - self._config.max_entries)]:
+        files: list[tuple[float, Path]] = []
+        for item in self._directory.glob(f"{self._namespace}-*.bin"):
             try:
-                stale.unlink()
+                files.append((item.stat().st_mtime, item))
             except OSError:
                 continue
+        files.sort(key=lambda entry: entry[0])
+        stale = files[: max(0, len(files) - self._config.max_entries)]
+        stale_names = {item.name for _mtime, item in stale}
+        for _mtime, item in stale:
+            try:
+                item.unlink()
+            except OSError:
+                continue
+        if not stale_names:
+            return
+        with self._lock:
+            self._saved = {
+                key for key in self._saved if self._filename(key) not in stale_names
+            }
+            self._restored = {
+                (key, slot)
+                for key, slot in self._restored
+                if self._filename(key) not in stale_names
+            }
 
 
 @dataclass

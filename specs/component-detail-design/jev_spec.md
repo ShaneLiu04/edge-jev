@@ -338,7 +338,8 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
 ## 24 AR019 PPKS：持久化前缀 KV 快照
 
 - **开关**：`[cerebrum] kv_snapshot_dir`（默认空=关）、`kv_snapshot_max_entries`、
-  `kv_snapshot_min_chars`、`kv_snapshot_slot`；启用时要求 `parallel=1`。
+  `kv_snapshot_min_chars`、`kv_snapshot_slot`；单槽实现使用 `parallel=1`，
+  多槽由 AR023 MSPP 扩展。
 - **实现**：manager 传 `--slots --slot-save-path`；`SnapshotClient` 以
   “模型/上下文指纹 + 压缩后文档 sha256”为键，首次请求后异步 `slot_save`，
   同文档首请求 `slot_restore`；LRU 限制、损坏删除并回退普通 prefill；
@@ -387,5 +388,16 @@ class AssetFetcher: fetch(name, force=False) -> Path; verify(name) -> bool
   `ScheduledClient` 透明注入 extra_body，chat/stream 语义不变。
 - **实测**：并发 4：parallel4 auto 1.86x 吞吐；parallel2 scheduled 1.22x
   （同配置 auto 0.99x），quality 1.0；真实两 slot 集成通过。
-- **约束**：parallel 分割 ctx（实验 16384）；与 PPKS 互斥并 fail-fast。
+- **约束**：parallel 分割 ctx（实验 16384）；单槽 PPKS 仍固定 slot 0。
 - **回退**：parallel=1 + scheduler off；吞吐档/亲和档见 profiles。
+
+## 28 AR023 MSPP：多槽持久化前缀快照
+
+- **开关**：`kv_snapshot_dir` + `slot_scheduler_enabled` 同时启用即进入多槽模式；
+  单槽仍用 `kv_snapshot_slot`。
+- **实现**：`SnapshotClient` 从 `extra_body.id_slot` 取槽；按 `(document, slot)`
+  记录恢复状态；同槽恢复串行；忙槽跳过保存；恢复失败回退正常 prefill。
+- **可靠性**：`LlamaServerManager` 持续排空 stderr，避免长跑日志填满管道阻塞。
+- **实测**：parallel4+scheduler+MSPP 冷启动 20.96s→**3.12s（6.7x）**，
+  restore=4，steady P50 0.90–1.05s，quality 1.0。
+- **回退**：关闭快照或调度即回到 AR019/AR022。

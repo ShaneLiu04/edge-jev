@@ -11,9 +11,11 @@ import json
 import logging
 import os
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
+from collections import deque
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any
@@ -32,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 _PROBE_INTERVAL_S = 0.5
 _STDERR_TAIL_CHARS = 400
+_STDERR_TAIL_LINES = 200
 
 
 class LlamaServerManager:
@@ -64,6 +67,9 @@ class LlamaServerManager:
         self._extra_args = tuple(extra_args or ())
         self._slot_save_path = Path(slot_save_path) if slot_save_path else None
         self._proc: subprocess.Popen | None = None
+        self._stderr_lines: deque[str] = deque(maxlen=_STDERR_TAIL_LINES)
+        self._stderr_lock = threading.Lock()
+        self._stderr_thread: threading.Thread | None = None
 
     @property
     def base_url(self) -> str:
@@ -146,6 +152,7 @@ class LlamaServerManager:
                 except subprocess.TimeoutExpired:
                     logger.error("llama-server pid=%s 强杀后仍未退出", proc.pid)
         self._close_pipes(proc)
+        self._stop_stderr_drain()
         self._proc = None
 
     def __enter__(self) -> "LlamaServerManager":
@@ -192,8 +199,9 @@ class LlamaServerManager:
                 env=self._spawn_env(),
             )
         except OSError as exc:
-            raise BrainStartupError(f"llama-server 可执行文件无法启动（{cmd[0]}）: {exc}") from exc
+            raise BrainStartupError(f"llama-server 可执行文件无法启动（{cmd[0]}）：{exc}") from exc
 
+        self._start_stderr_drain(proc)
         deadline = time.monotonic() + self._probe_timeout_s
         while time.monotonic() < deadline:
             # 子进程先于探测窗口退出 → 立即转入诊断，不空等超时
@@ -205,6 +213,38 @@ class LlamaServerManager:
                 return
             time.sleep(_PROBE_INTERVAL_S)
         raise self._startup_failure(proc)
+
+    def _start_stderr_drain(self, proc: subprocess.Popen) -> None:
+        """持续排空 stderr，避免长跑日志填满管道导致 llama-server 阻塞。"""
+        self._stderr_lines.clear()
+        thread = threading.Thread(
+            target=self._drain_stderr,
+            args=(proc,),
+            name=f"jev-llama-stderr-{proc.pid}",
+            daemon=True,
+        )
+        self._stderr_thread = thread
+        thread.start()
+
+    def _drain_stderr(self, proc: subprocess.Popen) -> None:
+        stream = proc.stderr
+        if stream is None:
+            return
+        try:
+            for raw in iter(stream.readline, b""):
+                line = raw.decode("utf-8", "replace").rstrip()
+                if not line:
+                    continue
+                with self._stderr_lock:
+                    self._stderr_lines.append(line)
+                logger.debug("llama-server: %s", line)
+        except (OSError, ValueError):
+            return
+
+    def _stderr_text(self) -> str:
+        with self._stderr_lock:
+            text = "\n".join(self._stderr_lines)
+        return text[-_STDERR_TAIL_CHARS:]
 
     def _spawn_env(self) -> dict[str, str]:
         """子进程环境：llama-server 预编译包不自带 cudart（bin/ 与 cudart/ 分离
@@ -226,24 +266,26 @@ class LlamaServerManager:
 
     def _startup_failure(self, proc: subprocess.Popen) -> BrainStartupError:
         """构造携带诊断信息的启动失败：退出码 + stderr 尾部；清理残留进程。"""
-        if proc.poll() is None:
+        timed_out = proc.poll() is None
+        if timed_out:
             proc.kill()
             try:
                 proc.wait(timeout=5.0)
             except subprocess.TimeoutExpired:
                 pass
-            self._close_pipes(proc)
-            return BrainStartupError(
-                f"llama-server 健康探测超时（>{self._probe_timeout_s}s）: "
+        thread = self._stderr_thread
+        if thread is not None:
+            thread.join(timeout=1.0)
+            self._stderr_thread = None
+        self._close_pipes(proc)
+        tail = self._stderr_text()
+        if timed_out:
+            message = (
+                f"llama-server 健康探测超时（>{self._probe_timeout_s}s）： "
                 f"{self.base_url}{self._startup_probe} 未就绪，已清理进程 pid={proc.pid}"
             )
-        try:
-            _stdout, stderr = proc.communicate(timeout=2.0)
-        except (subprocess.TimeoutExpired, OSError, ValueError):
-            stderr = None
-        self._close_pipes(proc)
-        tail = (stderr or b"").decode("utf-8", "replace").strip()[-_STDERR_TAIL_CHARS:]
-        message = f"llama-server 启动失败 exit={proc.returncode}"
+        else:
+            message = f"llama-server 启动失败 exit={proc.returncode}"
         if tail:
             message = f"{message} stderr 尾部: {tail}"
         return BrainStartupError(message)
@@ -257,11 +299,19 @@ class LlamaServerManager:
                 except OSError:
                     pass
 
+    def _stop_stderr_drain(self) -> None:
+        thread = self._stderr_thread
+        if thread is None:
+            return
+        thread.join(timeout=1.0)
+        self._stderr_thread = None
+
     def _close_dead_pipes(self) -> None:
         """已被外部杀死/前次失败遗留的 Popen 关闭管道，避免句柄泄漏。"""
         old = self._proc
         if old is not None and old.poll() is not None:
             self._close_pipes(old)
+            self._stop_stderr_drain()
             self._proc = None
 
 

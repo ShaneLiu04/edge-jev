@@ -167,19 +167,22 @@ def test_snapshot_config_validation() -> None:
         SnapshotConfig(enabled=True, directory=Path("."), slot_id=-1)
 
 
-def test_build_snapshot_config_default_off_and_parallel_guard(tmp_path: Path) -> None:
+def test_build_snapshot_config_default_off_and_parallel_compatible(
+    tmp_path: Path,
+) -> None:
     from jev.kernel.kernel import _build_snapshot_config
 
     assert not _build_snapshot_config({}).enabled
-    with pytest.raises(JevProtocolError, match="parallel=1"):
-        _build_snapshot_config(
-            {
-                "cerebrum": {
-                    "kv_snapshot_dir": str(tmp_path / "snap"),
-                    "parallel": 2,
-                }
+    parallel = _build_snapshot_config(
+        {
+            "cerebrum": {
+                "kv_snapshot_dir": str(tmp_path / "snap"),
+                "parallel": 2,
             }
-        )
+        }
+    )
+    assert parallel.enabled
+    assert parallel.slot_id == 0
     enabled = _build_snapshot_config(
         {"cerebrum": {"kv_snapshot_dir": str(tmp_path / "snap")}}
     )

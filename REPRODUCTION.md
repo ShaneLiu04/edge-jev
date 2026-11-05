@@ -351,9 +351,33 @@ uv run python scripts/bench_concurrency.py
 
 - `parallel=N` 会把 ctx 均分给 N 个 slot；共享文档压缩后按每槽容量配置 ctx；
 - `slot_scheduler_enabled=true` 时同一文档按独立计数器轮转 `id_slot`；
-- 与 PPKS 互斥（PPKS 需 parallel=1）；同时启用会 fail-fast；
+- 单槽 PPKS 仍固定 slot 0；并发冷启动用 AR023 MSPP（见 §2.15）；
 - 真实结果：parallel4 auto 1.86x 吞吐，parallel2 scheduled 1.22x（auto 0.99x）；
 - 服务器显存不足时降低 N/ctx；14B 未本机实测，不得虚构。
+
+### 2.15 AR023 MSPP：多槽持久化前缀快照
+
+```bash
+# 真实冷重启 + 并发 4（GPU 默认 99 层）
+uv run python scripts/bench_multislot_snapshot.py
+
+# 无 GPU / 显存不足
+$env:JEV_AR023_GPU_LAYERS="0"          # PowerShell
+JEV_AR023_GPU_LAYERS=0 uv run python scripts/bench_multislot_snapshot.py  # bash
+
+# 缩短冒烟（2 题）
+$env:JEV_AR023_QUESTIONS="2"
+```
+
+- 流程：每个模式预热保存快照 → 停止 llama-server → 重启 → 冷启动第一轮 → 稳态第二轮；
+- 对比模式：parallel1、parallel1+MSPP、parallel4 auto、parallel4 scheduler、
+  parallel4 scheduler+MSPP；
+- 生产档：`configs/profiles/latency-best-gpu-mspp.toml`；
+- 实验档：`configs/experiments/ar023-mspp.toml`（矩阵稳态非回归）；
+- 真实 GPU 12 题：冷启动 20.96s→**3.12s（6.7x）**，restore=4，steady P50 0.90–1.05s，
+  quality 1.0；
+- 快照目录默认 `data/kv_snapshots/mspp`（gitignored）；首次运行无快照时正常 prefill；
+- 关闭 `kv_snapshot_dir` 或 `slot_scheduler_enabled` 即回退 AR019/AR022。
 
 ## 3. 实验口径
 

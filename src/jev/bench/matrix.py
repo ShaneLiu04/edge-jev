@@ -378,19 +378,8 @@ def _snapshot_config(config: MatrixConfig) -> SnapshotConfig:
         directory=directory,
         max_entries=config.kv_snapshot_max_entries,
         min_chars=config.kv_snapshot_min_chars,
+        per_request_slot=config.slot_scheduler_enabled,
     )
-
-
-def _validate_snapshot_scheduler(
-    config: MatrixConfig, snapshot_config: SnapshotConfig
-) -> None:
-    """AR022：快照固定 slot 0，必须单槽，且不能与轮转调度叠加。"""
-    if not snapshot_config.enabled:
-        return
-    if config.parallel != 1:
-        raise JevProtocolError("KV 快照需要 parallel=1")
-    if config.slot_scheduler_enabled:
-        raise JevProtocolError("KV 快照与 slot_scheduler 不能同时启用")
 
 
 def _snapshot_namespace(
@@ -687,7 +676,6 @@ def run_matrix(
 ) -> dict:
     config = load_matrix_config(config_path)
     snapshot_config = _snapshot_config(config)
-    _validate_snapshot_scheduler(config, snapshot_config)
     questions = _load_questions(config)
     limit = config.limit if limit is None else limit
     if limit > 0:

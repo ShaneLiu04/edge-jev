@@ -207,10 +207,6 @@ class Kernel(CerebellumBackend):
         snapshot_namespace_small = _snapshot_namespace(config, small=True)
         extractor = _build_extractor(config)
         slot_scheduler = _build_slot_scheduler(config)
-        if snapshot_config.enabled and slot_scheduler.enabled:
-            raise JevProtocolError(
-                "kv_snapshot_dir 与 slot_scheduler_enabled 不能同时启用"
-            )
         ledger = _build_ledger(config)
         cascade_cfg = config.get("cascade", {})
         laya_cfg = cerebellum_cfg.get("laya_onnx", {})
@@ -586,12 +582,10 @@ def _build_extractor(config: dict) -> GroundedExtractor:
 
 
 def _build_snapshot_config(config: dict) -> SnapshotConfig:
-    """[cerebrum] AR019 快照配置；默认关闭，启用时校验 parallel=1。"""
+    """[cerebrum] AR019/AR023 快照配置；默认关闭，调度开启时按请求槽工作。"""
     cerebrum_cfg = config.get("cerebrum") or {}
     raw_dir = str(cerebrum_cfg.get("kv_snapshot_dir", "") or "").strip()
     enabled = bool(raw_dir)
-    if enabled and int(cerebrum_cfg.get("parallel", 1)) != 1:
-        raise JevProtocolError("kv_snapshot_dir 仅支持 parallel=1（slot 0）")
     directory = _cerebrum_path(raw_dir) if raw_dir else None
     if directory is not None:
         if directory.exists() and not directory.is_dir():
@@ -603,6 +597,7 @@ def _build_snapshot_config(config: dict) -> SnapshotConfig:
         max_entries=int(cerebrum_cfg.get("kv_snapshot_max_entries", 4)),
         min_chars=int(cerebrum_cfg.get("kv_snapshot_min_chars", 1000)),
         slot_id=int(cerebrum_cfg.get("kv_snapshot_slot", 0)),
+        per_request_slot=bool(cerebrum_cfg.get("slot_scheduler_enabled", False)),
     )
 
 
