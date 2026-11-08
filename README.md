@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/cover.png" alt="Jev — 端侧快慢双系统 AI 运行时" width="100%">
+</p>
+
 # Jev（捷思）— 端侧快慢双系统 AI 运行时
 
 > **System 1（小脑）+ System 2（大脑）** 的全本地双系统运行时：类型化决策、级联路由、风险可控降级、前缀/KV 复用、稳定压缩、双脑接地、确定性快答与可复现实验矩阵。
@@ -456,7 +460,6 @@ scripts/                PPKS / 并发 / MSPP 多槽快照专项脚本
 | [REPRODUCTION.md](REPRODUCTION.md) | 从零复现、服务器 7B/14B |
 | [specs/component-detail-design/jev_spec.md](specs/component-detail-design/jev_spec.md) | 组件详细设计 |
 | [specs/archive/](specs/archive/) | 已归档 AR 的 srs/design/tasks/st-cases |
-| [AGENTS.md](AGENTS.md) | 开发规约与测试纪律 |
 
 ## 诚实边界
 

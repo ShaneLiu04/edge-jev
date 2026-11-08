@@ -29,3 +29,6 @@ data/kv_snapshots/
 Thumbs.db
 .DS_Store
 benchmarks/results/**/kv_snapshots/
+
+# 本地代理规约（不同步到 GitHub）
+AGENTS.md
